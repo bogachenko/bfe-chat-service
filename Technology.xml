@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<TECHNOLOGY id="TECH-BFE-CHAT-001" stage="TechnologyCandidates" status="PARTIAL_APPROVED_PENDING_DECISIONS" requirements_source="RequirementsAnalysis.xml" requirements_status="HUMAN_APPROVED">
-  <SCOPE>TechnologyCandidates утверждённого Backend BFE Chat Service. Centrifuge и Go утверждены командным центром; точные версии и остальные технологии пока являются кандидатами. Архитектура не определяется.</SCOPE>
+<TECHNOLOGY id="TECH-BFE-CHAT-001" stage="TechnologyCandidates" status="STACK_APPROVED_INTEGRATIONS_PENDING" requirements_source="RequirementsAnalysis.xml" requirements_status="HUMAN_APPROVED">
+  <SCOPE>TechnologyCandidates утверждённого Backend BFE Chat Service. Go, Centrifuge, PostgreSQL, pgx, goose и net/http с точными версиями утверждены командным центром; интеграции BFE Auth, BFE Audit и эксплуатационные условия ещё исследуются. Архитектура не определяется.</SCOPE>
   <ANALYSIS>
     <NEED id="TN-001" refs="GOAL-CHAT-001 UF-CHAT-001">Среда исполнения и язык для отдельного Backend-сервиса, согласованные с существующей экосистемой BFE.</NEED>
-    <NEED id="TN-002" refs="BR-010 BR-018 AC-004 AC-014">Технологии доставки сообщений активным подключениям и последующего получения при отключении; встраиваемая библиотека Centrifuge утверждена для real-time, её точная версия требует утверждения.</NEED>
+    <NEED id="TN-002" refs="BR-010 BR-018 AC-004 AC-014">Технологии доставки сообщений активным подключениям и последующего получения при отключении; встраиваемая библиотека Centrifuge утверждена для real-time, версия v0.39.3 утверждена.</NEED>
     <NEED id="TN-003" refs="BR-001 BR-012 BR-020 BR-021 DOC-003 DOC-011">Долговременное сохранение единой истории пользователя, сообщений и их необязательного документного контекста.</NEED>
     <NEED id="TN-004" refs="BR-022 BR-023 BR-024 AC-019 AC-020 AC-021">Технологии, позволяющие обеспечивать идемпотентность логической отправки и корректное определение прав и получателя при конкурентных изменениях.</NEED>
     <NEED id="TN-005" refs="BR-006 BR-013 BR-019 BR-026 AC-023 EXT-AUTH">Совместимость с существующей идентичностью, актуальными состояниями учётных записей и запретом защищённых операций при неподтверждённых полномочиях.</NEED>
@@ -26,14 +26,18 @@
   </UNRESOLVED_CONSTRAINTS>
   <EXCLUSIONS>WebGL, WebGPU, AR и форматы 3D-моделей не являются технологическими потребностями утверждённого Backend текстового чата.</EXCLUSIONS>
   <APPROVED_TECHNOLOGIES>
-    <TECH id="TD-001" refs="TN-001 TN-002 BR-010 BR-018" decision="APPROVED" name="Go" version="TO_BE_APPROVED" license="BSD-3-Clause" repository="https://github.com/golang/go">Язык Go утверждён в качестве основы встраиваемой Centrifuge. Точная версия требует решения командного центра; текущий BFE Drive использует Go 1.26.9.</TECH>
-    <TECH id="TD-002" refs="TN-002 BR-010 BR-018 AC-004 AC-014" decision="APPROVED" name="Centrifuge" version_candidate="v0.39.3" version_status="PROPOSED" license="MIT" repository="https://github.com/centrifugal/centrifuge">Встраиваемая Go-библиотека для WebSocket, подключений, подписок и доставки; не владеет бизнес-данными Chat Service. Отдельный Centrifugo не используется. Версия v0.39.3 опубликована 2026-09-30 и требует Go не ниже 1.26.0.</TECH>
+    <TECH id="TD-001" refs="TN-001 TN-002 BR-010 BR-018" decision="APPROVED" name="Go" version="1.27.2" license="BSD-3-Clause" repository="https://github.com/golang/go">Язык Go утверждён в качестве основы встраиваемой Centrifuge. Версия Go 1.27.2 утверждена командным центром; BFE Drive использует 1.26.9, совпадение toolchain не требуется.</TECH>
+    <TECH id="TD-002" refs="TN-002 BR-010 BR-018 AC-004 AC-014" decision="APPROVED" name="Centrifuge" version="v0.39.3" version_status="APPROVED" license="MIT" repository="https://github.com/centrifugal/centrifuge">Встраиваемая Go-библиотека для WebSocket, подключений, подписок и доставки; не владеет бизнес-данными Chat Service. Отдельный Centrifugo не используется. Версия v0.39.3 опубликована 2026-09-30 и требует Go не ниже 1.26.0.</TECH>
+    <TECH id="TD-003" refs="TN-003 TN-004 TN-010 BR-012 BR-023 BR-024" decision="APPROVED_TARGET_ENVIRONMENT_CHECK_PENDING" name="PostgreSQL" version="18.6" license="PostgreSQL" repository="https://github.com/postgres/postgres">Постоянное хранение, целостность и транзакционная согласованность; совместимость с фактическим окружением BFE до развертывания ещё должна быть проверена.</TECH>
+    <TECH id="TD-004" refs="TN-003 TN-004 TD-003" decision="APPROVED" name="pgx" version="v5.11.0" license="MIT" repository="https://github.com/jackc/pgx">Утверждённый Go-драйвер PostgreSQL.</TECH>
+    <TECH id="TD-005" refs="TN-003 TN-010 TD-003" decision="APPROVED" name="goose" version="v3.28.0" license="MIT" repository="https://github.com/pressly/goose">Утверждённая библиотека управления миграциями.</TECH>
+    <TECH id="TD-006" refs="TN-005 TN-008 TN-009" decision="APPROVED" name="net/http" version="Go 1.27.2 standard library" license="BSD-3-Clause" repository="https://github.com/golang/go">HTTP без стороннего фреймворка.</TECH>
   </APPROVED_TECHNOLOGIES>
   <REJECTED_TECHNOLOGIES>
     <TECH id="TR-001" refs="TN-002" name="Centrifugo">Отдельный сервер отклонён командным центром: лишняя эксплуатационная единица при выбранной встраиваемой библиотеке.</TECH>
     <TECH id="TR-002" refs="TN-002" name="Tinode">Отклонён командным центром для первого этапа.</TECH>
   </REJECTED_TECHNOLOGIES>
-  <TECHNOLOGY_CANDIDATES status="PENDING_COMMAND_CENTER_APPROVAL">
+  <TECHNOLOGY_CANDIDATES status="DECIDED_ARCHIVED_FOR_TRACEABILITY">
     <CANDIDATE id="TC-001" refs="TN-001 TN-002" name="Go 1.27.2" license="BSD-3-Clause" repository="https://github.com/golang/go" platforms="Linux macOS Windows">Актуальный поддерживаемый выпуск с исправлениями безопасности от 2026-10-08, удовлетворяет Go 1.26.0+ Centrifuge; отличается от BFE Drive Go 1.26.9.</CANDIDATE>
     <CANDIDATE id="TC-002" refs="TN-001 TN-002" name="Go 1.26.9" license="BSD-3-Clause" repository="https://github.com/golang/go" platforms="Linux macOS Windows">Соответствует зафиксированной версии BFE Drive и минимальным требованиям Centrifuge; снижает различие toolchain при эксплуатации.</CANDIDATE>
     <CANDIDATE id="TC-003" refs="TN-003 TN-004 TN-006 TN-010 BR-023 BR-024 BR-027" name="PostgreSQL 18.6" license="PostgreSQL" repository="https://github.com/postgres/postgres" platforms="Linux macOS Windows">Поддерживаемая версия SQL-хранилища с транзакциями и ограничениями целостности; требует подтверждения действующей версии PostgreSQL и политики независимого владения данными BFE.</CANDIDATE>
@@ -57,5 +61,15 @@
     <SOURCE id="SRC-007">https://github.com/bogachenko/bfe-drive/blob/main/go.mod</SOURCE>
   </SOURCE_REFERENCES>
   <DECISIONS status="PARTIAL">Утверждены: Go как язык, Centrifuge как встраиваемая real-time библиотека, отказ от Centrifugo и Tinode. Не утверждены версии и остальные кандидаты.</DECISIONS>
-  <NEXT_PACKAGE status="BLOCKED_UNTIL_APPROVAL">Командный центр выбирает точную версию Go, Centrifuge, PostgreSQL/pgx/goose и HTTP подход; после этого исследуются BFE Auth, BFE Audit, инфраструктура и клиентская совместимость без архитектуры.</NEXT_PACKAGE>
+  <INTEGRATION_RESEARCH status="INVESTIGATED_PENDING_COMMAND_CENTER_DECISION">
+    <FINDING id="IR-AUTH-01" refs="TN-005 TN-009 BR-006 BR-019 BR-026 EXT-AUTH" evidence="https://github.com/bogachenko/bfe-drive/blob/main/internal/auth/session.go">BFE Drive проверяет opaque access token через хеш и DPoP proof; установление session/account identity отделено от revalidation текущего состояния ACTIVE/ADMIN. Данные AccountID представлены UUID; межсервисный механизм безопасной проверки токена не установлен и не выбирается без отдельного решения.</FINDING>
+    <FINDING id="IR-AUTH-02" refs="TN-005 EXT-AUTH BR-004 BR-026" evidence="https://github.com/bogachenko/bfe-drive/blob/main/internal/auth/account_state.go">AccountStateResolved содержит AccountID, Login, ActivationStatus, AdministrativeStatus; существование способа получить актуальные сведения об активном администраторе для отдельного Chat Service не подтверждено.</FINDING>
+    <FINDING id="IR-AUDIT-01" refs="TN-006 BR-017 BR-027 EXT-AUDIT" evidence="https://github.com/bogachenko/bfe-drive/blob/main/contracts/modules/MOD-FILE-AUDIT.xml">В BFE Drive подтверждён специализированный аудит файловых операций и административная отчётность. Универсальный межсервисный приём событий просмотра чата не подтверждён. Нельзя объявлять существующий файловый аудит готовым интерфейсом BFE Audit.</FINDING>
+    <FINDING id="IR-INFRA-01" refs="TN-001 TN-003 TN-008" evidence="https://github.com/bogachenko/bfe-drive/blob/main/deploy/README.md">Текущее развёртывание BFE Drive предусматривает Ubuntu Server 24.04 VPS, PostgreSQL 18, systemd, Nginx, Certbot/Let's Encrypt, pgBackRest. Эти технологии уже существуют в экосистеме, но не утверждены автоматически как способ размещения Chat Service.</FINDING>
+    <QUESTION id="IQ-01" refs="IR-AUTH-01 IR-AUTH-02">Каким утверждённым способом Chat Service сможет проверить текущую сессию и полномочия, а также достоверно определить активного администратора, без копирования владения BFE Auth/Users?</QUESTION>
+    <QUESTION id="IQ-02" refs="IR-AUDIT-01 BR-017 BR-027">Какая существующая система BFE принимает внешние события административного просмотра чата и поддерживает один логический факт без дубликатов? Если такого интерфейса нет, потребуется отдельное решение о границе интеграции.</QUESTION>
+    <QUESTION id="IQ-03" refs="IR-INFRA-01 UC-001 UC-002">Допускается ли размещение Chat Service на существующей Ubuntu VPS и экземпляре PostgreSQL 18 (с собственными данными сервиса); достаточны ли ресурсы и совместимость PostgreSQL 18.6?</QUESTION>
+  </INTEGRATION_RESEARCH>
+  <DECISIONS status="STACK_APPROVED">Командным центром утверждены Go 1.27.2, Centrifuge v0.39.3, PostgreSQL 18.6 как целевая версия с проверкой среды, pgx v5.11.0, goose v3.28.0, net/http Go 1.27.2. Не утверждены детали Auth/Audit интеграций и развёртывания.</DECISIONS>
+  <NEXT_PACKAGE status="BLOCKED_UNTIL_APPROVAL">Командный центр рассматривает результаты исследования BFE Auth, Audit и инфраструктуры, принимает решения по IQ-01–IQ-03. Не переходить к DevelopmentPlan.xml.</NEXT_PACKAGE>
 </TECHNOLOGY>
