@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<REQUIREMENTS_ANALYSIS id="RA-BFE-CHAT-001" system="BFE Chat Service" status="PENDING_REVIEW" approval="NOT_APPROVED">
+<REQUIREMENTS_ANALYSIS id="RA-BFE-CHAT-001" system="BFE Chat Service" status="HUMAN_APPROVED" approval="HUMAN_APPROVED">
   <PURPOSE id="GOAL-CHAT-001">Обеспечить одну сохраняемую персональную текстовую переписку каждого пользователя BFE с действующим получателем (назначенным сотрудником либо активным администратором BFE по умолчанию), включая сообщения с контекстом документов BFE Drive.</PURPOSE>
   <USEFUL_FUNCTION id="UF-CHAT-001">Принимать и сохранять текстовые сообщения, предоставлять доступную историю, доставлять новые сообщения подключённым участникам и разрешать переписки согласно действующим назначениям.</USEFUL_FUNCTION>
   <BOUNDARIES>
@@ -242,5 +242,5 @@
     <DECISION id="Q-24" refs="BR-027">Один административный просмотр — одно логическое событие без дубликатов.</DECISION>
     <DECISION id="Q-25" refs="BR-026">Без подтверждённых полномочий защищённые операции запрещены.</DECISION>
   </APPROVED_DECISIONS_FINAL>
-  <APPROVAL_STATE>Все полученные решения Q-01–Q-18 и DOC-001–DOC-012 отражены; нормальные ветвления исключены из списка ошибок. Решения Q-19–Q-25 отражены; замечания P-01–P-08 устранены для повторной проверки. Документ по-прежнему не утверждён человеком. До утверждения RequirementsAnalysis переход к Technology.xml запрещён.</APPROVAL_STATE>
+  <APPROVAL_STATE>RequirementsAnalysis утверждён командным центром: HUMAN_APPROVED. Решения Q-01–Q-25 и DOC-001–DOC-012 согласованы; замечания P-01–P-08 закрыты. Разрешён переход к Technology.xml. Механизмы синхронизации переназначений и гарантированной передачи событий аудита определить на архитектурных этапах без изменения утверждённых бизнес-инвариантов.</APPROVAL_STATE>
 </REQUIREMENTS_ANALYSIS>
