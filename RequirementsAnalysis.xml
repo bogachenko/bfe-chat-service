@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<REQUIREMENTS_ANALYSIS id="RA-BFE-CHAT-001" system="BFE Chat Service" status="PENDING_HUMAN_REAPPROVAL" approval="PENDING_HUMAN_REAPPROVAL">
+<REQUIREMENTS_ANALYSIS id="RA-BFE-CHAT-001" system="BFE Chat Service" status="HUMAN_APPROVED" approval="HUMAN_APPROVED">
   <PURPOSE id="GOAL-CHAT-001">Обеспечить одну сохраняемую персональную текстовую переписку каждого пользователя BFE с явно заданным получателем (сотрудником либо администратором BFE), включая сообщения с контекстом документов BFE Drive.</PURPOSE>
   <USEFUL_FUNCTION id="UF-CHAT-001">Принимать и сохранять текстовые сообщения, предоставлять доступную историю, доставлять новые сообщения подключённым участникам и разрешать переписки согласно действующим назначениям.</USEFUL_FUNCTION>
   <BOUNDARIES>
@@ -249,5 +249,5 @@
   <REVISED_DECISIONS>
     <DECISION id="Q-26" refs="BR-004 BR-022 INV-005 INV-014 ERR-012 AC-019">Получатель хранится в Chat Service как обязательный recipient_account_id; UI всегда явно задаёт UUID. При снятии прежнего получателя UI обязан одновременно предоставить нового (в том числе администратора, если требуется), иначе операция отклоняется без изменения данных. Автоматического выбора администратора нет.</DECISION>
   </REVISED_DECISIONS>
-  <APPROVAL_STATE>Изменения Q-26 внесены по решению командного центра; Q-04, Q-13 и Q-20 в части автоматического fallback пересмотрены. Требуется повторное человеческое утверждение обновлённого RequirementsAnalysis.xml перед дальнейшим проектированием.</APPROVAL_STATE>
+  <APPROVAL_STATE>HUMAN_APPROVED: командный центр повторно утвердил RequirementsAnalysis.xml после изменения Q-26. Получатель назначается явно через административный UI, recipient_account_id обязателен; автоматический fallback на администратора исключён. Пересмотренные требования утверждены. Разрешено продолжить Technology.xml с учётом Q-26.</APPROVAL_STATE>
 </REQUIREMENTS_ANALYSIS>
