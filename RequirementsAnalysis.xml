@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<REQUIREMENTS_ANALYSIS id="RA-BFE-CHAT-001" system="BFE Chat Service" status="PENDING_HUMAN_REAPPROVAL" approval="PENDING_HUMAN_REAPPROVAL">
+<REQUIREMENTS_ANALYSIS id="RA-BFE-CHAT-001" system="BFE Chat Service" status="HUMAN_APPROVED" approval="HUMAN_APPROVED">
   <PURPOSE id="GOAL-CHAT-001">Обеспечить одну сохраняемую персональную текстовую переписку каждого пользователя BFE с явно заданным получателем (сотрудником либо администратором BFE), включая сообщения с контекстом документов BFE Drive.</PURPOSE>
   <USEFUL_FUNCTION id="UF-CHAT-001">Принимать и сохранять текстовые сообщения, предоставлять доступную историю, доставлять новые сообщения подключённым участникам и разрешать переписки согласно действующим назначениям.</USEFUL_FUNCTION>
   <BOUNDARIES>
@@ -242,5 +242,5 @@
     <DECISION id="Q-27" refs="BP-ADMIN-READ BR-015 PERM-04 AC-012">Не регистрировать, не хранить и не передавать события административного просмотра переписок ни в Chat Service, ни в BFE Drive.</DECISION>
     <DECISION id="Q-26" refs="BR-004 BR-022 INV-005 INV-014 ERR-012 AC-019">Получатель хранится в Chat Service как обязательный recipient_account_id; UI всегда явно задаёт UUID. При снятии прежнего получателя UI обязан одновременно предоставить нового (в том числе администратора, если требуется), иначе операция отклоняется без изменения данных. Автоматического выбора администратора нет.</DECISION>
   </REVISED_DECISIONS>
-  <APPROVAL_STATE>Изменение Q-27 об отмене регистрации административных просмотров внесено; ожидается повторное HUMAN_APPROVAL.</APPROVAL_STATE>
+  <APPROVAL_STATE>HUMAN_APPROVED: командный центр повторно утвердил RequirementsAnalysis.xml после решения Q-27. События административного просмотра переписок не регистрируются и не передаются в BFE Drive. Разрешено продолжать Technology.xml.</APPROVAL_STATE>
 </REQUIREMENTS_ANALYSIS>
