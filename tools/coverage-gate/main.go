@@ -20,7 +20,11 @@ func main() {
 	if err != nil {
 		fail(err.Error())
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			fail(err.Error())
+		}
+	}()
 
 	var allTotal, allCovered, criticalTotal, criticalCovered uint64
 	var criticalPresent bool
