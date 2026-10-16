@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <DEVELOPMENT_PLAN id="DP-BFE-CHAT-001" status="DRAFT_PENDING_HUMAN_APPROVAL" requirements_source="RequirementsAnalysis.xml" technology_source="Technology.xml">
-  <PURPOSE>Первый проект архитектурного графа GRACE. Требует HUMAN_APPROVED до контрактов и реализации.</PURPOSE>
+  <PURPOSE>Проект архитектурного графа GRACE: восемь предварительно согласованных модулей, вызовы, границы владения и последовательность работ. Требует HUMAN_APPROVED до контрактов и реализации.</PURPOSE>
   <MODULES>
     <MODULE id="DP-M01" refs="BR-013 BR-026">BFE Auth integration: внутренний UDS validate, проверка текущей сессии; проверка ADMIN для административных операций, DPoP на клиентских соединениях.</MODULE>
     <MODULE id="DP-M02" refs="BR-004 BR-022">Назначения: явный recipient_account_id, атомарная замена; без автоматического выбора администратора.</MODULE>
@@ -11,6 +11,59 @@
     <MODULE id="DP-M07" refs="BR-012 BR-023">PostgreSQL, pgx, goose: хранение, транзакции и миграции.</MODULE>
     <MODULE id="DP-M08" refs="EXT-CLIENTS EXT-ADMIN-UI">HTTP и WebSocket транспорт для Flutter Web, Android и административного UI.</MODULE>
   </MODULES>
+  <ARCHITECTURE_GRAPH status="PROPOSED_FOR_COMMAND_CENTER_REVIEW">
+    <BOUNDARIES>
+      <BOUNDARY id="DP-B01" owner="DP-M01">BFE Auth owns accounts, session lifecycle and ADMIN state. DP-M01 validates existing token via restricted Unix socket, independently verifies client DPoP and exposes request identity; it does not create accounts, tokens or sessions.</BOUNDARY>
+      <BOUNDARY id="DP-B02" owner="DP-M02">DP-M02 exclusively owns recipient assignment changes. Admin UI supplies an accountId selected from BFE Drive user list; assignment is stored in Chat Service, replacement is atomic and never automatic.</BOUNDARY>
+      <BOUNDARY id="DP-B03" owner="DP-M03">DP-M03 owns one conversation per user, message writes, idempotency and history. Persisting owner messages continues when the previously assigned recipient is blocked or deleted.</BOUNDARY>
+      <BOUNDARY id="DP-B04" owner="DP-M04">DP-M04 decides chat resource permissions using validated caller identity and current chat assignment. ADMIN is required only for administrative actions; audit-mode viewing remains read-only and never generates view-audit events.</BOUNDARY>
+      <BOUNDARY id="DP-B05" owner="DP-M05">DP-M05 owns transient connection/subscription/delivery state, not permanent messages or assignment. Centrifuge OnConnecting delegates token/DPoP validation to DP-M01 and permission checks to DP-M04.</BOUNDARY>
+      <BOUNDARY id="DP-B06" owner="DP-M06">DP-M06 validates and stores at most one provided document ID/title context per message; BFE Drive exclusively owns document content and its access controls.</BOUNDARY>
+      <BOUNDARY id="DP-B07" owner="DP-M07">DP-M07 is the sole persistence adapter for Chat Service data in PostgreSQL, including transactionally consistent assignment/message operations and migrations. No direct access to BFE Drive application tables is assumed.</BOUNDARY>
+      <BOUNDARY id="DP-B08" owner="DP-M08">DP-M08 owns external HTTP/WebSocket protocol boundaries only, not authentication policy, authorization decisions or business persistence.</BOUNDARY>
+    </BOUNDARIES>
+    <DEPENDENCIES convention="from-calls-to; runtime logical dependency, not Go import graph">
+      <EDGE id="DP-E01" from="DP-M08" to="DP-M01" kind="authenticate" />
+      <EDGE id="DP-E02" from="DP-M08" to="DP-M04" kind="authorize" />
+      <EDGE id="DP-E03" from="DP-M08" to="DP-M02" kind="admin-assignment" />
+      <EDGE id="DP-E04" from="DP-M08" to="DP-M03" kind="send-history" />
+      <EDGE id="DP-E05" from="DP-M01" to="EXT-AUTH" kind="uds-session-validation" />
+      <EDGE id="DP-E06" from="DP-M02" to="DP-M04" kind="authorize-admin-mutation" />
+      <EDGE id="DP-E07" from="DP-M02" to="DP-M07" kind="atomic-assignment" />
+      <EDGE id="DP-E08" from="DP-M03" to="DP-M04" kind="authorize-message-or-history" />
+      <EDGE id="DP-E09" from="DP-M03" to="DP-M02" kind="resolve-current-assignment" />
+      <EDGE id="DP-E10" from="DP-M03" to="DP-M06" kind="document-context" />
+      <EDGE id="DP-E11" from="DP-M03" to="DP-M07" kind="durable-message-transaction" />
+      <EDGE id="DP-E12" from="DP-M03" to="DP-M05" kind="post-commit-realtime" />
+      <EDGE id="DP-E13" from="DP-M04" to="DP-M01" kind="trusted-caller-identity" />
+      <EDGE id="DP-E14" from="DP-M04" to="DP-M02" kind="current-chat-assignment-for-acl" />
+      <EDGE id="DP-E15" from="DP-M05" to="DP-M01" kind="onconnecting-authenticate" />
+      <EDGE id="DP-E16" from="DP-M05" to="DP-M04" kind="subscribe-and-deliver-authorization" />
+      <EDGE id="DP-E17" from="DP-M06" to="DP-M07" kind="message-context-persistence" />
+      <EDGE id="DP-E18" from="DP-M07" to="PostgreSQL" kind="sql" />
+    </DEPENDENCIES>
+    <FLOWS>
+      <FLOW id="DP-F01" refs="BR-023 BR-024 BR-026">Flutter client - DP-M08 - DP-M01 - DP-M04 - DP-M03 - DP-M02/DP-M06 - DP-M07 commit - DP-M05 delivery; recipients are reauthorized against the current assignment, and no delivery precedes durable persistence.</FLOW>
+      <FLOW id="DP-F02" refs="BR-004 BR-022">Admin UI - DP-M08 - DP-M01 ADMIN - DP-M04 - DP-M02 - DP-M07 atomic assignment; former recipient loses access without rewriting history.</FLOW>
+      <FLOW id="DP-F03" refs="BR-015 BR-016 BR-026">Admin UI - DP-M08 - DP-M01 ADMIN - DP-M04 audit-read permission - DP-M03 - DP-M07; no view-audit event or sending permission is created.</FLOW>
+      <FLOW id="DP-F04" refs="BR-010 BR-018">Flutter Web/Android WebSocket - DP-M08 - DP-M05 OnConnecting - DP-M01 BFE token via UDS plus DPoP - DP-M04 subscription authorization; history is fetched from DP-M03/DP-M07 after reconnect.</FLOW>
+    </FLOWS>
+    <INTEGRATION_CONSTRAINTS>
+      <RULE>All eight modules belong to the single approved Go Chat Service process; graph edges are logical responsibilities and do not prescribe new network services.</RULE>
+      <RULE>Reuse approved Centrifuge, net/http, PostgreSQL, pgx and goose; do not add Redis, a separate broker, JWT, connection tickets or alternative Auth endpoints without new evidence and approval.</RULE>
+      <RULE>Protect the local BFE Auth Unix socket using approved OS access controls. Nginx and external HTTPS remain at the public ingress of the shared Ubuntu VPS.</RULE>
+      <RULE>Recipient blocking or deletion does not interrupt owner message persistence; the recipient is unable to authenticate through revoked sessions. A missing assignment still prevents sending.</RULE>
+    </INTEGRATION_CONSTRAINTS>
+  </ARCHITECTURE_GRAPH>
+  <IMPLEMENTATION_ORDER status="PLANNING_ONLY_NO_WORK_AUTHORIZED">
+    <PHASE id="DP-P01" depends_on="">After DevelopmentPlan approval, specify module boundaries and function contracts; independently validate authorization and ownership rules before implementation.</PHASE>
+    <PHASE id="DP-P02" depends_on="DP-P01">Specify storage schema, migration discipline, conversation/assignment integrity, transactional idempotency and concurrency behavior.</PHASE>
+    <PHASE id="DP-P03" depends_on="DP-P01 DP-P02">Specify BFE UDS Auth, ADMIN boundaries, DPoP OnConnecting, key binding, replay resistance and reconnection semantics.</PHASE>
+    <PHASE id="DP-P04" depends_on="DP-P02 DP-P03">Implement assignment, conversation, message, history and document context operations behind the reviewed contracts.</PHASE>
+    <PHASE id="DP-P05" depends_on="DP-P03 DP-P04">Implement Centrifuge subscriptions and post-commit delivery with authorization under reassignments; do not use its transient history as durable storage.</PHASE>
+    <PHASE id="DP-P06" depends_on="DP-P03 DP-P05">Run Flutter Web and Android integration tests for DPoP, replay, revoked sessions, reconnection and recipient access transitions.</PHASE>
+    <PHASE id="DP-P07" depends_on="DP-P04 DP-P05">Run approved acceptance checks; verify the shared VPS resource budget, PostgreSQL 18.6 compatibility, systemd, Nginx and socket permissions before deployment.</PHASE>
+  </IMPLEMENTATION_ORDER>
   <SEQUENCE>
     <STEP id="DP-S01" refs="BR-004 BR-022 BR-023">Согласовать контракты модулей, схему постоянных данных, атомарность назначений и идемпотентность.</STEP>
     <STEP id="DP-S02" refs="BR-026">Определить конкретную DPoP-проверку в Centrifuge OnConnecting: подпись, dpopJkt, ath, привязка proof к соединению, срок действия, replay и reconnect. Без JWT, новых сессий и билетов.</STEP>
