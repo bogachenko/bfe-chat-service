@@ -36,7 +36,7 @@
       <EDGE id="DP-E11" from="DP-M03" to="DP-M07" kind="durable-message-transaction" />
       <EDGE id="DP-E12" from="DP-M03" to="DP-M05" kind="post-commit-realtime" />
       <EDGE id="DP-E13" from="DP-M04" to="DP-M01" kind="trusted-caller-identity" />
-      <EDGE id="DP-E14" from="DP-M04" to="DP-M02" kind="current-chat-assignment-for-acl" />
+      <EDGE id="DP-E14" from="DP-M04" to="DP-M07" kind="read-authoritative-assignment-for-acl" />
       <EDGE id="DP-E15" from="DP-M05" to="DP-M01" kind="onconnecting-authenticate" />
       <EDGE id="DP-E16" from="DP-M05" to="DP-M04" kind="subscribe-and-deliver-authorization" />
       <EDGE id="DP-E17" from="DP-M06" to="DP-M07" kind="message-context-persistence" />
