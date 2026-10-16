@@ -23,9 +23,9 @@ import (
 )
 
 var (
-	ErrAuthInvalid   = errors.New("AUTH_INVALID")
+	ErrAuthInvalid     = errors.New("AUTH_INVALID")
 	ErrAuthUnavailable = errors.New("AUTH_UNAVAILABLE")
-	ErrProofInvalid  = errors.New("PROOF_INVALID")
+	ErrProofInvalid    = errors.New("PROOF_INVALID")
 )
 
 const driveSourceCommit = "9a33850a5456d8e3ff40f5cdab6ded869da7110f"
@@ -50,9 +50,9 @@ type replayKey struct {
 // Do not instantiate a fresh validator for each reconnect.
 type Validator struct {
 	httpClient *http.Client
-	freshness time.Duration
-	mu sync.Mutex
-	seen map[replayKey]time.Time
+	freshness  time.Duration
+	mu         sync.Mutex
+	seen       map[replayKey]time.Time
 }
 
 func NewValidator(socketPath string, freshness time.Duration) (*Validator, error) {
@@ -67,14 +67,14 @@ func NewValidator(socketPath string, freshness time.Duration) (*Validator, error
 	}
 	return &Validator{
 		httpClient: &http.Client{Transport: transport, Timeout: 3 * time.Second},
-		freshness: freshness,
-		seen: make(map[replayKey]time.Time),
+		freshness:  freshness,
+		seen:       make(map[replayKey]time.Time),
 	}, nil
 }
 
 type driveIdentity struct {
-	AccountID string `json:"accountId"`
-	DPoPJKT string `json:"dpopJkt"`
+	AccountID            string `json:"accountId"`
+	DPoPJKT              string `json:"dpopJkt"`
 	AdministrativeStatus string `json:"administrativeStatus"`
 }
 
@@ -128,11 +128,11 @@ func (v *Validator) ValidateOnConnecting(ctx context.Context, accessToken, proof
 }
 
 type proofClaims struct {
-	JTI string `json:"jti"`
-	Method string `json:"htm"`
-	URI string `json:"htu"`
+	JTI      string           `json:"jti"`
+	Method   string           `json:"htm"`
+	URI      string           `json:"htu"`
 	IssuedAt *jwt.NumericDate `json:"iat"`
-	ATH string `json:"ath"`
+	ATH      string           `json:"ath"`
 }
 
 var allowedAlgorithms = []jose.SignatureAlgorithm{
