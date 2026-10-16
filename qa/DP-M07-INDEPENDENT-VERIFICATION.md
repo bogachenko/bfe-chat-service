@@ -65,3 +65,25 @@ Baseline `b4bf51e`; QA HEAD before this report update: `e43fcacdb327ddbbc8cae87c
 - Report files: module-coverage.out, project-coverage.out, coverage-report.md, uploaded even if gate fails.
 - Production Quality Gate remains blocking. Thresholds and GRACE normative documents are unchanged.
 - Module PASS never implies Project PASS; statement coverage does not prove contract coverage.
+
+## Mutation gap audit — follow-up
+
+Prior five LIVED mutants are the five individual operand negations in `storage.go` input guards:
+`CommitMessage` line 26 owner/sender/key and `CommitAssignment` line 43 owner/recipient.
+These survived because Gremlins previously did not use the `integration` build tag:
+regular unit tests use a nil DB and therefore short-circuit before those operands.
+Existing real-DB integration tests are now included via `--tags integration`.
+`TestFC11FC12InvalidUUIDsAndFailedDB` adds direct observable failure checks
+with a non-nil `*sql.DB`, invalid UUIDs and closed database.
+
+MS-11 now exercises a real PostgreSQL backend disconnection with
+`pg_terminate_backend` while FC-12 holds an open transaction, asserting
+rollback, intact old assignment and idempotent recovery. This simulates lost
+backend connection, **not** an entire PostgreSQL service/container shutdown.
+All cases run against `postgres:18.6` through testcontainers.
+
+Mutation job now installs pinned QA dependencies and writes
+`mutation-storage.json`; it excludes unrelated production packages while
+mutating **all** handwritten FC-11/FC-12 storage code. No mutation score
+threshold was invented or lowered; surviving mutants remain audit items.
+Module and Project Quality Gates remain unchanged.

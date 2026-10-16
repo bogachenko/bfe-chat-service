@@ -202,3 +202,45 @@ func TestMS11CancelledWaitingSendLeavesNoPartialState(t *testing.T){
  msg:=send(t,s,402)
  if msg.Replayed||msg.RecipientID!=recipientA{t.Fatalf("retry=%+v",msg)}
 }
+
+func TestMS11BackendDisconnectRollsBackAndRetries(t *testing.T) {
+ db,s:=database(t)
+ assign(t,s,recipientA)
+ tx,err:=db.BeginTx(context.Background(),nil)
+ if err!=nil{t.Fatal(err)}
+ defer func(){_ =tx.Rollback()}()
+ var pid int
+ if err:=tx.QueryRow("SELECT pg_backend_pid()").Scan(&pid);err!=nil{t.Fatal(err)}
+ var recipient string
+ if err:=tx.QueryRow("SELECT recipient_account_id::text FROM chat_commit_assignment($1::uuid,$2::uuid)",owner,recipientB).Scan(&recipient);err!=nil{t.Fatal(err)}
+ if recipient!=recipientB{t.Fatalf("within transaction: %s",recipient)}
+ var killed bool
+ if err:=db.QueryRow("SELECT pg_terminate_backend($1)",pid).Scan(&killed);err!=nil{t.Fatal(err)}
+ if !killed{t.Fatal("backend was not terminated")}
+ if err:=tx.Commit();err==nil{t.Fatal("terminated transaction unexpectedly committed")}
+ var saved string
+ if err:=db.QueryRow("SELECT recipient_account_id::text FROM chat_assignments WHERE owner_account_id=$1",owner).Scan(&saved);err!=nil{t.Fatal(err)}
+ if saved!=recipientA{t.Fatalf("terminated transaction changed assignment: %s",saved)}
+ first:=send(t,s,700)
+ replay,err:=s.CommitMessage(context.Background(),owner,sender,k(700),"network retry",sql.NullString{},sql.NullString{})
+ if err!=nil{t.Fatal(err)}
+ if first.Replayed||!replay.Replayed||replay.ID!=first.ID||replay.RecipientID!=recipientA||rows(t,db,"chat_messages")!=1 {
+  t.Fatalf("retry after backend loss: first=%+v replay=%+v",first,replay)
+ }
+}
+func TestFC11FC12InvalidUUIDsAndFailedDB(t *testing.T){
+ db,s:=database(t)
+ tests:=[]struct{name string;run func()error}{
+  {"bad owner message",func()error{_,e:=s.CommitMessage(context.Background(),"invalid",sender,k(711),"text",sql.NullString{},sql.NullString{});return e}},
+  {"bad sender message",func()error{_,e:=s.CommitMessage(context.Background(),owner,"invalid",k(712),"text",sql.NullString{},sql.NullString{});return e}},
+  {"bad key message",func()error{_,e:=s.CommitMessage(context.Background(),owner,sender,"invalid","text",sql.NullString{},sql.NullString{});return e}},
+  {"bad owner assignment",func()error{return s.CommitAssignment(context.Background(),"invalid",recipientA)}},
+  {"bad recipient assignment",func()error{return s.CommitAssignment(context.Background(),owner,"invalid")}},
+ }
+ for _,tc:=range tests{t.Run(tc.name,func(t *testing.T){if err:=tc.run();err==nil{t.Fatal("invalid UUID accepted")}})}
+ if rows(t,db,"chat_messages")!=0||rows(t,db,"chat_conversations")!=0{t.Fatal("invalid UUIDs wrote rows")}
+ assign(t,s,recipientA)
+ if err:=db.Close();err!=nil{t.Fatal(err)}
+ if _,err:=s.CommitMessage(context.Background(),owner,sender,k(713),"message",sql.NullString{},sql.NullString{});err==nil{t.Fatal("closed DB allowed send")}
+ if err:=s.CommitAssignment(context.Background(),owner,recipientB);err==nil{t.Fatal("closed DB allowed assignment")}
+}
