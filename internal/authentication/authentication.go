@@ -229,9 +229,10 @@ func canonicalTarget(raw string, _ bool) (string, error) {
 		return "", ErrProofInvalid
 	}
 	port := u.Port()
-	if port != "" && port != "443" {
+	switch {
+	case port != "" && port != "443":
 		host = net.JoinHostPort(host, port)
-	} else if strings.Contains(host, ":") {
+	case strings.Contains(host, ":"):
 		host = "[" + host + "]"
 	}
 	path := u.EscapedPath()
