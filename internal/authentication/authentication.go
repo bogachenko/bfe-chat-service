@@ -80,7 +80,7 @@ type driveIdentity struct {
 // never exposed as trusted caller identity unless DPoP also verifies.
 func (v *Validator) ValidateCaller(ctx context.Context, accessToken, proof string, binding RequestBinding) (Caller, error) {
 	if v == nil || v.httpClient == nil || accessToken == "" || proof == "" ||
-		strings.ContainsAny(accessToken, " \\t\\r\\n") {
+		strings.ContainsAny(accessToken, " \t\r\n") {
 		return Caller{}, ErrAuthInvalid
 	}
 	identity, err := v.validateSession(ctx, accessToken)
