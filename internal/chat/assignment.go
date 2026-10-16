@@ -18,19 +18,20 @@ func (id AccountID) Valid() bool {
 	if len(s) != 36 {
 		return false
 	}
-	for i, ch := range s {
-		switch i {
-		case 8, 13, 18, 23:
-			if ch != '-' {
+	for i := 0; i < len(s); i++ {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			if s[i] != '-' {
 				return false
 			}
-		default:
-			if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') && (ch < 'A' || ch > 'F') {
-				return false
-			}
+		} else if !isHexDigit(s[i]) {
+			return false
 		}
 	}
 	return true
+}
+
+func isHexDigit(ch byte) bool {
+	return ch >= '0' && ch <= '9' || ch >= 'a' && ch <= 'f' || ch >= 'A' && ch <= 'F'
 }
 
 // Assignment captures an explicit recipient selection, never an automatic pick.
