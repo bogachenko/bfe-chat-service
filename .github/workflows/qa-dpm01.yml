@@ -54,8 +54,17 @@ jobs:
           cache: false
       - name: Build Chat QA probe
         run: go build -o "$RUNNER_TEMP/chat-auth-probe" ./qa/driveauthprobe
+      - name: Require cross-repository BFE Drive read-only token
+        env:
+          BFE_DRIVE_READ_TOKEN: ${{ secrets.BFE_DRIVE_READ_TOKEN }}
+        run: |
+          if [ -z "$BFE_DRIVE_READ_TOKEN" ]; then
+            echo "::error::BFE_DRIVE_READ_TOKEN is required for real BFE Drive UDS E2E (private repository)."
+            exit 1
+          fi
       - uses: actions/checkout@v5
         with:
+          token: ${{ secrets.BFE_DRIVE_READ_TOKEN }}
           repository: bogachenko/bfe-drive
           ref: 9a33850a5456d8e3ff40f5cdab6ded869da7110f
           path: bfe-drive
