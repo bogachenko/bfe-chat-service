@@ -16,7 +16,17 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
+      - name: Restore pinned Go tools cache
+        id: tools-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/bin
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-tools-ubuntu-24.04-go1.27.2-v4-lint2.14.0-gosec2.29.0-vuln1.9.0-dupl1.1.0-cyclop1.2.3-gremlins0.6.0-x-tools0.52.0
       - name: Install pinned tools
+        if: steps.tools-cache.outputs.cache-hit != 'true'
         run: |
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
           # Build gosec with Go 1.27-compatible x/tools instead of its older transitive version.
@@ -43,6 +53,8 @@ jobs:
           rm -rf "$cyclop_tmp"
           go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Add cached tools to PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Blocking Go quality gates
         run: make quality
       - name: Changed-code mutation on PR
