@@ -1,3 +1,30 @@
+# Command Center decision — FINAL (2026-10-16)
+
+**DP-M07 (FC-11/FC-12) Independent Verification: APPROVED by Command Center.**
+
+**Verification target:** `fadedf1977470f66e6647ce7bb1136a113485583` (test-only changes; no production code changes).
+
+**Module-level tester verdict: PASS**, as confirmed by [DP-M07 QA workflow #38944786781](https://github.com/bogachenko/bfe-chat-service/actions/runs/38944786781):
+
+| QA check | Verified result |
+| --- | --- |
+| PostgreSQL 18.6 through testcontainers; Goose migrations | PASS |
+| FC-11/FC-12 integration, regression, concurrent assignment and retries (MS-05, MS-07, MS-11) | PASS |
+| Backend termination of in-flight transaction, rollback and idempotent recovery | PASS |
+| Property-based tests and Go race detector | PASS |
+| Module Coverage `internal/storage` | 100.00% statements; 80% minimum PASS |
+| Gremlins v0.6.0 with `--tags integration`, scoped to `internal/storage` | **8 killed, 0 survived, 0 not covered; efficacy 100%** |
+
+**Project-level Production Quality Gate: BLOCKED (still mandatory).** Project Coverage **13.25%** versus 80% minimum; `internal/auth`, `internal/dpop`, `internal/access` **NOT IMPLEMENTED** (90% critical threshold unchanged). The overall DP-M07 CI workflow has a failure conclusion **by design** because the Project Coverage step correctly blocks production release. Its PostgreSQL/race and mutation steps passed.
+
+**Production Defects:** no reproducible defects found in the exercised FC-11/FC-12 behavior. Full PostgreSQL server/container shutdown during an operation was not simulated; the verified failure injection terminates a database backend connection.
+
+**Handoff:** QA complete for DP-M07, Command Center approved independent verification. **Release Manager owns final PR review, integration/merge decision and repository-level gate policy.** This QA approval is NOT production-release approval and does not waive mandatory gates. Do not interpret Module PASS as Project PASS.
+
+---
+
+_The remainder of this document preserves the chronological audit, original gap lists and previous CI outcomes as historical evidence. This final decision supersedes earlier interim verdicts._
+
 # DP-M07 Independent QA
 
 Baseline: `b4bf51e006d0bce66a2a2a1cc6a2e846bed75f18`. Production files unchanged.
