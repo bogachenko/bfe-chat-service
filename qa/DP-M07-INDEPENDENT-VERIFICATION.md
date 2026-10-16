@@ -37,3 +37,23 @@ Baseline: `b4bf51e006d0bce66a2a2a1cc6a2e846bed75f18`. Production files unchanged
 - `TestMS05AssignmentCommitsBeforeWaitingSend`: assignment transaction commits before the sender resolves its recipient; ensures B rather than stale A.
 - `TestMS11CancelledWaitingSendLeavesNoPartialState`: canceled message blocked on owner lock, no partial conversation/message, transaction rollback retains A, retry succeeds.
 - Separate DP-M07 statement coverage gate enforces **80%** for `internal/storage` using `-tags=integration`. Global required gate is **unchanged** (80% overall, 90% critical) and remains blocked until the missing critical production packages exist and adequate cross-repository test coverage is added. This scope is not a substitute for global PASS.
+
+## Verified GitHub Actions evidence — 2026-10-16
+
+Baseline `b4bf51e`; QA HEAD before this report update: `e43fcacdb327ddbbc8cae87c6f168260df174602`.
+
+- [DP-M07 Independent QA run 38940274961](https://github.com/bogachenko/bfe-chat-service/actions/runs/38940274961): **SUCCESS**.
+- Real `postgres:18.6` testcontainers started, `SHOW server_version` returned `18.6 (Debian 18.6-1.pgdg13+2)`; Goose migration round-trip passed.
+- `go test -tags=integration -count=1 -timeout=25m ./internal/storage/...`: **PASS**.
+- `go test -tags=integration -race -count=1 -timeout=25m ./internal/storage/...`: **PASS**, no reported races.
+- `go test -tags=integration -covermode=atomic -coverprofile=coverage.out -timeout=25m ./internal/storage/...`: **PASS**; `CommitMessage 100.0%`, `CommitAssignment 100.0%`, `internal/storage 100.0%` statements. QA 80% threshold: **PASS**. These statement results do **not** establish 100% semantic coverage.
+- QA Gremlins v0.6.0 run: tool job **SUCCESS**, mutation counts **2 killed, 5 lived, 47 not covered**, mutator coverage **12.96%**. Important: this mutation invocation uses tests without the integration build tag and is NOT sufficient evidence for mutation adequacy of FC-11/FC-12.
+- Global [Quality Gates](https://github.com/bogachenko/bfe-chat-service/actions) remains a **separate FAILED gate** because critical `internal/auth`, `internal/dpop`, `internal/access` packages do not exist yet and the full repository has inadequate untagged unit coverage. The threshold remains 80% overall/90% critical, unchanged.
+
+## Independent QA conclusions
+
+1. **No reproducible production defect identified by this successful storage-suite run.**
+2. No database process termination/restart during an in-flight write was tested. MS-11 covered SQL rollback, canceled waiting write and successful retry, not destructive DB outage.
+3. MS-05 proved a committed assignment before recipient resolution, concurrent send/assignment outcomes, but randomized interleavings cannot replace full schedule exploration.
+4. Pre-existing full-repository coverage quality gate remains red; no threshold, production Go code or SQL migration was changed.
+5. **QA verdict: DP-M07 scoped regression/race/coverage PASS; global release/quality verdict BLOCKED.** Do not interpret this scoped PASS as module complete or merge-ready until all required gates and mutation coverage concerns are resolved.
