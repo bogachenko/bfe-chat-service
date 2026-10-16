@@ -86,7 +86,7 @@ func TestFC02RealCentrifugeWebSocketHandshakeAndReconnect(t *testing.T){
  if opcode!=1||!bytes.Contains(reply,[]byte(`"connect"`)){t.Fatalf("first connect opcode=%d body=%s",opcode,reply)}
  select{case account:=<-connected:if account!=fakeAccount{t.Fatalf("wrong account %s",account)};case <-time.After(3*time.Second):t.Fatal("OnConnect not called")}
  // A reconnect is a new connection; the old proof must not authorize it.
- opcode,reply=connect(first)
+ opcode,reply=connect(first,0)
  if opcode==1&&bytes.Contains(reply,[]byte(`"connect"`)){t.Fatalf("reused proof accepted: %s",reply)}
  fresh:=f.valid(t,"real-handshake-new")
  opcode,reply=connect(fresh,0)
