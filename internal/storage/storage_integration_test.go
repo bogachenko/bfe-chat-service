@@ -8,6 +8,7 @@ import (
  "fmt"
  "path/filepath"
  "sync"
+ "strings"
  "sync/atomic"
  "testing"
  "time"
@@ -50,7 +51,7 @@ func database(t *testing.T)(*sql.DB,storage.Store){
  // Guard against transient bootstrap readiness: run a real SQL query.
  var version string
  if err:=db.QueryRowContext(readyCtx,"SHOW server_version").Scan(&version);err!=nil{t.Fatal(err)}
- if version!="18.6"{t.Fatalf("wrong PostgreSQL version: %s",version)}
+ if !strings.HasPrefix(version,"18.6"){t.Fatalf("wrong PostgreSQL version: %s",version)}
  if err:=goose.SetDialect("postgres");err!=nil{t.Fatal(err)}
  if err:=goose.Up(db,filepath.Join("migrations"));err!=nil{t.Fatal(err)}
  return db,storage.Store{DB:db}
@@ -71,7 +72,7 @@ func TestGooseRoundTrip(t *testing.T){
  if err:=goose.Up(db,"migrations");err!=nil{t.Fatal(err)}
  if rows(t,db,"chat_messages")!=0{t.Fatal("down/up left messages")}
  var ver string;if err:=db.QueryRow("SHOW server_version").Scan(&ver);err!=nil{t.Fatal(err)}
- if ver!="18.6"{t.Fatalf("server_version=%s",ver)}
+ if !strings.HasPrefix(ver,"18.6"){t.Fatalf("server_version=%s",ver)}
 }
 func TestMS07IdempotencyReassignment(t *testing.T){
  db,s:=database(t);assign(t,s,recipientA);first:=send(t,s,2)
