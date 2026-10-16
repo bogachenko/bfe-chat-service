@@ -121,9 +121,14 @@ func (v *Validator) ValidateCaller(ctx context.Context, accessToken, proof strin
 // Centrifuge OnConnecting callback. Every invocation revalidates the BFE
 // session and consumes a new proof; subscription ACL belongs to DP-M04.
 func (v *Validator) ValidateOnConnecting(ctx context.Context, accessToken, proof string, publicWebSocketURL string) (Caller, error) {
+	target, err := url.Parse(publicWebSocketURL)
+	if err != nil || target.Scheme != "wss" || target.Host == "" || target.RawQuery != "" || target.Fragment != "" || target.User != nil {
+		return Caller{}, ErrProofInvalid
+	}
+	target.Scheme = "https"
 	return v.ValidateCaller(ctx, accessToken, proof, RequestBinding{
 		Method: http.MethodGet,
-		Target: publicWebSocketURL,
+		Target: target.String(),
 	})
 }
 
