@@ -69,7 +69,7 @@ func TestVerifiedClaimsHeaderAndThumbprint(t *testing.T){
 }
 func TestValidateProofInvalidRequestBoundary(t *testing.T){
  v:=&Validator{freshness:time.Minute,seen:make(map[replayKey]time.Time)}
- for _,tc:=range []RequestBinding{{Method:http.MethodGet,Target:"http://example.com"},{"Method:"",Target:"https://example.com"},{"Method:http.MethodGet,Target:"https://user:secret@example.com"},{"Method:http.MethodGet,Target:"https://example.com?a=b"}}{
+ for _,tc:=range []RequestBinding{{Method:http.MethodGet,Target:"http://example.com"},{Method:"",Target:"https://example.com"},{Method:http.MethodGet,Target:"https://user:secret@example.com"},{Method:http.MethodGet,Target:"https://example.com?a=b"}}{
   if err:=v.validateProof("invalid","token","jkt",tc);err!=ErrProofInvalid{t.Fatalf("accepted %+v: %v",tc,err)}
  }
 }
