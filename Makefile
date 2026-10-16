@@ -14,7 +14,9 @@ security:
 vulncheck:
 	govulncheck ./...
 dupl:
-	@output="$$(dupl -t 100 $(GOFILES))"; test -z "$$output" || { printf '%s\n' "$$output"; exit 1; }
+	@output="$(dupl -t 100 $(GOFILES))" || { echo "dupl execution failed"; exit 1; }; \
+	printf '%s\n' "$output"; \
+	[ "$output" = "Found total 0 clone groups." ] || { echo "dupl: duplicate groups or unexpected output"; exit 1; }
 complexity:
 	@cyclop -maxComplexity 10 ./...
 coverage:
