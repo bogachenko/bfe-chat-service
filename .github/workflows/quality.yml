@@ -7,7 +7,9 @@ permissions:
   contents: read
 jobs:
   go-quality:
-    runs-on: self-hosted
+    # Never execute pull_request head code on a personal self-hosted runner.
+    # Only the protected main push path can use the local machine.
+    runs-on: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'self-hosted' || 'ubuntu-24.04' }}
     steps:
       - uses: actions/checkout@v5
         with:
