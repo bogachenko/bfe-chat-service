@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONTRACTS id="CONTRACTS-BFE-CHAT-001" status="DRAFT_PENDING_HUMAN_APPROVAL" development_plan="DevelopmentPlan.xml" plan_status="HUMAN_APPROVED" requirements="RequirementsAnalysis.xml" technology="Technology.xml">
+  <SCOPE>Проект контрактов модулей и функций по восьми утверждённым модулям DP-M01..DP-M08. Это спецификация на проверку, не разрешение на тесты или код. Интерфейсы обозначают логические Go-контракты, не новые сетевые endpoints.</SCOPE>
+  <COMMON_TYPES>
+    <TYPE name="AccountID">UUID из BFE Drive; не логин.</TYPE>
+    <TYPE name="Caller">AccountID, проверенная привязка DPoP к текущей сессии, AdministrativeStatus на момент проверки; не бессрочный grant.</TYPE>
+    <TYPE name="ConversationID">Устойчивая идентичность единственной переписки владельца, создаваемой первым сохранённым сообщением.</TYPE>
+    <TYPE name="RecipientAssignment">OwnerAccountID и явно назначенный RecipientAccountID; отсутствие назначения допускается до первой назначения, но сохранённый recipient_account_id не NULL.</TYPE>
+    <TYPE name="MessageInput">Идентификатор логической отправки, текст и опциональный контекст одного документа ID/title; пустое содержимое запрещено.</TYPE>
+    <TYPE name="Result">Типизированный успешный результат либо категория отказа; защищённые данные никогда не возвращаются при ошибке авторизации.</TYPE>
+  </COMMON_TYPES>
+  <MODULES>
+    <MODULE id="MC-01" architecture_ref="DP-M01" name="Authentication">
+      <RESPONSIBILITY>Проверка существующего opaque BFE токена через ограниченный UDS, независимая DPoP проверка; текущий ADMIN только для административных операций.</RESPONSIBILITY>
+      <FUNCTION id="FC-01" name="ValidateCaller"><INPUT>Opaque BFE access token, контекст защищённой операции и проверяемый DPoP proof.</INPUT><OUTPUT>Caller либо отказ AUTH_INVALID/AUTH_UNAVAILABLE/PROOF_INVALID.</OUTPUT><PRECONDITION>Нет доверия к клиентским accountId или ADMIN без Validate.</PRECONDITION><POSTCONDITION>accountId, dpopJkt и administrativeStatus получены через POST /internal/auth/validate; подпись/ключ, контекст, свежесть и replay проверены независимо.</POSTCONDITION></FUNCTION>
+      <FUNCTION id="FC-02" name="ValidateOnConnecting"><INPUT>Данные подключения Centrifuge Flutter Web/Android и существующий BFE token/DPoP proof.</INPUT><OUTPUT>Подтверждённый Caller для соединения либо отказ.</OUTPUT><POSTCONDITION>Новая BFE/Chat сессия, JWT или билет не создаются; секреты не попадают в URL/логи.</POSTCONDITION></FUNCTION>
+      <EXCLUDES>Не управляет аккаунтами и не выдаёт права на конкретную переписку.</EXCLUDES>
+    </MODULE>
+    <MODULE id="MC-02" architecture_ref="DP-M02" name="Assignments">
+      <RESPONSIBILITY>Явное назначение и атомарная замена recipient_account_id; UI выбирает AccountID из списка BFE Drive.</RESPONSIBILITY>
+      <FUNCTION id="FC-03" name="ReplaceRecipient"><INPUT>Caller ADMIN, OwnerAccountID, новый непустой RecipientAccountID.</INPUT><OUTPUT>Текущее назначение либо ASSIGNMENT_REJECTED/FORBIDDEN.</OUTPUT><PRECONDITION>Административные полномочия проверены на границе операции.</PRECONDITION><POSTCONDITION>Замена атомарна, прежнее назначение сохранено при отказе; история неизменна.</POSTCONDITION></FUNCTION>
+      <FUNCTION id="FC-04" name="GetAssignment"><INPUT>OwnerAccountID во внутреннем доверенном контексте.</INPUT><OUTPUT>Текущее назначение или NO_ASSIGNMENT.</OUTPUT><POSTCONDITION>Не выполняет повторного запроса BFE Auth о статусе recipient.</POSTCONDITION></FUNCTION>
+      <EXCLUDES>Нет автоматического поиска администратора, самостоятельного снятия назначения или проверки статуса target UUID через новый API.</EXCLUDES>
+    </MODULE>
+    <MODULE id="MC-03" architecture_ref="DP-M03" name="ConversationsMessages">
+      <RESPONSIBILITY>Единственная переписка, создание первой успешной отправкой, история, идемпотентность и запись сообщения.</RESPONSIBILITY>
+      <FUNCTION id="FC-05" name="SendMessage"><INPUT>Caller, OwnerAccountID, MessageInput.</INPUT><OUTPUT>Сохранённое сообщение и признак повтора либо отказ.</OUTPUT><PRECONDITION>Подтверждён доступ отправителя и имеется явное назначение.</PRECONDITION><POSTCONDITION>Одна логическая отправка создаёт максимум одно сообщение; получатель зафиксирован при записи; блокировка ранее назначенного recipient не препятствует записи активного владельца.</POSTCONDITION></FUNCTION>
+      <FUNCTION id="FC-06" name="ReadHistory"><INPUT>Caller, OwnerAccountID и параметры чтения истории.</INPUT><OUTPUT>История либо FORBIDDEN.</OUTPUT><PRECONDITION>Права подтверждены для каждого защищённого чтения.</PRECONDITION><POSTCONDITION>Открытие чата не создаёт переписку; аудит просмотра не записывается.</POSTCONDITION></FUNCTION>
+      <EXCLUDES>Не устанавливает BFE идентичность и не хранит transient WebSocket состояние.</EXCLUDES>
+    </MODULE>
+    <MODULE id="MC-04" architecture_ref="DP-M04" name="AccessControl">
+      <RESPONSIBILITY>Право владельца, текущего назначенного получателя или ADMIN на конкретное действие.</RESPONSIBILITY>
+      <FUNCTION id="FC-07" name="AuthorizeOperation"><INPUT>Caller, OwnerAccountID, действие SEND/READ/ASSIGN/ADMIN_READ/SUBSCRIBE.</INPUT><OUTPUT>ALLOW либо FORBIDDEN.</OUTPUT><POSTCONDITION>Назначение учитывается актуальное; бывший или заблокированный получатель не получает доступ. ADMIN_READ только для чтения, без регистрации просмотров.</POSTCONDITION></FUNCTION>
+      <EXCLUDES>Не хранит назначения и не подменяет Auth.</EXCLUDES>
+    </MODULE>
+    <MODULE id="MC-05" architecture_ref="DP-M05" name="Realtime">
+      <RESPONSIBILITY>Встроенный Centrifuge OnConnecting, управление соединениями и разрешённая онлайн-доставка после сохранения.</RESPONSIBILITY>
+      <FUNCTION id="FC-08" name="ConnectAndAuthorize"><INPUT>Flutter Web/Android connection payload, BFE токен, DPoP proof.</INPUT><OUTPUT>Подключение или отказ.</OUTPUT><POSTCONDITION>DP-M01 подтверждает личность, DP-M04 разрешает подписки; reconnect проходит проверки заново.</POSTCONDITION></FUNCTION>
+      <FUNCTION id="FC-09" name="DeliverCommittedMessage"><INPUT>Сохранённое сообщение и актуальный получатель.</INPUT><OUTPUT>Результат попытки доставки.</OUTPUT><POSTCONDITION>Не доставляет бывшему recipient; сбой доставки не отменяет зафиксированное сообщение.</POSTCONDITION></FUNCTION>
+      <EXCLUDES>Не является источником постоянной истории.</EXCLUDES>
+    </MODULE>
+    <MODULE id="MC-06" architecture_ref="DP-M06" name="DocumentContext">
+      <RESPONSIBILITY>Контекст документа в отдельных сообщениях; BFE Drive остаётся источником доступа к содержимому.</RESPONSIBILITY>
+      <FUNCTION id="FC-10" name="ValidateDocumentContext"><INPUT>Текст сообщения и необязательный документ ID/title.</INPUT><OUTPUT>Нормализованное содержимое или VALIDATION_ERROR.</OUTPUT><POSTCONDITION>Не более одного документа; не сохраняет файл, не проверяет ACL BFE Drive.</POSTCONDITION></FUNCTION>
+    </MODULE>
+    <MODULE id="MC-07" architecture_ref="DP-M07" name="Persistence">
+      <RESPONSIBILITY>PostgreSQL 18.6 target, pgx v5.11.0, goose v3.28.0; транзакционная целостность данных Chat Service.</RESPONSIBILITY>
+      <FUNCTION id="FC-11" name="CommitMessage"><INPUT>Идентификатор отправителя, владельца, текущего назначения, идемпотентный ключ и валидированное содержимое.</INPUT><OUTPUT>Созданное или ранее сохранённое сообщение.</OUTPUT><POSTCONDITION>Единая атомарная операция без дубликата и с привязкой к назначению на момент commit.</POSTCONDITION></FUNCTION>
+      <FUNCTION id="FC-12" name="CommitAssignment"><INPUT>OwnerAccountID, новый RecipientAccountID.</INPUT><OUTPUT>Сохранённое назначение или ошибка транзакции.</OUTPUT><POSTCONDITION>Недопустимое изменение не обнуляет старое назначение.</POSTCONDITION></FUNCTION>
+      <EXCLUDES>Нет прямого чтения таблиц BFE Drive.</EXCLUDES>
+    </MODULE>
+    <MODULE id="MC-08" architecture_ref="DP-M08" name="Transport">
+      <RESPONSIBILITY>net/http и WebSocket протокол Flutter Web/Android/Admin UI, отображение ошибок и передача команд без бизнес-решений.</RESPONSIBILITY>
+      <FUNCTION id="FC-13" name="HandleHTTP"><INPUT>HTTP запрос.</INPUT><OUTPUT>Ответ либо согласованный код отказа.</OUTPUT><POSTCONDITION>Делегирует аутентификацию DP-M01, права DP-M04 и операции владельцам модулей.</POSTCONDITION></FUNCTION>
+      <FUNCTION id="FC-14" name="HandleWebSocket"><INPUT>WebSocket подключение.</INPUT><OUTPUT>Centrifuge соединение или отказ.</OUTPUT><POSTCONDITION>Делегирует OnConnecting DP-M05; не принимает секреты в URL.</POSTCONDITION></FUNCTION>
+    </MODULE>
+  </MODULES>
+  <CROSS_MODULE_INVARIANTS>
+    <RULE>Зависимости и направления взаимодействий строго соответствуют утверждённым DP-E01..DP-E18; контракты описывают поведение, не вводят новые публичные endpoints.</RULE>
+    <RULE>ADMIN статус — актуальный снимок BFE Auth на момент проверки, не постоянное полномочие.</RULE>
+    <RULE>Chat Service сохраняет сообщения активного владельца после блокировки/удаления получателя; доступ получателя зависит от действительности его собственной сессии.</RULE>
+    <RULE>Временная недоступность Auth при невозможности проверить вызывающего участника означает fail closed.</RULE>
+    <RULE>Проверка DPoP требует детального отдельного согласования механизма привязки proof к OnConnecting и replay prevention; эти функции не реализовывать до утверждения контрактов.</RULE>
+  </CROSS_MODULE_INVARIANTS>
+  <REVIEW_GATE>Командный центр проверяет MC-01..MC-08 и FC-01..FC-14. До HUMAN_APPROVED запрещён переход к тестам, исходному коду и развёртыванию.</REVIEW_GATE>
+</CONTRACTS>
