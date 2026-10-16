@@ -1,13 +1,11 @@
 // Package chat defines assignment rules shared by the approved chat modules.
 package chat
 
-import (
-	"errors"
-)
+import "errors"
 
 var (
 	ErrInvalidAccountID = errors.New("invalid account ID")
-	ErrNoAssignment = errors.New("recipient is not assigned")
+	ErrNoAssignment     = errors.New("recipient is not assigned")
 )
 
 // AccountID is an opaque BFE Drive account UUID. It is not a username.
@@ -37,7 +35,7 @@ func (id AccountID) Valid() bool {
 
 // Assignment captures an explicit recipient selection, never an automatic pick.
 type Assignment struct {
-	Owner AccountID
+	Owner     AccountID
 	Recipient AccountID
 }
 
