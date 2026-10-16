@@ -57,3 +57,11 @@ Baseline `b4bf51e`; QA HEAD before this report update: `e43fcacdb327ddbbc8cae87c
 3. MS-05 proved a committed assignment before recipient resolution, concurrent send/assignment outcomes, but randomized interleavings cannot replace full schedule exploration.
 4. Pre-existing full-repository coverage quality gate remains red; no threshold, production Go code or SQL migration was changed.
 5. **QA verdict: DP-M07 scoped regression/race/coverage PASS; global release/quality verdict BLOCKED.** Do not interpret this scoped PASS as module complete or merge-ready until all required gates and mutation coverage concerns are resolved.
+
+## Staged coverage policy (Command Center)
+
+- Module Coverage: internal/storage, 80% threshold, with unit and integration tests.
+- Project Coverage: all packages, 80% overall and 90% critical; absent auth/dpop/access packages = NOT IMPLEMENTED, not PASS.
+- Report files: module-coverage.out, project-coverage.out, coverage-report.md, uploaded even if gate fails.
+- Production Quality Gate remains blocking. Thresholds and GRACE normative documents are unchanged.
+- Module PASS never implies Project PASS; statement coverage does not prove contract coverage.
