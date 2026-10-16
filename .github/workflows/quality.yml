@@ -31,7 +31,16 @@ jobs:
           rm -rf "$tmp"
           go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           go install github.com/mibk/dupl@v1.1.0
-          go install github.com/bkielbasa/cyclop/cmd/cyclop@v1.2.3
+          # Pin cyclop and override legacy x/tools for Go 1.27 export data.
+          cyclop_tmp="$(mktemp -d)"
+          (
+            cd "$cyclop_tmp"
+            go mod init bfe-tools-cyclop
+            go get github.com/bkielbasa/cyclop@v1.2.3
+            go get golang.org/x/tools@v0.52.0
+            go build -mod=mod -o "$(go env GOPATH)/bin/cyclop" github.com/bkielbasa/cyclop/cmd/cyclop
+          )
+          rm -rf "$cyclop_tmp"
           go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Blocking Go quality gates
