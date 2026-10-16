@@ -228,16 +228,20 @@ func canonicalTarget(raw string, _ bool) (string, error) {
 	if host == "" {
 		return "", ErrProofInvalid
 	}
-	port := u.Port()
-	switch {
-	case port != "" && port != "443":
-		host = net.JoinHostPort(host, port)
-	case strings.Contains(host, ":"):
-		host = "[" + host + "]"
-	}
+	host = canonicalHost(host, u.Port())
 	path := u.EscapedPath()
 	if path == "" {
 		path = "/"
 	}
 	return fmt.Sprintf("https://%s%s", host, path), nil
+}
+
+func canonicalHost(host, port string) string {
+	if port != "" && port != "443" {
+		return net.JoinHostPort(host, port)
+	}
+	if strings.Contains(host, ":") {
+		return "[" + host + "]"
+	}
+	return host
 }
