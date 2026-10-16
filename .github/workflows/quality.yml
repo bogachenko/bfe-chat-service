@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   go-quality:
-    runs-on: ubuntu-24.04
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v5
         with:
@@ -24,7 +24,7 @@ jobs:
             ~/go/bin
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-tools-ubuntu-24.04-go1.27.2-v4-lint2.14.0-gosec2.29.0-vuln1.9.0-dupl1.1.0-cyclop1.2.3-gremlins0.6.0-x-tools0.52.0
+          key: go-tools-self-hosted-go1.27.2-v4-lint2.14.0-gosec2.29.0-vuln1.9.0-dupl1.1.0-cyclop1.2.3-gremlins0.6.0-x-tools0.52.0
       - name: Install pinned tools
         if: steps.tools-cache.outputs.cache-hit != 'true'
         run: |
