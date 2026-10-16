@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<MENTAL_SCENARIOS id="MS-BFE-CHAT-001" status="DRAFT_PENDING_HUMAN_APPROVAL" requirements_source="RequirementsAnalysis.xml" technology_source="Technology.xml" development_plan_source="DevelopmentPlan.xml" contracts_source="Contracts.xml" contracts_status="HUMAN_APPROVED">
+<MENTAL_SCENARIOS id="MS-BFE-CHAT-001" status="HUMAN_APPROVED" requirements_source="RequirementsAnalysis.xml" technology_source="Technology.xml" development_plan_source="DevelopmentPlan.xml" contracts_source="Contracts.xml" contracts_status="HUMAN_APPROVED">
   <SCOPE>GRACE Mental Scenarios / Check Criteria. Мысленная симуляция последовательностей состояний и границ доступа, без исполнения кода, автоматических тестов или изменения утверждённых контрактов.</SCOPE>
   <SEMANTIC_GRAPH>Requirements BR/AC - DevelopmentPlan DP-M - Contracts MC/FC - Mental Scenario MS - Check Criteria CCHECK. Все ожидаемые результаты являются критериями будущей проверки, но не заявлением об успешном выполнении.</SEMANTIC_GRAPH>
   <SCENARIOS>
@@ -76,10 +76,11 @@
       <CHECK id="CCHECK-12">Разделены durable write и best-effort delivery, нет опасного двойного commit.</CHECK>
     </SCENARIO>
   </SCENARIOS>
-  <REVIEW_FINDINGS status="OPEN_FOR_COMMAND_CENTER_REVIEW">
+  <REVIEW_FINDINGS status="HUMAN_APPROVED_WITH_MANDATORY_FOLLOWUP">
     <FINDING id="MS-F01" kind="DESIGN_DETAIL_NOT_YET_VERIFIED" refs="MS-03 MS-04">Фактическая схема DPoP привязки к OnConnecting, jti/replay retention и reconnect нуждается в проверяемой реализации. Мысленный сценарий не доказывает криптографическую безопасность.</FINDING>
     <FINDING id="MS-F02" kind="DESIGN_DETAIL_NOT_YET_VERIFIED" refs="MS-05 MS-06">Способ общей сериализации назначения с транзакцией сообщения и допуском real-time публикации не реализован; требуется доказать атомарность на последующих этапах без нарушения утверждённых контрактов.</FINDING>
     <FINDING id="MS-F03" kind="DESIGN_DETAIL_NOT_YET_VERIFIED" refs="MS-07">Scope ключа идемпотентности, правила повторов и восстановление после сбоев потребуют строгой механической проверки при реализации.</FINDING>
   </REVIEW_FINDINGS>
-  <GATE>Статус DRAFT_PENDING_HUMAN_APPROVAL; командный центр утверждает mental scenarios и check criteria. Production Implementation и Automated Tests запрещены до соответствующих последующих этапов GRACE.</GATE>
+  <GATE>Mental Scenarios / Check Criteria HUMAN_APPROVED. MS-F01, MS-F02, MS-F03 остаются обязательными открытыми техническими проверками. Перед реализацией командный центр отдельно обсуждает и утверждает требования к проекту. До отдельного разрешения Production Implementation и Automated Tests запрещены.</GATE>
+  <APPROVAL_STATE>HUMAN_APPROVED: утверждены MS-01..MS-12 и CCHECK-01..CCHECK-12. MS-F01..MS-F03 не закрыты и обязательны к последующей технической проверке. Следующий переход заблокирован до отдельного обсуждения и утверждения командным центром требований к проекту; реализация и автоматизированные тесты не начинались.</APPROVAL_STATE>
 </MENTAL_SCENARIOS>
