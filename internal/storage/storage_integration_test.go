@@ -37,7 +37,20 @@ func database(t *testing.T)(*sql.DB,storage.Store){
  db,err:=sql.Open("pgx",dsn);if err!=nil{t.Fatal(err)}
  db.SetMaxOpenConns(16)
  t.Cleanup(func(){_ =db.Close()})
- if err:=db.PingContext(ctx);err!=nil{t.Fatal(err)}
+ // PostgreSQL 18 initializes with a temporary server before final startup.
+ // A mapped port can be available while that bootstrap server is restarting.
+ readyCtx,stop:=context.WithTimeout(context.Background(),45*time.Second)
+ defer stop()
+ var pingErr error
+ for {
+  pingErr=db.PingContext(readyCtx)
+  if pingErr==nil {break}
+  select {case <-readyCtx.Done():t.Fatalf("PostgreSQL readiness: %v",pingErr);case <-time.After(250*time.Millisecond):}
+ }
+ // Guard against transient bootstrap readiness: run a real SQL query.
+ var version string
+ if err:=db.QueryRowContext(readyCtx,"SHOW server_version").Scan(&version);err!=nil{t.Fatal(err)}
+ if version!="18.6"{t.Fatalf("wrong PostgreSQL version: %s",version)}
  if err:=goose.SetDialect("postgres");err!=nil{t.Fatal(err)}
  if err:=goose.Up(db,filepath.Join("migrations"));err!=nil{t.Fatal(err)}
  return db,storage.Store{DB:db}
