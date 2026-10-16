@@ -1,43 +1,34 @@
 .PHONY: fmt vet lint security vulncheck dupl complexity coverage race integration mutation-pr mutation-full quality
-
 GO ?= go
 GOFILES := $(shell find cmd internal -type f -name '*.go' ! -name '*_test.go' 2>/dev/null)
+BASE_REF ?= origin/main
 
 fmt:
 	@test -z "$$(gofmt -l $(GOFILES))" || { gofmt -l $(GOFILES); exit 1; }
-
 vet:
 	$(GO) vet ./...
-
 lint:
 	golangci-lint run ./...
-
 security:
-	gosec ./...
-
+	gosec -severity high -confidence medium ./...
 vulncheck:
 	govulncheck ./...
-
 dupl:
-	@test -z "$$(dupl -t 100 $(GOFILES))" || { dupl -t 100 $(GOFILES); exit 1; }
-
+	@output="$$(dupl -t 100 $(GOFILES))"; test -z "$$output" || { printf '%s\n' "$$output"; exit 1; }
 complexity:
-	@cyclop -over 10 ./...
-
+	@cyclop -maxComplexity 10 ./...
 coverage:
 	$(GO) test -coverprofile=coverage.out ./...
-	$(GO) tool cover -func=coverage.out
-
+	@$(GO) tool cover -func=coverage.out
+	@awk '$$1=="total:" {gsub("%","",$$3); if ($$3+0 < 80) {print "FAIL overall coverage: "$$3"% < 80%"; exit 1} found=1} END {if (!found) exit 1}' <($(GO) tool cover -func=coverage.out)
+	@$(GO) run ./tools/coverage-gate -profile coverage.out -min 80 -critical-min 90
 race:
 	$(GO) test -race ./...
-
 integration:
 	$(GO) test -tags=integration ./...
-
 mutation-pr:
-	gremlins unleash
-
+	@test -n "$(BASE_REF)" || { echo BASE_REF required; exit 1; }
+	gremlins unleash --diff "$(BASE_REF)" --exclude-files '.*_test\.go$$' --exclude-files '.*\.pb\.go$$'
 mutation-full:
-	gremlins unleash
-
+	gremlins unleash --exclude-files '.*_test\.go$$' --exclude-files '.*\.pb\.go$$'
 quality: fmt vet lint security vulncheck dupl complexity coverage race
