@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MENTAL_SCENARIOS id="MS-BFE-CHAT-001" status="DRAFT_PENDING_HUMAN_APPROVAL" requirements_source="RequirementsAnalysis.xml" technology_source="Technology.xml" development_plan_source="DevelopmentPlan.xml" contracts_source="Contracts.xml" contracts_status="HUMAN_APPROVED">
+  <SCOPE>GRACE Mental Scenarios / Check Criteria. Мысленная симуляция последовательностей состояний и границ доступа, без исполнения кода, автоматических тестов или изменения утверждённых контрактов.</SCOPE>
+  <SEMANTIC_GRAPH>Requirements BR/AC - DevelopmentPlan DP-M - Contracts MC/FC - Mental Scenario MS - Check Criteria CCHECK. Все ожидаемые результаты являются критериями будущей проверки, но не заявлением об успешном выполнении.</SEMANTIC_GRAPH>
+  <SCENARIOS>
+    <SCENARIO id="MS-01" category="AUTHORIZATION" refs="BR-013 BR-026 FC-01 FC-07 FC-06">
+      <INITIAL>Активный владелец имеет действующую BFE-сессию, назначение существует.</INITIAL>
+      <STEPS>Проверить opaque token через UDS, независимо проверить DPoP, определить Caller, разрешить SEND/READ для своей переписки; попытаться прочесть чужую переписку.</STEPS>
+      <EXPECTED>Свой SEND/READ разрешён; чужой READ запрещён без раскрытия истории. Клиентский accountId не считается доверенным.</EXPECTED>
+      <CHECK id="CCHECK-01">Возможна ли утечка защищённых данных при FORBIDDEN? Должна отсутствовать.</CHECK>
+    </SCENARIO>
+    <SCENARIO id="MS-02" category="AUTHORIZATION" refs="BR-015 BR-016 BR-026 FC-01 FC-07">
+      <INITIAL>Сессия с administrativeStatus ADMIN, но администратор не назначен участником.</INITIAL>
+      <STEPS>Открыть ADMIN_READ, затем попытаться отправить сообщение; повторить после потери статуса ADMIN и новой валидации.</STEPS>
+      <EXPECTED>Аудиторское чтение без отправки и события аудита; после потери ADMIN просмотр запрещён, старый статус не используется как постоянное разрешение.</EXPECTED>
+      <CHECK id="CCHECK-02">ADMIN_READ не повышает права до SEND; current ADMIN проверяется на границе административной операции.</CHECK>
+    </SCENARIO>
+    <SCENARIO id="MS-03" category="DPOP" refs="FC-01 FC-02 FC-08 IQ-05">
+      <INITIAL>Flutter Web или Android начинает Centrifuge OnConnecting с действующим BFE access token.</INITIAL>
+      <STEPS>Передать token и proof без query string; UDS validate возвращает accountId, dpopJkt и administrativeStatus; локально проверить подпись, ключ, контекст, ath, время и replay.</STEPS>
+      <EXPECTED>Соединение принимается только при подтверждении всех параметров; без второго JWT, билета либо сессии. Секреты не пишутся в URL или логи.</EXPECTED>
+      <CHECK id="CCHECK-03">Описана проверяемая связь proof с конкретным handshake/connect действием; общая подпись без этой связи недостаточна.</CHECK>
+    </SCENARIO>
+    <SCENARIO id="MS-04" category="DPOP" refs="FC-01 FC-02 FC-08 BR-026">
+      <INITIAL>Украденный token без ключа, подменённый dpopJkt, просроченный proof либо повторённый proof.</INITIAL>
+      <STEPS>Попытаться подключиться; повторить то же доказательство при reconnect, затем при другой сессии.</STEPS>
+      <EXPECTED>Каждая подмена, просрочка или повтор отклоняются; ошибка проверки не создаёт частичного подключения либо доступа к подписке.</EXPECTED>
+      <CHECK id="CCHECK-04">Механизм хранения replay state и единица уникальности jti должны быть определены при проектировании реализации; до доказанной защиты соединение нельзя считать безопасным.</CHECK>
+    </SCENARIO>
+    <SCENARIO id="MS-05" category="CONCURRENT_REASSIGNMENT" refs="BR-022 BR-024 FC-05 FC-11 FC-12">
+      <INITIAL>Назначен A. Отправка сообщения и замена A на B поступают конкурентно.</INITIAL>
+      <STEPS>Мысленно переставить порядок получения assignment, захвата транзакционной защиты, смены адресата и commit сообщения в обеих возможных последовательностях.</STEPS>
+      <EXPECTED>Каждая успешная запись имеет ровно одного recipient, соответствующего сериализованной точке операции; вариант со старым A после завершённого назначения B без согласованного порядка невозможен.</EXPECTED>
+      <CHECK id="CCHECK-05">Чтение recipient и insert сообщения согласованы одной транзакцией с FC-12; предварительный snapshot недостаточен.</CHECK>
+    </SCENARIO>
+    <SCENARIO id="MS-06" category="CONCURRENT_REASSIGNMENT" refs="BR-003 BR-024 FC-07 FC-09 FC-12">
+      <INITIAL>Сообщение сохранено при A; A подписан, назначение A меняется на B перед онлайн-публикацией.</INITIAL>
+      <STEPS>Рассмотреть публикацию до и после точки смены, задержанный delivery job, устаревшую подписку A и повторную проверку перед публикацией.</STEPS>
+      <EXPECTED>После вступления назначения B в силу новая публикация A запрещена; публикация, уже завершившаяся до этой точки, необратима. Новые сообщения доступны только имеющим актуальное право.</EXPECTED>
+      <CHECK id="CCHECK-06">Авторизация и физический допуск к публикации имеют согласованную с FC-12 границу; отдельный ранний ALLOW не является разрешением.</CHECK>
+    </SCENARIO>
+    <SCENARIO id="MS-07" category="IDEMPOTENCY" refs="BR-023 FC-05 FC-11">
+      <INITIAL>Клиент отправил сообщение; commit успешен, ответ потерян.</INITIAL>
+      <STEPS>Повторить ту же логическую отправку тем же ключом до и после переназначения A на B; выполнить конкурентный дубль.</STEPS>
+      <EXPECTED>Создано ровно одно сообщение, исходные получатель и содержимое сохраняются, повтор получает результат исходной операции; дубль не инициирует новую запись.</EXPECTED>
+      <CHECK id="CCHECK-07">Идентичность logical send атомарно уникальна в выбранной области; повтор не меняет recipient.</CHECK>
+    </SCENARIO>
+    <SCENARIO id="MS-08" category="REALTIME_DELIVERY" refs="BR-010 BR-018 BR-024 FC-06 FC-09">
+      <INITIAL>Получатель отключён либо transient доставка недоступна.</INITIAL>
+      <STEPS>Успешно сохранить сообщение, не выполнить онлайн-публикацию, затем восстановить подключение с новой проверкой полномочий и запросить историю.</STEPS>
+      <EXPECTED>Сообщение не потеряно: сохранение независимо от доставки, история доступна только текущему уполномоченному участнику; бывший recipient не получает историю.</EXPECTED>
+      <CHECK id="CCHECK-08">Сбой Centrifuge не откатывает запись в БД; reconnect и чтение требуют действующего доступа.</CHECK>
+    </SCENARIO>
+    <SCENARIO id="MS-09" category="RECIPIENT_LIFECYCLE" refs="BR-004 BR-013 BR-018 ERR-013 FC-05 FC-07">
+      <INITIAL>Назначенный recipient A заблокирован или удалён после назначения; сессии отозваны.</INITIAL>
+      <STEPS>Активный владелец отправляет сообщение; A пытается читать/подключиться; администратор явно заменяет A на B.</STEPS>
+      <EXPECTED>Новое сообщение владельца сохраняется без BFE Auth target lookup; A не читает/не пишет с отозванной сессией; замена происходит только явно и сохраняет историю.</EXPECTED>
+      <CHECK id="CCHECK-09">Нельзя смешивать запрет доступа заблокированного recipient с запретом сохранения сообщений активного владельца.</CHECK>
+    </SCENARIO>
+    <SCENARIO id="MS-10" category="DEPENDENCY_FAILURE" refs="BR-019 BR-026 FC-01 FC-05 FC-06 FC-07">
+      <INITIAL>BFE Auth UDS не отвечает или возвращает 503; нет свежего подтверждения Caller.</INITIAL>
+      <STEPS>Попытаться подключиться, отправить, прочесть историю и выполнить административное назначение.</STEPS>
+      <EXPECTED>Все действия без подтверждённой текущей сессии отвергаются fail closed; не создаётся сообщение и не раскрывается история.</EXPECTED>
+      <CHECK id="CCHECK-10">Недоступность Auth не заменяется кэшем чужого Caller или ADMIN.</CHECK>
+    </SCENARIO>
+    <SCENARIO id="MS-11" category="DEPENDENCY_FAILURE" refs="BR-022 BR-023 FC-03 FC-05 FC-11 FC-12">
+      <INITIAL>Ошибка или rollback PostgreSQL при смене назначения либо записи сообщения.</INITIAL>
+      <STEPS>Оборвать операцию до commit, затем повторить после восстановления; рассмотреть сериализационный конфликт и две конкурентные записи.</STEPS>
+      <EXPECTED>Нет частичного назначения или сообщения, старый recipient сохранён при отказе, успешно подтверждённая отправка идемпотентна.</EXPECTED>
+      <CHECK id="CCHECK-11">Транзакция действительно атомарна и повтор на конфликте не изменяет бизнес-семантику.</CHECK>
+    </SCENARIO>
+    <SCENARIO id="MS-12" category="DEPENDENCY_FAILURE" refs="BR-010 BR-012 FC-09 FC-11">
+      <INITIAL>PostgreSQL commit успешен, Centrifuge публикация завершилась ошибкой.</INITIAL>
+      <STEPS>Вернуть результат сохранения, отключить real-time, после восстановления прочесть историю.</STEPS>
+      <EXPECTED>Сообщение сохранено один раз и доступно по правам; ошибка доставки не отменяет commit и не создаёт повторное сообщение.</EXPECTED>
+      <CHECK id="CCHECK-12">Разделены durable write и best-effort delivery, нет опасного двойного commit.</CHECK>
+    </SCENARIO>
+  </SCENARIOS>
+  <REVIEW_FINDINGS status="OPEN_FOR_COMMAND_CENTER_REVIEW">
+    <FINDING id="MS-F01" kind="DESIGN_DETAIL_NOT_YET_VERIFIED" refs="MS-03 MS-04">Фактическая схема DPoP привязки к OnConnecting, jti/replay retention и reconnect нуждается в проверяемой реализации. Мысленный сценарий не доказывает криптографическую безопасность.</FINDING>
+    <FINDING id="MS-F02" kind="DESIGN_DETAIL_NOT_YET_VERIFIED" refs="MS-05 MS-06">Способ общей сериализации назначения с транзакцией сообщения и допуском real-time публикации не реализован; требуется доказать атомарность на последующих этапах без нарушения утверждённых контрактов.</FINDING>
+    <FINDING id="MS-F03" kind="DESIGN_DETAIL_NOT_YET_VERIFIED" refs="MS-07">Scope ключа идемпотентности, правила повторов и восстановление после сбоев потребуют строгой механической проверки при реализации.</FINDING>
+  </REVIEW_FINDINGS>
+  <GATE>Статус DRAFT_PENDING_HUMAN_APPROVAL; командный центр утверждает mental scenarios и check criteria. Production Implementation и Automated Tests запрещены до соответствующих последующих этапов GRACE.</GATE>
+</MENTAL_SCENARIOS>
