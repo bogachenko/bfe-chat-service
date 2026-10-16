@@ -41,7 +41,7 @@ jobs:
       - name: Gremlins v0.6.0 FC-01/FC-02
         run: |
           go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
-          "$(go env GOPATH)/bin/gremlins" unleash --exclude-files '.*_test\\.go$' --exclude-files '^internal/storage/' --exclude-files '^internal/chat/' --exclude-files '^internal/documentcontext/' --exclude-files '^tools/' --exclude-files '^cmd/'
+          "$(go env GOPATH)/bin/gremlins" unleash --exclude-files '.*_test\\.go$' --exclude-files '^internal/storage/' --exclude-files '^internal/chat/' --exclude-files '^internal/documentcontext/' --exclude-files '^tools/' --exclude-files '^cmd/' --exclude-files '^qa/'
 
   real_bfe_drive_uds:
     runs-on: ubuntu-24.04

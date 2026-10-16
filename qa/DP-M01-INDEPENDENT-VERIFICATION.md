@@ -13,3 +13,20 @@ Production fix `12abd404c0fce742cf0d7727ffbad556a018720c` changes the token whit
 - Validator replay tracking is process-local; cross-process replay protection unverified.
 - Required threshold Authentication ≥90% statements, race and Gremlins.
 - MS-F01 remains OPEN pending real BFE Drive/Centrifuge E2E and green quality evidence. Project gate remains BLOCKED.
+
+## Verified CI evidence / independent QA continuation (2026-10-16)
+
+Baseline: `12abd404c0fce742cf0d7727ffbad556a018720c`, Issue #3 production patch retained unchanged.
+- [DP-M01 CI run 38964366112](https://github.com/bogachenko/bfe-chat-service/actions/runs/38964366112): unit, security, property-based, concurrency, real Centrifuge WebSocket handshake/reconnect and `go test -race` **PASS**.
+- `internal/authentication` **96.1% statement coverage** (unchanged mandatory 90% threshold: **PASS**). `BindOnConnecting` **100%**.
+- Regression: ordinary opaque strings containing t/r/n accepted and submitted to UDS; space, tab, CR, LF rejected before UDS; DPoP verified only after accepted BFE session; JWS, JKT/ATH, HTM/HTU/IAT, JTI replay and simultaneous same-JTI submits covered.
+- Actual Centrifuge Node + real HTTP/WebSocket upgrade exercised `OnConnecting`, reconnect with fresh JWS and rejection of replayed JTI; payload length 16 KiB boundary verified.
+- Gremlins v0.6.0 **61 KILLED / 0 LIVED**. Prior run had 11 NOT COVERED in the executable QA probe, not in production FC-01/FC-02. The mutation workflow now excludes `qa/` from production mutation scope. Its updated mutant count/coverage must be confirmed by the next CI run.
+- All three previously surviving production mutants (UDS timeout, ADMIN branch, payload length boundary) have direct regression checks and were killed in the latest measured run.
+- **Real BFE Drive UDS E2E: BLOCKED** on checkout of private repository `bogachenko/bfe-drive` at approved commit `9a33850`. CI log: `Repository not found` with default cross-repository GITHUB_TOKEN. The CI workflow now explicitly requires repository secret **`BFE_DRIVE_READ_TOKEN`** (fine-grained read-only Contents permission to `bogachenko/bfe-drive`). This secret must be provisioned by an authorized maintainer. No private source or credentials are copied into the PR.
+- The E2E fixture is staged as `qa/testdata/bfe_drive_auth_uds_e2e_test.go`, and the Chat probe under `qa/driveauthprobe`. After secret provisioning, CI will copy the fixture only into the ephemeral Drive checkout and run the real `NewInternalAuthHandler` on UDS backed by PostgreSQL 18.6; it will verify active, revoked and missing-UDS calls. **This E2E has not yet run.**
+- External multi-instance shared replay state is not evidenced. Process-local JTI replay is tested; deployment must constrain scope to one validator or use a proven shared replay store.
+- **MS-F01: OPEN. DP-M01: QA IN PROGRESS. Production Quality Gate: BLOCKED.** Scoped authenticated unit/race/coverage PASS does not imply integration E2E PASS.
+- **Production defects:** previously filed [Issue #3](https://github.com/bogachenko/bfe-chat-service/issues/3) confirmed fixed by regression against `12abd40`; no new reproducible production defect in current passing regression suite.
+
+Only test, CI and QA-report files were changed. Production code and GRACE normative documents remain unchanged.
