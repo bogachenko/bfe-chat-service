@@ -3,7 +3,6 @@ package chat
 
 import (
 	"errors"
-	"strings"
 )
 
 var (
@@ -42,10 +41,10 @@ type Assignment struct {
 	Recipient AccountID
 }
 
-// NewAssignment rejects absent, malformed or self-selected recipient IDs.
+// NewAssignment rejects absent or malformed account IDs.
 // Authorization and persistence must be applied by the caller's approved modules.
 func NewAssignment(owner, recipient AccountID) (Assignment, error) {
-	if !owner.Valid() || !recipient.Valid() || strings.EqualFold(string(owner), string(recipient)) {
+	if !owner.Valid() || !recipient.Valid() {
 		return Assignment{}, ErrInvalidAccountID
 	}
 	return Assignment{Owner: owner, Recipient: recipient}, nil
