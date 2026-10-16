@@ -8,7 +8,7 @@ import (
 )
 
 // BindOnConnecting registers the FC-02 handler on a Centrifuge node.
-// The first connect frame carries the existing opaque BFE access token in
+// Contract: client sends a fresh DPoP JWS on EACH Connect (including\n// reconnect), htm=GET, htu=the public WSS endpoint expressed as HTTPS\n// with identical authority and path; no query or fragment.\n// The first connect frame carries the existing opaque BFE access token in
 // ConnectEvent.Token and a fresh DPoP proof in ConnectEvent.Data.
 // Neither value belongs in the WebSocket URL or application logs.
 // Subscription authorization is deliberately NOT granted here (DP-M04/05).
