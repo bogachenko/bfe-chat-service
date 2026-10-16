@@ -63,6 +63,6 @@ jobs:
         env:
           CHAT_AUTH_PROBE: ${{ runner.temp }}/chat-auth-probe
         run: |
-          cp qa/bfe_drive_auth_uds_e2e_test.go bfe-drive/internal/httpapi/qa_chat_auth_uds_integration_test.go
+          cp qa/testdata/bfe_drive_auth_uds_e2e_test.go bfe-drive/internal/httpapi/qa_chat_auth_uds_integration_test.go
           cd bfe-drive
           go test -tags=integration -count=1 -run '^TestQADPM01RealDriveUDS$' -timeout=25m ./internal/httpapi
