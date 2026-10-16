@@ -34,6 +34,8 @@ type fixture struct {
  token string
  hits atomic.Int64
  status atomic.Int64
+ admin atomic.Bool
+ delay atomic.Int64
 }
 
 func newFixture(t *testing.T)*fixture{
@@ -50,8 +52,12 @@ func newFixture(t *testing.T)*fixture{
  mux.HandleFunc("/internal/auth/validate",func(w http.ResponseWriter,r *http.Request){
   f.hits.Add(1)
   if r.Method!="POST"||r.Header.Get("Authorization")!="DPoP "+f.token{w.WriteHeader(http.StatusUnauthorized);return}
+  if d:=time.Duration(f.delay.Load());d>0{select{case <-r.Context().Done():return;case <-time.After(d):}}
   status:=int(f.status.Load());w.WriteHeader(status)
-  if status==http.StatusOK{_ =json.NewEncoder(w).Encode(map[string]string{"accountId":fakeAccount,"dpopJkt":f.jkt,"administrativeStatus":"NON_ADMIN"})}
+  if status==http.StatusOK{
+   admin:="NON_ADMIN";if f.admin.Load(){admin="ADMIN"}
+   _ =json.NewEncoder(w).Encode(map[string]string{"accountId":fakeAccount,"dpopJkt":f.jkt,"administrativeStatus":admin})
+  }
  })
  srv:=&http.Server{Handler:mux}
  go func(){_ =srv.Serve(listener)}()
@@ -176,4 +182,18 @@ func TestFC01PropertyBasedReplayAndBindings(t *testing.T) {
   if got,err:=f.validator.ValidateCaller(context.Background(),f.token,good,authentication.RequestBinding{Method:"GET",Target:authURL});err!=nil||got.AccountID!=fakeAccount{rt.Fatalf("valid property: %+v %v",got,err)}
   if _,err:=f.validator.ValidateCaller(context.Background(),f.token,good,authentication.RequestBinding{Method:"GET",Target:authURL});!errors.Is(err,authentication.ErrProofInvalid){rt.Fatalf("replay accepted: %v",err)}
  })
+}
+
+func TestFC01AdministrativeIdentityAndUDSTimeout(t *testing.T){
+ f:=newFixture(t)
+ f.admin.Store(true)
+ result,err:=f.validator.ValidateCaller(context.Background(),f.token,f.valid(t,"admin"),authentication.RequestBinding{Method:"GET",Target:authURL})
+ if err!=nil||result.AdministrativeStatus!="ADMIN"{t.Fatalf("ADMIN response was rejected: caller=%+v err=%v",result,err)}
+ f.admin.Store(false)
+ f.delay.Store(int64(2*time.Second))
+ result,err=f.validator.ValidateCaller(context.Background(),f.token,f.valid(t,"slow-but-valid"),authentication.RequestBinding{Method:"GET",Target:authURL})
+ if err!=nil||result.AccountID!=fakeAccount{t.Fatalf("valid UDS response within 3s failed: caller=%+v err=%v",result,err)}
+ f.delay.Store(int64(4*time.Second))
+ result,err=f.validator.ValidateCaller(context.Background(),f.token,f.valid(t,"timed-out"),authentication.RequestBinding{Method:"GET",Target:authURL})
+ if !errors.Is(err,authentication.ErrAuthUnavailable)||result!=(authentication.Caller{}){t.Fatalf("UDS timeout must fail closed: caller=%+v err=%v",result,err)}
 }
