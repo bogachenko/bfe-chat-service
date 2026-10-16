@@ -20,7 +20,6 @@ complexity:
 coverage:
 	$(GO) test -coverprofile=coverage.out ./...
 	@$(GO) tool cover -func=coverage.out
-	@awk '$$1=="total:" {gsub("%","",$$3); if ($$3+0 < 80) {print "FAIL overall coverage: "$$3"% < 80%"; exit 1} found=1} END {if (!found) exit 1}' <($(GO) tool cover -func=coverage.out)
 	@$(GO) run ./tools/coverage-gate -profile coverage.out -min 80 -critical-min 90
 race:
 	$(GO) test -race ./...
