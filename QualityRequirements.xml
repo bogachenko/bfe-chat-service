@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<QUALITY_REQUIREMENTS id="QR-BFE-CHAT-001" status="HUMAN_APPROVED" project="BFE Chat Service" approved_by="BFE Command Center" date="2026-10-16">
+  <PURPOSE>Обязательные требования к качеству кода, автоматизированной проверке, тестированию, QA и готовности к Production. Документ фиксирует отдельные решения командного центра и не меняет HUMAN_APPROVED RequirementsAnalysis.xml, Technology.xml, DevelopmentPlan.xml, Contracts.xml и MentalScenarios.xml.</PURPOSE>
+  <EXECUTION_GATE>Требования утверждены, но Production Implementation и Automated Tests пока НЕ разрешены. Настройка инструментов, CI и реализация тестов выполняются только после отдельного разрешения командного центра на переход к соответствующим этапам GRACE.</EXECUTION_GATE>
+  <CODE_QUALITY>
+    <GATE id="QR-01" tool="gofmt" policy="BLOCKING">Все рукописные Go-файлы должны соответствовать gofmt; отклонений 0.</GATE>
+    <GATE id="QR-02" tool="go vet" policy="BLOCKING">Замечаний go vet: 0.</GATE>
+    <GATE id="QR-03" tool="golangci-lint" policy="BLOCKING">Замечаний выбранной утверждённой конфигурации: 0. Версии и конфигурация фиксируются.</GATE>
+    <GATE id="QR-04" tool="gosec" policy="BLOCKING">Ни одно обнаруженное замечание не остаётся без рассмотрения и документированного решения; критические и высокие риски не допускаются к выпуску.</GATE>
+    <GATE id="QR-05" tool="govulncheck" policy="BLOCKING">Известных применимых уязвимостей: 0; ошибки выполнения проверки блокируют gate.</GATE>
+    <GATE id="QR-06" tool="dupl" policy="BLOCKING" threshold_tokens="100">Контролировать дублирование рукописного кода; минимальный порог обнаружения — 100 токенов, выявленные нарушения разбираются и устраняются.</GATE>
+    <GATE id="QR-07" tool="cyclop" policy="BLOCKING" max_complexity="10">Максимальная цикломатическая сложность функции — 10.</GATE>
+    <GATE id="QR-08" tool="coverage" policy="BLOCKING" overall_min_percent="80" critical_min_percent="90">Общее покрытие тестами — не ниже 80%; код Auth, DPoP и AccessControl — не ниже 90%. Область измерения и исключения генерированного кода должны быть зафиксированы явно.</GATE>
+    <GATE id="QR-09" tool="go test -race" policy="BLOCKING">Race detector обязателен; обнаруженных гонок — 0.</GATE>
+    <POLICY>Quality Gates должны действовать с первого коммита Production Implementation, выполняться локально и автоматически в CI. Все используемые версии фиксируются для воспроизводимости.</POLICY>
+  </CODE_QUALITY>
+  <TESTING_AND_QA>
+    <REQUIRED_CATEGORIES>
+      <CATEGORY id="QA-01">Unit tests бизнес-логики, валидации и разрешений.</CATEGORY>
+      <CATEGORY id="QA-02">Integration tests реальных границ PostgreSQL, BFE Auth UDS/DPoP и Centrifuge.</CATEGORY>
+      <CATEGORY id="QA-03">E2E tests клиентского пути Flutter Web/Android — Chat Service — PostgreSQL.</CATEGORY>
+      <CATEGORY id="QA-04">Security tests: DPoP signature/key binding, ath, proof freshness, replay/reconnect, revoked tokens, ADMIN separation, недопустимый доступ к чужой истории.</CATEGORY>
+      <CATEGORY id="QA-05">Concurrency tests: атомарное переназначение, гонки отправки/назначения, онлайн-доставка после переназначения, идемпотентность конкурентных повторов.</CATEGORY>
+      <CATEGORY id="QA-06">Failure tests: недоступность BFE Auth и PostgreSQL, откат транзакции, потеря ответа после commit, недоступность Centrifuge.</CATEGORY>
+      <CATEGORY id="QA-07">Performance tests: задержки операций, параллельные соединения, нагрузка; конкретные эксплуатационные бюджеты определяются до Production release по результатам замеров и характеристик VPS.</CATEGORY>
+      <CATEGORY id="QA-08">Regression tests для исправленных дефектов и критических инвариантов.</CATEGORY>
+      <CATEGORY id="QA-09">Property-based, state-machine и model-based tests на базе rapid для инвариантов и последовательностей состояний.</CATEGORY>
+      <CATEGORY id="QA-10">Mutation tests реальной способности тестов выявлять изменения поведения.</CATEGORY>
+    </REQUIRED_CATEGORIES>
+    <CONTAINERS tool="github.com/testcontainers/testcontainers-go" policy="APPROVED">Использовать подход BFE Drive: Docker-контейнеры с реальной PostgreSQL целевой ветки 18.6 и настоящей интеграцией BFE Drive Internal Auth API по UDS/DPoP; Centrifuge тестируется в реальном Go Chat Service. Версии Docker-образов и тестовых инструментов фиксируются; контейнеры изолированы и автоматически очищаются. Mocks допустимы для unit tests, но не заменяют реальные критические интеграционные проверки.</CONTAINERS>
+    <BFE_AUTH_TEST_SOURCE repository="bogachenko/bfe-drive" branch="experimental/internal-auth-api">Реализация BFE Drive Internal Auth API находится в указанной экспериментальной ветке. Для воспроизводимых тестов фиксировать конкретный commit этой ветки, а не полагаться на перемещающийся HEAD.</BFE_AUTH_TEST_SOURCE>
+    <MUTATION_TESTING tool="github.com/go-gremlins/gremlins" version="v0.6.0" policy="APPROVED">
+      <SCOPE>Мутировать рукописный production Go-код; исключать тестовые и автоматически генерируемые файлы.</SCOPE>
+      <PR>Обязательный запуск mutation testing для затронутого рукописного production Go-кода каждого PR; ошибки запуска и инструмента блокируют CI. Отчёт показывает killed, survived, not covered, mutation coverage и test efficacy.</PR>
+      <FULL>Полный прогон всего репозитория выполнять периодически или по отдельному запросу, не при каждом PR.</FULL>
+      <THRESHOLD>Числовой порог mutation score пока не установлен: сначала измерить реальный baseline killed/survived, после чего командный центр отдельно утвердит пороги. Survived mutants анализируются; без согласованного числового порога PR не отклоняется только из-за mutation score.</THRESHOLD>
+    </MUTATION_TESTING>
+  </TESTING_AND_QA>
+  <AUTOMATION_AND_REPRODUCIBILITY>
+    <REQUIREMENT id="CI-01">Makefile предоставляет единые команды для качества, безопасности, покрытия, race, интеграционных и mutation проверок, включая отдельный полный mutation прогон.</REQUIREMENT>
+    <REQUIREMENT id="CI-02">GitHub Actions выполняет обязательные проверки на каждом PR; branch protection запрещает merge при неуспешных required checks.</REQUIREMENT>
+    <REQUIREMENT id="CI-03">Согласованные версии Go, линтеров, security tools, mutation tools, testcontainers и Docker-образов закреплены; обновления требуют проверки совместимости.</REQUIREMENT>
+    <REQUIREMENT id="CI-04">Тесты воспроизводимы и изолированы, не используют production-данные или production-сервисы; внешние зависимости ограничены контролируемым тестовым окружением.</REQUIREMENT>
+    <REQUIREMENT id="CI-05">Не допускать обхода quality gates молчаливыми исключениями. Исключения, если объективно необходимы, явно обосновываются и рассматриваются.</REQUIREMENT>
+  </AUTOMATION_AND_REPRODUCIBILITY>
+  <PRODUCTION_READINESS>
+    <CRITERION id="PR-01">Все обязательные Quality Gates успешно пройдены.</CRITERION>
+    <CRITERION id="PR-02">Все применимые обязательные unit, integration, E2E, security, concurrency, failure, performance и regression проверки завершены успешно.</CRITERION>
+    <CRITERION id="PR-03">Не осталось известных критических дефектов или высокорисковых проблем безопасности.</CRITERION>
+    <CRITERION id="PR-04">Отдельно подтверждены DPoP/replay/reconnect, идемпотентность, согласованность транзакций и отсутствие несанкционированной доставки при переназначении.</CRITERION>
+    <CRITERION id="PR-05">Подтверждены воспроизводимость сборки/тестов, совместимость окружения существующего VPS и готовность эксплуатационной конфигурации до развёртывания.</CRITERION>
+  </PRODUCTION_READINESS>
+  <APPROVAL_STATE>HUMAN_APPROVED: командный центр утвердил Quality Metrics, race detector, Docker/testcontainers integration, property-based testing, Gremlins mutation testing с baseline-first политикой, все перечисленные категории QA, CI/branch protection, воспроизводимость и Production readiness. Передача требований не разрешает приступать к Production Implementation или Automated Tests до отдельного решения командного центра.</APPROVAL_STATE>
+</QUALITY_REQUIREMENTS>
