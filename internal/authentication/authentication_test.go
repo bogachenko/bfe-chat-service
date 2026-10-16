@@ -43,7 +43,7 @@ func newFixture(t *testing.T)*fixture{
  public,private,err:=ed25519.GenerateKey(rand.Reader);if err!=nil{t.Fatal(err)}
  jwk:=jose.JSONWebKey{Key:public}
  thumb,err:=jwk.Thumbprint(crypto.SHA256);if err!=nil{t.Fatal(err)}
- f:=&fixture{private:private,public:public,jkt:base64.RawURLEncoding.EncodeToString(thumb),token:"opaque-session-token"}
+ f:=&fixture{private:private,public:public,jkt:base64.RawURLEncoding.EncodeToString(thumb),token:"opaque-xyz-456"}
  f.status.Store(http.StatusOK)
  mux:=http.NewServeMux()
  mux.HandleFunc("/internal/auth/validate",func(w http.ResponseWriter,r *http.Request){
