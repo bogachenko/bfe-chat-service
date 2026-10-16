@@ -146,26 +146,12 @@ func (v *Validator) validateProof(rawProof, accessToken, expectedJKT string, bin
 	if err != nil || binding.Method == "" {
 		return ErrProofInvalid
 	}
-	token, err := jwt.ParseSigned(rawProof, allowedAlgorithms)
-	if err != nil || len(token.Headers) != 1 {
-		return ErrProofInvalid
-	}
-	header := token.Headers[0]
-	if header.JSONWebKey == nil || !header.JSONWebKey.Valid() || !header.JSONWebKey.IsPublic() ||
-		header.ExtraHeaders[jose.HeaderType] != "dpop+jwt" {
-		return ErrProofInvalid
-	}
-	var claims proofClaims
-	if err := token.Claims(header.JSONWebKey.Key, &claims); err != nil || claims.JTI == "" ||
-		claims.IssuedAt == nil || claims.Method != binding.Method {
+	claims, err := verifiedClaims(rawProof, expectedJKT)
+	if err != nil || claims.Method != binding.Method {
 		return ErrProofInvalid
 	}
 	actualURI, err := canonicalTarget(claims.URI, true)
 	if err != nil || actualURI != expectedURI {
-		return ErrProofInvalid
-	}
-	thumbprint, err := header.JSONWebKey.Thumbprint(crypto.SHA256)
-	if err != nil || base64.RawURLEncoding.EncodeToString(thumbprint) != expectedJKT {
 		return ErrProofInvalid
 	}
 	hash := sha256.Sum256([]byte(accessToken))
@@ -178,7 +164,31 @@ func (v *Validator) validateProof(rawProof, accessToken, expectedJKT string, bin
 	if issued.After(now.Add(time.Minute)) || !now.Before(expires) {
 		return ErrProofInvalid
 	}
-	key := replayKey{JKT: expectedJKT, JTI: claims.JTI, Method: claims.Method, URI: actualURI}
+	return v.checkReplay(replayKey{JKT: expectedJKT, JTI: claims.JTI, Method: claims.Method, URI: actualURI}, now, expires)
+}
+
+func verifiedClaims(rawProof, expectedJKT string) (proofClaims, error) {
+	token, err := jwt.ParseSigned(rawProof, allowedAlgorithms)
+	if err != nil || len(token.Headers) != 1 {
+		return proofClaims{}, ErrProofInvalid
+	}
+	header := token.Headers[0]
+	if header.JSONWebKey == nil || !header.JSONWebKey.Valid() || !header.JSONWebKey.IsPublic() ||
+		header.ExtraHeaders[jose.HeaderType] != "dpop+jwt" {
+		return proofClaims{}, ErrProofInvalid
+	}
+	var claims proofClaims
+	if err := token.Claims(header.JSONWebKey.Key, &claims); err != nil || claims.JTI == "" || claims.IssuedAt == nil {
+		return proofClaims{}, ErrProofInvalid
+	}
+	thumbprint, err := header.JSONWebKey.Thumbprint(crypto.SHA256)
+	if err != nil || base64.RawURLEncoding.EncodeToString(thumbprint) != expectedJKT {
+		return proofClaims{}, ErrProofInvalid
+	}
+	return claims, nil
+}
+
+func (v *Validator) checkReplay(key replayKey, now, expires time.Time) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	// ponytail: O(n) expiry sweep and one process-local lock; for multiple
