@@ -1,0 +1,23 @@
+name: Quality Gates
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  go-quality:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Formatting
+        run: make fmt
+      - name: Vet
+        run: make vet
+      - name: Race detection
+        run: make race
+      - name: Coverage report
+        run: make coverage
