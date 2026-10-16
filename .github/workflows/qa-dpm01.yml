@@ -1,0 +1,44 @@
+name: DP-M01 Independent QA
+on:
+  pull_request:
+    paths:
+      - 'internal/authentication/**'
+      - 'qa/DP-M01*'
+      - '.github/workflows/qa-dpm01.yml'
+permissions:
+  contents: read
+jobs:
+  authentication:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Independent FC-01/FC-02 unit UDS and DPoP tests
+        run: |
+          go test -count=1 -race ./internal/authentication/...
+          go test -count=1 -coverprofile=auth-coverage.out ./internal/authentication/...
+          go tool cover -func=auth-coverage.out | tee auth-coverage.txt
+          awk '/^total:/ {gsub(/%/, "", $3); found=1; if ($3+0 < 90) exit 1} END {if (!found) exit 1}' auth-coverage.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dp-m01-coverage
+          path: |
+            auth-coverage.out
+            auth-coverage.txt
+          if-no-files-found: ignore
+  mutation:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Gremlins v0.6.0 FC-01/FC-02
+        run: |
+          go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
+          "$(go env GOPATH)/bin/gremlins" unleash --exclude-files '.*_test\\.go$' --exclude-files '^internal/storage/' --exclude-files '^internal/chat/' --exclude-files '^internal/documentcontext/' --exclude-files '^tools/' --exclude-files '^cmd/'
