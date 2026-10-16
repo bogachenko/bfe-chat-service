@@ -61,7 +61,7 @@ func newFixture(t *testing.T)*fixture{
 
 func (f *fixture) proof(t *testing.T,jti,method,target,token string,issued time.Time)string{
  t.Helper()
- signer,err:=jose.NewSigner(jose.SigningKey{Algorithm:jose.EdDSA,Key:jose.JSONWebKey{Key:f.private,Public: true,Algorithm:string(jose.EdDSA)}},&jose.SignerOptions{ExtraHeaders:map[jose.HeaderKey]interface{}{jose.HeaderType:"dpop+jwt"}})
+ signer,err:=jose.NewSigner(jose.SigningKey{Algorithm:jose.EdDSA,Key:jose.JSONWebKey{Key:f.private,Algorithm:string(jose.EdDSA)}},&jose.SignerOptions{EmbedJWK:true,ExtraHeaders:map[jose.HeaderKey]interface{}{jose.HeaderType:"dpop+jwt"}})
  if err!=nil{t.Fatal(err)}
  ath:=sha256.Sum256([]byte(token))
  body,err:=json.Marshal(map[string]interface{}{"jti":jti,"htm":method,"htu":target,"iat":issued.Unix(),"ath":base64.RawURLEncoding.EncodeToString(ath[:])})
