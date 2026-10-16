@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<DEVELOPMENT_PLAN id="DP-BFE-CHAT-001" status="DRAFT_PENDING_HUMAN_APPROVAL" requirements_source="RequirementsAnalysis.xml" technology_source="Technology.xml">
-  <PURPOSE>Проект архитектурного графа GRACE: восемь предварительно согласованных модулей, вызовы, границы владения и последовательность работ. Требует HUMAN_APPROVED до контрактов и реализации.</PURPOSE>
+<DEVELOPMENT_PLAN id="DP-BFE-CHAT-001" status="HUMAN_APPROVED" requirements_source="RequirementsAnalysis.xml" technology_source="Technology.xml">
+  <PURPOSE>Проект архитектурного графа GRACE: восемь предварительно согласованных модулей, вызовы, границы владения и последовательность работ. Утверждён командным центром; разрешена подготовка контрактов, но тесты и реализация только после их отдельного согласования.</PURPOSE>
   <MODULES>
     <MODULE id="DP-M01" refs="BR-013 BR-026">BFE Auth integration: внутренний UDS validate, проверка текущей сессии; проверка ADMIN для административных операций, DPoP на клиентских соединениях.</MODULE>
     <MODULE id="DP-M02" refs="BR-004 BR-022">Назначения: явный recipient_account_id, атомарная замена; без автоматического выбора администратора.</MODULE>
@@ -73,7 +73,8 @@
     <STEP id="DP-S06" refs="BR-010 BR-012">Проверить Ubuntu VPS, PostgreSQL 18.6, systemd, Nginx и локальный Unix socket до развёртывания.</STEP>
   </SEQUENCE>
   <GATES>
-    <GATE id="DP-G01">DevelopmentPlan.xml требует отдельного HUMAN_APPROVED.</GATE>
+    <GATE id="DP-G01">DevelopmentPlan.xml HUMAN_APPROVED решением командного центра.</GATE>
     <GATE id="DP-G02">После утверждения плана подготовить контракты модулей и функций, затем тесты и реализацию согласно GRACE.</GATE>
   </GATES>
+  <APPROVAL_STATE>HUMAN_APPROVED: утверждены восемь модулей, архитектурный граф, границы ответственности, зависимости, потоки данных и последовательность работ. Разрешён этап проектирования контрактов модулей и функций.</APPROVAL_STATE>
 </DEVELOPMENT_PLAN>
