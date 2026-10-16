@@ -150,3 +150,41 @@ func TestFC11PropertyIdempotency(t *testing.T){
   if stored!=body{rt.Fatalf("body changed: %q",stored)}
  })
 }
+
+func TestMS05AssignmentCommitsBeforeWaitingSend(t *testing.T) {
+ db,s:=database(t);assign(t,s,recipientA)
+ tx,err:=db.BeginTx(context.Background(),nil);if err!=nil{t.Fatal(err)}
+ committed:=false
+ t.Cleanup(func(){if !committed{_ =tx.Rollback()}})
+ var locked string
+ if err:=tx.QueryRow("SELECT recipient_account_id::text FROM chat_commit_assignment($1::uuid,$2::uuid)",owner,recipientB).Scan(&locked);err!=nil{t.Fatal(err)}
+ if locked!=recipientB{t.Fatalf("inside tx: %s",locked)}
+ result:=make(chan struct{m storage.Message;err error},1)
+ go func(){m,e:=s.CommitMessage(context.Background(),owner,sender,k(401),"after B",sql.NullString{},sql.NullString{});result<-struct{m storage.Message;err error}{m,e}}()
+ // The owner lock remains held until commit; whichever point the sender starts,
+ // it cannot resolve the old recipient after this transaction commits.
+ if err:=tx.Commit();err!=nil{t.Fatal(err)}
+ committed=true
+ select {
+ case got:=<-result:
+  if got.err!=nil||got.m.Replayed||got.m.RecipientID!=recipientB{t.Fatalf("after assignment commit: %+v err=%v",got.m,got.err)}
+ case <-time.After(15*time.Second):t.Fatal("blocked send did not recover")
+ }
+}
+func TestMS11CancelledWaitingSendLeavesNoPartialState(t *testing.T){
+ db,s:=database(t);assign(t,s,recipientA)
+ tx,err:=db.BeginTx(context.Background(),nil);if err!=nil{t.Fatal(err)}
+ defer func(){_ =tx.Rollback()}()
+ var held string
+ if err:=tx.QueryRow("SELECT recipient_account_id::text FROM chat_commit_assignment($1::uuid,$2::uuid)",owner,recipientB).Scan(&held);err!=nil{t.Fatal(err)}
+ ctx,cancel:=context.WithTimeout(context.Background(),150*time.Millisecond)
+ defer cancel()
+ if _,err:=s.CommitMessage(ctx,owner,sender,k(402),"will cancel",sql.NullString{},sql.NullString{});err==nil{t.Fatal("blocked write ignored canceled context")}
+ if rows(t,db,"chat_conversations")!=0||rows(t,db,"chat_messages")!=0{t.Fatal("canceled write partially committed")}
+ if err:=tx.Rollback();err!=nil{t.Fatal(err)}
+ var current string
+ if err:=db.QueryRow("SELECT recipient_account_id::text FROM chat_assignments WHERE owner_account_id=$1",owner).Scan(&current);err!=nil{t.Fatal(err)}
+ if current!=recipientA{t.Fatalf("rollback changed recipient: %s",current)}
+ msg:=send(t,s,402)
+ if msg.Replayed||msg.RecipientID!=recipientA{t.Fatalf("retry=%+v",msg)}
+}

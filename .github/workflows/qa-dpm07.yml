@@ -30,6 +30,7 @@ jobs:
         run: |
           go test -tags=integration -covermode=atomic -coverprofile=coverage.out -timeout=25m ./internal/storage/...
           go tool cover -func=coverage.out | tee coverage.txt
+          awk '/^total:/ {gsub(/%/, "", $3); if ($3+0 < 80) {print "DP-M07 coverage gate failed:", $3, "< 80%"; exit 1} found=1} END {if (!found) exit 1}' coverage.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
