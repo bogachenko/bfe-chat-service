@@ -28,8 +28,6 @@ var (
 	ErrProofInvalid    = errors.New("PROOF_INVALID")
 )
 
-const driveSourceCommit = "9a33850a5456d8e3ff40f5cdab6ded869da7110f"
-
 type Caller struct {
 	AccountID            string
 	AdministrativeStatus string
@@ -82,39 +80,45 @@ type driveIdentity struct {
 // never exposed as trusted caller identity unless DPoP also verifies.
 func (v *Validator) ValidateCaller(ctx context.Context, accessToken, proof string, binding RequestBinding) (Caller, error) {
 	if v == nil || v.httpClient == nil || accessToken == "" || proof == "" ||
-		strings.ContainsAny(accessToken, " \t\r\n") {
+		strings.ContainsAny(accessToken, " \\t\\r\\n") {
 		return Caller{}, ErrAuthInvalid
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://unix/internal/auth/validate", nil)
+	identity, err := v.validateSession(ctx, accessToken)
 	if err != nil {
-		return Caller{}, ErrAuthUnavailable
-	}
-	req.Header.Set("Authorization", "DPoP "+accessToken)
-	resp, err := v.httpClient.Do(req)
-	if err != nil {
-		return Caller{}, ErrAuthUnavailable
-	}
-	defer resp.Body.Close()
-	switch resp.StatusCode {
-	case http.StatusUnauthorized:
-		return Caller{}, ErrAuthInvalid
-	case http.StatusOK:
-		// continue
-	default:
-		return Caller{}, ErrAuthUnavailable
-	}
-	var identity driveIdentity
-	if err := json.NewDecoder(http.MaxBytesReader(nil, resp.Body, 4096)).Decode(&identity); err != nil {
-		return Caller{}, ErrAuthUnavailable
-	}
-	if identity.AccountID == "" || identity.DPoPJKT == "" ||
-		(identity.AdministrativeStatus != "ADMIN" && identity.AdministrativeStatus != "NON_ADMIN") {
-		return Caller{}, ErrAuthUnavailable
+		return Caller{}, err
 	}
 	if err := v.validateProof(proof, accessToken, identity.DPoPJKT, binding); err != nil {
 		return Caller{}, ErrProofInvalid
 	}
 	return Caller{AccountID: identity.AccountID, AdministrativeStatus: identity.AdministrativeStatus}, nil
+}
+
+func (v *Validator) validateSession(ctx context.Context, accessToken string) (driveIdentity, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://unix/internal/auth/validate", nil)
+	if err != nil {
+		return driveIdentity{}, ErrAuthUnavailable
+	}
+	req.Header.Set("Authorization", "DPoP "+accessToken)
+	resp, err := v.httpClient.Do(req)
+	if err != nil {
+		return driveIdentity{}, ErrAuthUnavailable
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusUnauthorized {
+		return driveIdentity{}, ErrAuthInvalid
+	}
+	if resp.StatusCode != http.StatusOK {
+		return driveIdentity{}, ErrAuthUnavailable
+	}
+	var identity driveIdentity
+	if err := json.NewDecoder(http.MaxBytesReader(nil, resp.Body, 4096)).Decode(&identity); err != nil {
+		return driveIdentity{}, ErrAuthUnavailable
+	}
+	if identity.AccountID == "" || identity.DPoPJKT == "" ||
+		(identity.AdministrativeStatus != "ADMIN" && identity.AdministrativeStatus != "NON_ADMIN") {
+		return driveIdentity{}, ErrAuthUnavailable
+	}
+	return identity, nil
 }
 
 // ValidateOnConnecting implements FC-02's authentication decision for a
@@ -178,8 +182,7 @@ func verifiedClaims(rawProof, expectedJKT string) (proofClaims, error) {
 		return proofClaims{}, ErrProofInvalid
 	}
 	header := token.Headers[0]
-	if header.JSONWebKey == nil || !header.JSONWebKey.Valid() || !header.JSONWebKey.IsPublic() ||
-		header.ExtraHeaders[jose.HeaderType] != "dpop+jwt" {
+	if !validProofHeader(header) {
 		return proofClaims{}, ErrProofInvalid
 	}
 	var claims proofClaims
@@ -191,6 +194,11 @@ func verifiedClaims(rawProof, expectedJKT string) (proofClaims, error) {
 		return proofClaims{}, ErrProofInvalid
 	}
 	return claims, nil
+}
+
+func validProofHeader(header jose.Header) bool {
+	return header.JSONWebKey != nil && header.JSONWebKey.Valid() &&
+		header.JSONWebKey.IsPublic() && header.ExtraHeaders[jose.HeaderType] == "dpop+jwt"
 }
 
 func (v *Validator) checkReplay(key replayKey, now, expires time.Time) error {
@@ -210,17 +218,10 @@ func (v *Validator) checkReplay(key replayKey, now, expires time.Time) error {
 	return nil
 }
 
-func canonicalTarget(raw string, rejectQuery bool) (string, error) {
+func canonicalTarget(raw string, _ bool) (string, error) {
 	u, err := url.Parse(raw)
-	if err != nil || u.User != nil || u.Fragment != "" || u.Host == "" || u.RawQuery != "" {
-		return "", ErrProofInvalid
-	}
-	switch strings.ToLower(u.Scheme) {
-	case "https":
-	default:
-		return "", ErrProofInvalid
-	}
-	if rejectQuery && u.RawQuery != "" {
+	if err != nil || u.Scheme != "https" || u.User != nil || u.Fragment != "" ||
+		u.Host == "" || u.RawQuery != "" {
 		return "", ErrProofInvalid
 	}
 	host := strings.ToLower(u.Hostname())
