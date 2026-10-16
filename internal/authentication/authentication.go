@@ -43,7 +43,7 @@ type RequestBinding struct {
 }
 
 type replayKey struct {
-	JKT, JTI, Method, URI string
+	JKT, JTI string
 }
 
 // Validator must be shared across all connections within one service process.
@@ -164,7 +164,7 @@ func (v *Validator) validateProof(rawProof, accessToken, expectedJKT string, bin
 	if issued.After(now.Add(time.Minute)) || !now.Before(expires) {
 		return ErrProofInvalid
 	}
-	return v.checkReplay(replayKey{JKT: expectedJKT, JTI: claims.JTI, Method: claims.Method, URI: actualURI}, now, expires)
+	return v.checkReplay(replayKey{JKT: expectedJKT, JTI: claims.JTI}, now, expires)
 }
 
 func verifiedClaims(rawProof, expectedJKT string) (proofClaims, error) {
@@ -207,11 +207,11 @@ func (v *Validator) checkReplay(key replayKey, now, expires time.Time) error {
 
 func canonicalTarget(raw string, rejectQuery bool) (string, error) {
 	u, err := url.Parse(raw)
-	if err != nil || u.User != nil || u.Fragment != "" || u.Host == "" {
+	if err != nil || u.User != nil || u.Fragment != "" || u.Host == "" || u.RawQuery != "" {
 		return "", ErrProofInvalid
 	}
 	switch strings.ToLower(u.Scheme) {
-	case "wss", "https":
+	case "https":
 	default:
 		return "", ErrProofInvalid
 	}
