@@ -9,7 +9,6 @@ import (
  "testing"
  "time"
 
- "github.com/bogachenko/bfe-chat-service/internal/storage"
 )
 
 func TestDPM03FC06HistoryCursorIsolationAndReadOnly(t *testing.T) {
