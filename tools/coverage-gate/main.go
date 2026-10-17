@@ -62,79 +62,65 @@ func main() {
 	}
 }
 
-func parseProfile(r io.Reader) (map[string]counts, error) {
-	scan := bufio.NewScanner(r)
-	if !scan.Scan() {
-		return nil, errors.New("empty coverage profile")
-	}
-	switch scan.Text() {
-	case "mode: set", "mode: count", "mode: atomic":
-	default:
-		return nil, errors.New("invalid coverage profile header")
-	}
-	byPackage := make(map[string]counts)
-	known := make(map[string]bool, len(production))
-	for _, pkg := range production {
-		known[pkg] = true
-	}
-	rows := 0
-	seen := make(map[string]uint64)
-	covered := make(map[string]bool)
-	for scan.Scan() {
-		fields := strings.Fields(scan.Text())
-		if len(fields) != 3 {
-			return nil, errors.New("invalid profile row")
-		}
-		match := block.FindStringSubmatch(fields[0])
-		if match == nil || !strings.HasPrefix(match[1], module) {
-			return nil, errors.New("invalid production file path")
-		}
-		path := strings.TrimPrefix(match[1], module)
-		last := strings.LastIndexByte(path, '/')
-		if last < 0 || !strings.HasSuffix(path, ".go") || !known[path[:last]] {
-			return nil, fmt.Errorf("unexpected production package: %s", path)
-		}
-		n, errN := strconv.ParseUint(fields[1], 10, 64)
-		hits, errHits := strconv.ParseUint(fields[2], 10, 64)
-		if errN != nil || errHits != nil {
-			return nil, errors.New("invalid statement counter")
-		}
-		// -coverpkg produces one profile entry per test binary. Identical
-		// source blocks must be counted once, covered if any run hit them.
-		key := fields[0]
-		prior, exists := seen[key]
-		if exists {
-			if prior != n {
-				return nil, errors.New("inconsistent repeated coverage block")
-			}
-			if hits > 0 {
-				c := byPackage[path[:last]]
-				if !covered[key] {
-					c.hit += n
-					covered[key] = true
-					byPackage[path[:last]] = c
-				}
-			}
-			continue
-		}
-		seen[key] = n
-		pkg := path[:last]
-		c := byPackage[pkg]
-		c.total += n
-		if hits > 0 {
-			c.hit += n
-			covered[key] = true
-		}
-		byPackage[pkg] = c
-		rows++
-	}
-	if err := scan.Err(); err != nil {
-		return nil, err
-	}
-	if rows == 0 {
-		return nil, errors.New("empty coverage profile")
-	}
-	return byPackage, nil
+type profileAccumulator struct {
+ byPackage map[string]counts
+ seen map[string]uint64
+ covered map[string]bool
+ rows int
+}
+func newProfileAccumulator() *profileAccumulator {
+ return &profileAccumulator{byPackage:make(map[string]counts),seen:make(map[string]uint64),covered:make(map[string]bool)}
+}
+func parseProfile(r io.Reader) (map[string]counts,error) {
+ scan:=bufio.NewScanner(r)
+ if !scan.Scan(){return nil,errors.New("empty coverage profile")}
+ switch scan.Text() {
+ case "mode: set","mode: count","mode: atomic":
+ default:return nil,errors.New("invalid coverage profile header")
+ }
+ acc:=newProfileAccumulator()
+ for scan.Scan(){
+  if err:=acc.add(scan.Text());err!=nil{return nil,err}
+ }
+ if err:=scan.Err();err!=nil{return nil,err}
+ if acc.rows==0{return nil,errors.New("empty coverage profile")}
+ return acc.byPackage,nil
+}
+func parseCoverageRow(row string) (string,string,uint64,bool,error) {
+ fields:=strings.Fields(row)
+ if len(fields)!=3{return "","",0,false,errors.New("invalid profile row")}
+ match:=block.FindStringSubmatch(fields[0])
+ if match==nil||!strings.HasPrefix(match[1],module){return "","",0,false,errors.New("invalid production file path")}
+ path:=strings.TrimPrefix(match[1],module)
+ last:=strings.LastIndexByte(path,'/')
+ if last<0||!strings.HasSuffix(path,".go"){return "","",0,false,fmt.Errorf("unexpected production package: %s",path)}
+ pkg:=path[:last]
+ if !knownProductionPackage(pkg){return "","",0,false,fmt.Errorf("unexpected production package: %s",path)}
+ n,errN:=strconv.ParseUint(fields[1],10,64)
+ hits,errHits:=strconv.ParseUint(fields[2],10,64)
+ if errN!=nil||errHits!=nil{return "","",0,false,errors.New("invalid statement counter")}
+ return fields[0],pkg,n,hits>0,nil
+}
+func knownProductionPackage(pkg string) bool {
+ for _,allowed:=range production {if pkg==allowed{return true}}
+ return false
+}
+func (a *profileAccumulator) add(row string)error {
+ key,pkg,n,hit,err:=parseCoverageRow(row)
+ if err!=nil{return err}
+ if prior,exists:=a.seen[key];exists{
+  if prior!=n{return errors.New("inconsistent repeated coverage block")}
+  if hit&&!a.covered[key]{
+   c:=a.byPackage[pkg];c.hit+=n;a.byPackage[pkg]=c;a.covered[key]=true
+  }
+  return nil
+ }
+ a.seen[key]=n
+ c:=a.byPackage[pkg];c.total+=n
+ if hit{c.hit+=n;a.covered[key]=true}
+ a.byPackage[pkg]=c
+ a.rows++
+ return nil
 }
 
 func evaluate(byPackage map[string]counts, minimum, criticalMinimum float64, out io.Writer) error {
