@@ -14,7 +14,16 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout DP-M01 QA branch (never main)
+        uses: actions/checkout@v5
+        with:
+          ref: qa/independent-dp-m01-12abd40
+          persist-credentials: false
+      - name: Confirm QA checkout and fixture
+        run: |
+          test "$(git branch --show-current)" = "qa/independent-dp-m01-12abd40"
+          grep -Fq 'renewalHash[:]' qa/testdata/bfe_drive_auth_uds_e2e_test.go
+          echo "CHAT_QA_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
