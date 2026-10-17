@@ -146,15 +146,21 @@ func evaluate(byPackage map[string]counts, minimum, criticalMinimum float64, out
 		}
 		total.total += c.total
 		total.hit += c.hit
-		fmt.Fprintf(out, "%s: %.2f%%\n", pkg, c.percent())
+		if _, err := fmt.Fprintf(out, "%s: %.2f%%\n", pkg, c.percent()); err != nil {
+			return fmt.Errorf("write package coverage: %w", err)
+		}
 	}
-	fmt.Fprintf(out, "Production coverage: %.2f%% (minimum %.2f%%)\n", total.percent(), minimum)
+	if _, err := fmt.Fprintf(out, "Production coverage: %.2f%% (minimum %.2f%%)\n", total.percent(), minimum); err != nil {
+		return fmt.Errorf("write production coverage: %w", err)
+	}
 	if total.percent() < minimum {
 		return errors.New("production coverage below threshold")
 	}
 	for _, pkg := range critical {
 		c := byPackage[pkg]
-		fmt.Fprintf(out, "Critical %s: %.2f%% (minimum %.2f%%)\n", pkg, c.percent(), criticalMinimum)
+		if _, err := fmt.Fprintf(out, "Critical %s: %.2f%% (minimum %.2f%%)\n", pkg, c.percent(), criticalMinimum); err != nil {
+			return fmt.Errorf("write critical coverage: %w", err)
+		}
 		if c.percent() < criticalMinimum {
 			return fmt.Errorf("critical package below threshold: %s", pkg)
 		}
