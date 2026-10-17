@@ -70,6 +70,10 @@ func TestFC06HistoryReadOnlyAndBoundaries(t *testing.T){
  s,a,p,db:=fixture();db.history=[]storage.HistoryMessage{{ID:3},{ID:5}}
  got,err:=read(s,3,100)
  if err!=nil||len(got)!=2||db.send!=0||db.read!=1||a.calls!=1||p.read!=1{t.Fatalf("history %+v %v store=%+v",got,err,db)}
+ assertInvalidHistoryBoundaries(t)
+}
+func assertInvalidHistoryBoundaries(t *testing.T){
+ t.Helper()
  for _,tc:=range []struct{after int64;limit int}{{-1,1},{0,0},{0,101}}{
   s,_,_,db:=fixture()
   result,err:=read(s,tc.after,tc.limit)
