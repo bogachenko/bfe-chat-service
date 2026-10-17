@@ -94,7 +94,7 @@ func parseProfile(r io.Reader) (map[string]counts, error) {
 		}
 		n, errN := strconv.ParseUint(fields[1], 10, 64)
 		hits, errHits := strconv.ParseUint(fields[2], 10, 64)
-		if errN != nil || errHits != nil || n == 0 {
+		if errN != nil || errHits != nil {
 			return nil, errors.New("invalid statement counter")
 		}
 		pkg := path[:last]
