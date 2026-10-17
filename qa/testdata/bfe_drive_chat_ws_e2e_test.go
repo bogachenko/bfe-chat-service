@@ -5,6 +5,13 @@ package httpapi
 import (
  "context"
  "crypto/sha256"
+ "crypto/rand"
+ "encoding/base64"
+ "encoding/hex"
+ "bufio"
+ "fmt"
+ "io"
+ "strings"
  "database/sql"
  "net"
  "net/http"
@@ -40,21 +47,14 @@ func TestQADPM05RealCentrifugeWebSocketUDS(t *testing.T){
  pool,err:=pgxpool.New(context.Background(),dsn);if err!=nil{t.Fatal(err)}
  t.Cleanup(pool.Close)
  if err:=pool.Ping(ctx);err!=nil{t.Fatal(err)}
- invoke:=func(args ...string)string{
-  t.Helper()
-  c,cancel:=context.WithTimeout(context.Background(),10*time.Second);defer cancel()
-  out,err:=exec.CommandContext(c,probe,args...).CombinedOutput()
-  if err!=nil{t.Fatalf("Chat QA child failed: %v; output=%s",err,out)}
-  return string(out)
- }
  jkt:=os.Getenv("CHAT_WS_JKT")
  if jkt==""{t.Fatal("CHAT_WS_JKT required from auth probe")}
  var accountID pgtype.UUID
  if err:=pool.QueryRow(ctx,`INSERT INTO accounts(login,password_verifier,activation_status,administrative_status)
  VALUES('chat-qa-reality-check','verifier','ACTIVE','NON_ADMIN') RETURNING id`).Scan(&accountID);err!=nil{t.Fatal(err)}
- token:="opaque-session-token"
+ token:=newWSFixtureToken(t)
  hash:=sha256.Sum256([]byte(token))
- renewalHash:=sha256.Sum256([]byte("qa-renewal-token"))
+ renewalHash:=sha256.Sum256([]byte(newWSFixtureToken(t)))
  _,err=pool.Exec(ctx,`INSERT INTO login_sessions(account_id,access_token_hash,session_expires_at,session_invalidated,renewal_token_hash,renewal_invalidated,dpop_jkt)
  VALUES($1,$2,clock_timestamp()+interval '1 hour',false,$3,false,$4)`,accountID,hash[:],renewalHash[:],jkt)
  if err!=nil{t.Fatal(err)}
@@ -63,9 +63,50 @@ func TestQADPM05RealCentrifugeWebSocketUDS(t *testing.T){
  server:=&http.Server{Handler:NewInternalAuthHandler(pool)}
  go func(){_ =server.Serve(listener)}()
  t.Cleanup(func(){_ =server.Close()})
- invoke("--socket="+socket,"--token="+token,"--expect=ok")
+ accountHex:=hex.EncodeToString(accountID.Bytes[:])
+ account:=fmt.Sprintf("%s-%s-%s-%s-%s",accountHex[:8],accountHex[8:12],accountHex[12:16],accountHex[16:20],accountHex[20:])
+ childCtx,stop:=context.WithTimeout(context.Background(),90*time.Second)
+ defer stop()
+ child:=exec.CommandContext(childCtx,probe,"--socket="+socket,"--account="+account,"--expect=lifecycle")
+ child.Env=append(os.Environ(),"CHAT_WS_TOKEN="+token)
+ // No child stdout/stderr is copied into CI logs on failure.
+ output,err:=child.StdoutPipe();if err!=nil{t.Fatal("open probe output")}
+ input,err:=child.StdinPipe();if err!=nil{t.Fatal("open probe input")}
+ child.Stderr=io.Discard
+ if err:=child.Start();err!=nil{t.Fatal("start Centrifuge probe")}
+ defer stop()
+ scanner:=bufio.NewScanner(output)
+ expectStage:=func(want string){
+  t.Helper()
+  if !scanner.Scan()||strings.TrimSpace(scanner.Text())!=want{
+   t.Fatalf("WebSocket probe did not complete expected stage %s",want)
+  }
+ }
+ expectStage("READY")
  if _,err:=pool.Exec(ctx,`UPDATE login_sessions SET session_invalidated=true WHERE access_token_hash=$1`,hash[:]);err!=nil{t.Fatal(err)}
- invoke("--socket="+socket,"--token="+token,"--expect=invalid")
+ if _,err:=io.WriteString(input,"REVOKED\n");err!=nil{t.Fatal("send revoke event")}
+ expectStage("REVOKED_OK")
+ fresh:=newWSFixtureToken(t)
+ freshHash:=sha256.Sum256([]byte(fresh))
+ freshRenewal:=sha256.Sum256([]byte(newWSFixtureToken(t)))
+ if _,err:=pool.Exec(ctx,`INSERT INTO login_sessions(account_id,access_token_hash,session_expires_at,session_invalidated,renewal_token_hash,renewal_invalidated,dpop_jkt)
+ VALUES($1,$2,clock_timestamp()+interval '1 hour',false,$3,false,$4)`,accountID,freshHash[:],freshRenewal[:],jkt);err!=nil{t.Fatal(err)}
+ if _,err:=io.WriteString(input,"NEW\n"+fresh+"\n");err!=nil{t.Fatal("send fresh login")}
+ expectStage("real Centrifuge WebSocket + BFE Drive UDS: lifecycle PASS")
+ if err:=input.Close();err!=nil{t.Fatal("close probe stdin")}
+ if err:=child.Wait();err!=nil{t.Fatal("WebSocket lifecycle probe failed")}
+ stop()
  if err:=server.Close();err!=nil{t.Fatal(err)}
- invoke("--socket="+socket,"--token="+token,"--expect=unavailable")
+ unavailable:=exec.CommandContext(context.Background(),probe,"--socket="+socket,"--account="+account,"--expect=unavailable")
+ unavailable.Env=append(os.Environ(),"CHAT_WS_TOKEN="+fresh)
+ unavailable.Stdout=io.Discard
+ unavailable.Stderr=io.Discard
+ if err:=unavailable.Run();err!=nil{t.Fatal("UDS outage was not explicitly denied")}
+}
+
+func newWSFixtureToken(t *testing.T) string {
+ t.Helper()
+ b:=make([]byte,32)
+ if _,err:=rand.Read(b);err!=nil{t.Fatal("generate fixture token")}
+ return base64.RawURLEncoding.EncodeToString(b)
 }
