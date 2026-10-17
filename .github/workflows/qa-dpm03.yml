@@ -1,0 +1,25 @@
+name: DP-M03 Independent QA
+on:
+  pull_request:
+    paths:
+      - 'internal/conversations/**'
+      - 'internal/storage/**'
+      - '.github/workflows/qa-dpm03.yml'
+permissions:
+  contents: read
+jobs:
+  conversation-unit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: FC-05 and FC-06 unit and race
+        run: go test -race -count=1 ./internal/conversations/...
+      - name: Conversation coverage critical threshold 90 percent
+        run: |
+          go test -count=1 -coverprofile=conversation-coverage.out ./internal/conversations/...
+          go tool cover -func=conversation-coverage.out | tee conversation-coverage.txt
+          awk '/^total:/ {gsub(/%/, "", $3); found=1; if ($3+0 < 90) exit 1} END {if (!found) exit 1}' conversation-coverage.txt
