@@ -88,6 +88,17 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
+      - name: Checkout review harness separately (not part of tested production SHA)
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          path: e2e-harness
+          persist-credentials: false
+      - name: Install independent WebSocket test harness into pinned checkout
+        run: |
+          mkdir -p qa/wsprobe qa/testdata
+          cp e2e-harness/qa/wsprobe/main.go qa/wsprobe/main.go
+          cp e2e-harness/qa/testdata/bfe_drive_chat_ws_e2e_test.go qa/testdata/bfe_drive_chat_ws_e2e_test.go
       - name: Build original auth probe and real Centrifuge WebSocket probe
         run: |
           go build -o "$RUNNER_TEMP/chat-auth-probe" ./qa/driveauthprobe
