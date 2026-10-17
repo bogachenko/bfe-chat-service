@@ -85,9 +85,9 @@ func (c *coverageCounts) addRow(row string) {
 }
 
 func isCriticalPackage(path string) bool {
-	return strings.Contains(path, "/internal/auth/") ||
-		strings.Contains(path, "/internal/dpop/") ||
-		strings.Contains(path, "/internal/access/")
+	return strings.Contains(path, "/internal/authentication/") ||
+		strings.Contains(path, "/internal/authorization/") ||
+		strings.Contains(path, "/internal/realtime/")
 }
 
 func fail(reason string) {
