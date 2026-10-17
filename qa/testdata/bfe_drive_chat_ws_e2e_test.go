@@ -76,6 +76,15 @@ func TestQADPM05RealCentrifugeWebSocketUDS(t *testing.T){
  if err:=child.Start();err!=nil{t.Fatal("start Centrifuge probe")}
  defer stop()
  scanner:=bufio.NewScanner(output)
+ record:=func(name string){
+  t.Helper()
+  file:=os.Getenv("CHAT_WS_MARKERS")
+  if file==""{t.Fatal("CHAT_WS_MARKERS required")}
+  out,err:=os.OpenFile(file,os.O_WRONLY|os.O_APPEND,0600)
+  if err!=nil{t.Fatal("open private scenario markers")}
+  if _,err:=io.WriteString(out,name+" PASS\\n");err!=nil{_ =out.Close();t.Fatal("write scenario marker")}
+  if err:=out.Close();err!=nil{t.Fatal("close scenario marker")}
+ }
  expectStage:=func(want string){
   t.Helper()
   if !scanner.Scan()||strings.TrimSpace(scanner.Text())!=want{
@@ -83,15 +92,23 @@ func TestQADPM05RealCentrifugeWebSocketUDS(t *testing.T){
   }
  }
  expectStage("READY")
+ record("VALID_CONNECT")
  if _,err:=pool.Exec(ctx,`UPDATE login_sessions SET session_invalidated=true WHERE access_token_hash=$1`,hash[:]);err!=nil{t.Fatal(err)}
  if _,err:=io.WriteString(input,"REVOKED\n");err!=nil{t.Fatal("send revoke event")}
- expectStage("REVOKED_OK")
+ expectStage("OPEN_AFTER_REVOKE")
+ record("OPEN_AFTER_REVOKE")
+ expectStage("OLD_TOKEN_DENIED")
+ record("OLD_TOKEN_DENIED")
  fresh:=newWSFixtureToken(t)
  freshHash:=sha256.Sum256([]byte(fresh))
  freshRenewal:=sha256.Sum256([]byte(newWSFixtureToken(t)))
  if _,err:=pool.Exec(ctx,`INSERT INTO login_sessions(account_id,access_token_hash,session_expires_at,session_invalidated,renewal_token_hash,renewal_invalidated,dpop_jkt)
  VALUES($1,$2,clock_timestamp()+interval '1 hour',false,$3,false,$4)`,accountID,freshHash[:],freshRenewal[:],jkt);err!=nil{t.Fatal(err)}
  if _,err:=io.WriteString(input,"NEW\n"+fresh+"\n");err!=nil{t.Fatal("send fresh login")}
+ expectStage("NEW_SESSION_CONNECTED")
+ record("NEW_SESSION_CONNECTED")
+ expectStage("NEW_SESSION_DELIVERED")
+ record("NEW_SESSION_DELIVERED")
  expectStage("real Centrifuge WebSocket + BFE Drive UDS: lifecycle PASS")
  if err:=input.Close();err!=nil{t.Fatal("close probe stdin")}
  if err:=child.Wait();err!=nil{t.Fatal("WebSocket lifecycle probe failed")}
@@ -102,6 +119,7 @@ func TestQADPM05RealCentrifugeWebSocketUDS(t *testing.T){
  unavailable.Stdout=io.Discard
  unavailable.Stderr=io.Discard
  if err:=unavailable.Run();err!=nil{t.Fatal("UDS outage was not explicitly denied")}
+ record("UDS_UNAVAILABLE_DENIED")
 }
 
 func newWSFixtureToken(t *testing.T) string {
