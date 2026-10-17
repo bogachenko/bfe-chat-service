@@ -25,7 +25,7 @@ func TestDP02AuthAndStoreFailures(t *testing.T){
   got,err:=svc.ReplaceRecipient(context.Background(),"opaque-token","proof",binding,qaOwner,qaRecipient)
   if !errors.Is(err,authErr)||got!=(chat.Assignment{}){t.Fatalf("auth=%v caller=%+v err=%v",authErr,got,err)}
  }
- svc:=assignments.Service{Auth:admin(),Store:&stubStorage{}}
+ svc:=assignments.Service{Auth:&authStub{role:"ADMIN"},Store:&stubStorage{}}
  for _,tc:=range []struct{owner,recipient chat.AccountID}{
   {"not-a-uuid",qaRecipient},{qaOwner,"broken"},{qaOwner,""},{qaOwner,"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaZ"},
  }{
@@ -39,7 +39,7 @@ func TestDP02AuthAndStoreFailures(t *testing.T){
   {pgError("23503"),assignments.ErrStorageUnavailable},
   {errors.New("database failure"),assignments.ErrStorageUnavailable},
  }{
-  svc:=assignments.Service{Auth:admin(),Store:&stubStorage{putErr:tc.err}}
+  svc:=assignments.Service{Auth:&authStub{role:"ADMIN"},Store:&stubStorage{putErr:tc.err}}
   got,err:=svc.ReplaceRecipient(context.Background(),"token","proof",binding,qaOwner,qaRecipient)
   if !errors.Is(err,tc.want)||got!=(chat.Assignment{}){t.Fatalf("state=%v got=%+v err=%v",tc.err,got,err)}
  }
