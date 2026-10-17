@@ -139,8 +139,9 @@ func lifecycle(addr string,node *centrifuge.Node,token string)error {
  if _,err:=node.Publish(realtime.Channel(owner,owner),[]byte(`{"phase":"after-revoke"}`));err!=nil{return err}
  event,err:=receiveFrame(conn,reader);if err!=nil{return err}
  if !strings.Contains(string(event),"after-revoke"){return errors.New("open socket lost delivery after revocation")}
+ fmt.Println("OPEN_AFTER_REVOKE")
  if err:=checkWebsocket(addr,token,"invalid");err!=nil{return err}
- fmt.Println("REVOKED_OK")
+ fmt.Println("OLD_TOKEN_DENIED")
  stage,err=commands.ReadString('\n');if err!=nil{return errors.New("missing new session stage")}
  if strings.TrimSpace(stage)!="NEW"{return errors.New("invalid new session stage")}
  fresh,err:=commands.ReadString('\n');if err!=nil{return errors.New("missing new token")}
@@ -150,9 +151,11 @@ func lifecycle(addr string,node *centrifuge.Node,token string)error {
  defer next.Close()
  if err:=connectCommand(next,rd,fresh,3,true);err!=nil{return err}
  if err:=subscribeCommand(next,rd,4);err!=nil{return err}
+ fmt.Println("NEW_SESSION_CONNECTED")
  if _,err:=node.Publish(realtime.Channel(owner,owner),[]byte(`{"phase":"new-session"}`));err!=nil{return err}
  event,err=receiveFrame(next,rd);if err!=nil{return err}
  if !strings.Contains(string(event),"new-session"){return errors.New("fresh connection did not receive message")}
+ fmt.Println("NEW_SESSION_DELIVERED")
  return nil
 }
 func openSocket(addr string)(net.Conn,*bufio.Reader,error){
