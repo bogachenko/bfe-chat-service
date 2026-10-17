@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 )
 
 var ErrInvalidInput = errors.New("missing required account ID or idempotency key")
@@ -63,4 +64,50 @@ func (s Store) GetAssignment(ctx context.Context, owner string) (string, error) 
 		WHERE owner_account_id = $1::uuid
 	`, owner).Scan(&recipient)
 	return recipient, err
+}
+
+type HistoryMessage struct {
+	ID             int64
+	OwnerID        string
+	SenderID       string
+	RecipientID    string
+	IdempotencyKey string
+	Body           string
+	DocumentID     sql.NullString
+	DocumentTitle  sql.NullString
+	CreatedAt      time.Time
+}
+
+// ReadHistory implements FC-06 persistence. An owner filter and keyset cursor
+// prevent cross-conversation reads. Permission checking belongs to DP-M04.
+func (s Store) ReadHistory(ctx context.Context, owner string, afterID int64, limit int) ([]HistoryMessage, error) {
+	if s.DB == nil || owner == "" || afterID < 0 || limit < 1 || limit > 100 {
+		return nil, ErrInvalidInput
+	}
+	rows, err := s.DB.QueryContext(ctx, `
+		SELECT id, owner_account_id::text, sender_account_id::text,
+		       recipient_account_id::text, idempotency_key::text, body,
+		       document_id, document_title, created_at
+		FROM chat_messages
+		WHERE owner_account_id = $1::uuid AND id > $2
+		ORDER BY id ASC LIMIT $3
+	`, owner, afterID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	messages := make([]HistoryMessage, 0)
+	for rows.Next() {
+		var m HistoryMessage
+		if err := rows.Scan(&m.ID, &m.OwnerID, &m.SenderID,
+			&m.RecipientID, &m.IdempotencyKey, &m.Body,
+			&m.DocumentID, &m.DocumentTitle, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		messages = append(messages, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return messages, nil
 }
