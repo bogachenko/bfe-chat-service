@@ -33,15 +33,25 @@ func dialWebSocket(t *testing.T,address string)net.Conn{
 }
 func sendWSJSON(t *testing.T,c net.Conn,body []byte){
  t.Helper()
- // RFC6455 requires masking on every client-to-server frame.
- mask:=make([]byte,4);if _,err:=rand.Read(mask);err!=nil{t.Fatal(err)}
- b:=[]byte{0x81}
- n:=len(body)
- switch{case n<126:b=append(b,0x80|byte(n));case n<=65535:b=append(b,0xfe,byte(n>>8),byte(n));default:t.Fatal("unexpected large connect frame")}
- b=append(b,mask...)
- for i,x:=range body{b=append(b,x^mask[i%4])}
+ frame:=maskedClientFrame(t,body)
  if err:=c.SetWriteDeadline(time.Now().Add(5*time.Second));err!=nil{t.Fatal(err)}
- if _,err:=c.Write(b);err!=nil{t.Fatal(err)}
+ if _,err:=c.Write(frame);err!=nil{t.Fatal(err)}
+}
+func maskedClientFrame(t *testing.T,body []byte)[]byte{
+ t.Helper()
+ mask:=make([]byte,4)
+ if _,err:=rand.Read(mask);err!=nil{t.Fatal(err)}
+ header:=websocketFrameHeader(t,len(body))
+ header=append(header,mask...)
+ for i,x:=range body{header=append(header,x^mask[i%4])}
+ return header
+}
+func websocketFrameHeader(t *testing.T,n int)[]byte{
+ t.Helper()
+ if n<126{return []byte{0x81,0x80|byte(n)}}
+ if n<=65535{return []byte{0x81,0xfe,byte(n>>8),byte(n)}}
+ t.Fatal("unexpected large connect frame")
+ return nil
 }
 func readWSReply(t *testing.T, c net.Conn) (byte, []byte) {
  t.Helper()
