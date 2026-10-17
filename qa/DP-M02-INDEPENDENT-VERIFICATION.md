@@ -20,3 +20,12 @@
 - [Project Quality Gates](https://github.com/bogachenko/bfe-chat-service/actions/workflows/quality.yml): separate repository-wide blocking gate.
 
 **Do not mark DP-M02 PASS until results are checked.**
+
+## Verified QA evidence — commit 8813ddd (2026-10-17)
+
+- [DP-M02 Independent QA #39027828319](https://github.com/bogachenko/bfe-chat-service/actions/runs/39027828319): **SUCCESS**. FC-03/FC-04/FC-12 unit and `go test -race` PASS; assignment statement coverage **93.8%**, against unmodified 90% critical gate.
+- [DP-M07 #39027828383](https://github.com/bogachenko/bfe-chat-service/actions/runs/39027828383): PostgreSQL 18.6 integration and race step PASS; storage coverage **93.8%**; mutation job **SUCCESS**. Overall integration job FAIL at independent project-wide coverage/report gate: project profile **53.2%**. No DP-M02 production or QA fix can legitimately waive this gate.
+- [Quality Gates #39027828239](https://github.com/bogachenko/bfe-chat-service/actions/runs/39027828239): **FAIL** at project-wide coverage: profile **49.1%**, `coverage not measurable or critical packages missing`. Missing/unimplemented packages account for substantial zero-coverage. Do not present global Quality Gates as green.
+- QA-only test compile error (`undefined: admin`, corrected by `a7af477`) and typed-nil interface test panic (corrected by `8813ddd`) are resolved as evidenced by passing DP-M02 unit job.
+
+**Scoped independent QA finding:** FC-03 / FC-04 / FC-12 unit/race and MS-05 / MS-11 PostgreSQL integration scenarios PASS. **DP-M02 module QA evidence PASS; Production Quality Gate remains BLOCKED.** Full project release approval remains reserved to Command Center. No production or GRACE changes.
