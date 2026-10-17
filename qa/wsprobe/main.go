@@ -67,13 +67,13 @@ func main(){
 }
 func checkWebsocket(addr,token,expect string)error{
  conn,err:=net.DialTimeout("tcp",addr,5*time.Second);if err!=nil{return err}
- defer conn.Close()
+ defer func() { _ = conn.Close() }()
  key:=make([]byte,16);if _,err=rand.Read(key);err!=nil{return err}
  req:=fmt.Sprintf("GET /ws HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: %s\r\n\r\n",addr,base64.StdEncoding.EncodeToString(key))
  if _,err=io.WriteString(conn,req);err!=nil{return err}
  rd:=bufio.NewReader(conn)
  response,err:=http.ReadResponse(rd,&http.Request{Method:http.MethodGet});if err!=nil{return err}
- defer response.Body.Close()
+ defer func() { _ = response.Body.Close() }()
  if response.StatusCode!=http.StatusSwitchingProtocols{return fmt.Errorf("unexpected WebSocket upgrade status: %d",response.StatusCode)}
  proof,err:=signedProof(token);if err!=nil{return err}
  data,err:=json.Marshal(map[string]string{"dpop":proof});if err!=nil{return err}
@@ -127,7 +127,7 @@ func exit(err error){
 
 func lifecycle(addr string,node *centrifuge.Node,token string)error {
  conn,reader,err:=openSocket(addr);if err!=nil{return err}
- defer conn.Close()
+ defer func() { _ = conn.Close() }()
  if err:=connectCommand(conn,reader,token,1,true);err!=nil{return err}
  if err:=subscribeCommand(conn,reader,2);err!=nil{return err}
  fmt.Println("READY")
@@ -148,7 +148,7 @@ func lifecycle(addr string,node *centrifuge.Node,token string)error {
  fresh=strings.TrimSpace(fresh)
  if fresh==""||fresh==token{return errors.New("new session credential invalid")}
  next,rd,err:=openSocket(addr);if err!=nil{return err}
- defer next.Close()
+ defer func() { _ = next.Close() }()
  if err:=connectCommand(next,rd,fresh,3,true);err!=nil{return err}
  if err:=subscribeCommand(next,rd,4);err!=nil{return err}
  fmt.Println("NEW_SESSION_CONNECTED")
