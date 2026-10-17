@@ -6,7 +6,7 @@
 
 ## Evidence
 
-- [DP-M04 Independent QA #39032906727](https://github.com/bogachenko/bfe-chat-service/actions/runs/39032906727): Authorization unit and Go Race Detection **PASS**, authorization statement coverage **96.6%** (threshold ≥90%). At initial evidence capture, PostgreSQL job was still running.
+- [DP-M04 Independent QA #39032906727](https://github.com/bogachenko/bfe-chat-service/actions/runs/39032906727): Authorization unit and Go Race Detection **PASS**, authorization statement coverage **96.6%** (threshold ≥90%). **Both authorization and MS-F02 jobs SUCCESS** on the same QA commit `3d8fc14ca65445fc4f0d3d7bf608ecc2af051773`; PostgreSQL 18.6 integration and `-race` also PASS.
 - [Prior DP-M04 PostgreSQL #39032755705](https://github.com/bogachenko/bfe-chat-service/actions/runs/39032755705): PostgreSQL 18.6 MS-F02 and Go Race Detection **PASS**, with identical PostgreSQL test file. Prior authorization unit passed but coverage was **65.5%**; QA-only additional test cases raised it without changing a threshold.
 
 ## Independent scenarios
