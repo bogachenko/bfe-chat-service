@@ -1,3 +1,28 @@
+## FINAL — Independent QA verification (2026-10-17)
+
+**Decision:** DP-M01 (FC-01/FC-02) **MODULE PASS**; critical scenario **MS-F01 VERIFIED / PASS**.
+**Production Quality Gate remains BLOCKED** (independent repository-wide gate; no waiver). Release Manager owns review and merge decision.
+
+**Approved baselines:** Chat Service production fix `12abd404c0fce742cf0d7727ffbad556a018720c`; BFE Drive `9a33850a5456d8e3ff40f5cdab6ded869da7110f`; QA execution checkout `7bd2e43c5a05a6239539c018b67039298299913d`. Corrected 32-byte SHA-256 renewal-token fixture from `232629e` is present in that QA checkout.
+
+**Full E2E evidence:** [GitHub Actions run #39020511743](https://github.com/bogachenko/bfe-chat-service/actions/runs/39020511743), job `real_bfe_drive_uds` **SUCCESS** (2026-10-17).
+- QA-branch checkout explicitly verified: `7bd2e43c5a05a6239539c018b67039298299913d`; not `main`.
+- Private BFE Drive read-only checkout at approved `9a33850a5456d8e3ff40f5cdab6ded869da7110f` succeeded with configured secret.
+- Chat Auth Probe build succeeded.
+- Compilation alongside BFE Drive `internal/httpapi` integration tests **PASS**: `go test -tags=integration -run '^$' ./internal/httpapi` — `ok` (no tests run by design).
+- Actual PostgreSQL 18.6-backed BFE Drive `NewInternalAuthHandler` over Unix-domain socket **PASS**: `go test -tags=integration -count=1 -run '^TestQADPM01RealDriveUDS$' -timeout=25m ./internal/httpapi` — `ok` (15.167s). The test covers active token validation, session revocation returning invalid, and unavailable socket returning fail-closed.
+- The **secret/access blocker is resolved** for that run.
+
+**Fast QA evidence:** [GitHub Actions run #38964714359](https://github.com/bogachenko/bfe-chat-service/actions/runs/38964714359) had individual `authentication` and `mutation` jobs **SUCCESS**: `go test -race` PASS, Authentication statements **96.1%** (required ≥90%), `BindOnConnecting` **100%**, Gremlins v0.6.0 **61 killed / 0 lived / 0 not covered (100% efficacy, 100% mutant coverage in targeted production scope)**. The *aggregate historical workflow* failed on the then-unavailable E2E secret; do **not** misrepresent that historical whole run as green. Fast PR CI has since been separated from manual Full E2E.
+
+**FC-01/FC-02 / MS-F01 acceptance evidence:** Issue #3 ordinary opaque tokens with `t/r/n` PASS; actual ASCII space/tab/CR/LF rejected before UDS; real BFE session checked before DPoP; DPoP JWS/JKT/ATH/HTM/HTU/IAT, duplicate and parallel JTI replay, real Centrifuge WebSocket `OnConnecting` handshake and fresh-proof reconnect; revoked session and unavailable UDS fail closed. No additional reproducible production defect identified in verified module scope.
+
+**Limits:** Multi-instance cross-process JTI replay protection is not demonstrated; the implementation's in-process validator/replay store must stay within its documented supported deployment topology. Live deployment topology and repo-wide coverage/release gates are separate from this module approval.
+
+**Scope discipline:** Only QA tests, CI and QA report changed in PR #4. Neither Chat Service nor BFE Drive production source is modified. Older interim `OPEN` / `BLOCKED` observations below are historical, superseded by this FINAL decision for MS-F01 only.
+
+---
+
 # DP-M01 — Independent Verification baseline 12abd40
 
 Previous issue: [#3](https://github.com/bogachenko/bfe-chat-service/issues/3).
