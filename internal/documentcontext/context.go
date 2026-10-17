@@ -5,6 +5,7 @@ package documentcontext
 import (
 	"errors"
 	"strings"
+	"unicode/utf8"
 )
 
 // ErrValidation indicates that a message has no content or invalid document metadata.
@@ -29,13 +30,23 @@ func ValidateDocumentContext(text string, document *Document) (MessageContent, e
 	if document != nil {
 		id := strings.TrimSpace(document.ID)
 		title := strings.TrimSpace(document.Title)
-		if id == "" || title == "" {
+		if !validValue(id) || !validValue(title) {
 			return MessageContent{}, ErrValidation
 		}
 		normalized.Document = &Document{ID: id, Title: title}
 	}
-	if normalized.Text == "" && normalized.Document == nil {
+	if !validText(normalized.Text) || (normalized.Text == "" && normalized.Document == nil) {
 		return MessageContent{}, ErrValidation
 	}
 	return normalized, nil
+}
+
+// PostgreSQL text cannot store NUL or malformed UTF-8. Reject invalid
+// message metadata as VALIDATION_ERROR before reaching the persistence layer.
+func validText(value string) bool {
+	return utf8.ValidString(value) && !strings.ContainsRune(value, 0)
+}
+
+func validValue(value string) bool {
+	return value != "" && validText(value)
 }
