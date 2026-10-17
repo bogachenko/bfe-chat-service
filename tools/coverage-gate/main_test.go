@@ -67,13 +67,24 @@ func TestCoverageGateInsufficientCoverage(t *testing.T) {
 	}
 }
 
+func TestCoverageGateZeroStatementBlock(t *testing.T) {
+	data := profile(true) + module + "internal/authentication/empty.go:1.1,1.1 0 0\n"
+	byPackage, err := parseProfile(strings.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := evaluate(byPackage, 80, 90, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCoverageGateMalformedProfile(t *testing.T) {
 	for _, data := range []string{
 		"not a header\n",
 		"mode: atomic\ninvalid row\n",
 		"mode: atomic\n" + module + "internal/authentication/a.go:1.1,2.1 nope 1\n",
 		"mode: atomic\n" + module + "tools/coverage-gate/main.go:1.1,2.1 1 1\n",
-		"mode: atomic\n" + module + "internal/authentication/a.go:1.1,2.1 0 1\n",
+		"mode: atomic\n" + module + "internal/authentication/a.go:1.1,2.1 invalid 1\n",
 	} {
 		if _, err := parseProfile(strings.NewReader(data)); err == nil {
 			t.Fatalf("malformed profile accepted: %q", data)
