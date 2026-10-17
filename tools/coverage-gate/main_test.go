@@ -91,3 +91,34 @@ func TestCoverageGateMalformedProfile(t *testing.T) {
 		}
 	}
 }
+
+func TestCoverageGateDeduplicatesBlocksAcrossTestBinaries(t *testing.T) {
+	base := profile(true)
+	// A second package's test binary includes the same blocks with zero hits.
+	var duplicates strings.Builder
+	for _, line := range strings.Split(strings.TrimSpace(base), "\n")[1:] {
+		fields := strings.Fields(line)
+		if len(fields) != 3 {
+			t.Fatalf("bad fixture: %q", line)
+		}
+		fmt.Fprintf(&duplicates, "%s %s 0\n", fields[0], fields[1])
+	}
+	withDuplicates := base + duplicates.String()
+	counts, err := parseProfile(strings.NewReader(withDuplicates))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := evaluate(counts, 80, 90, &bytes.Buffer{}); err != nil {
+		t.Fatalf("zero-hit copies reduced coverage: %v", err)
+	}
+
+	// Reverse order: zero-hit records before the covered copies.
+	first := "mode: atomic\n" + duplicates.String() + strings.TrimPrefix(base, "mode: atomic\n")
+	counts, err = parseProfile(strings.NewReader(first))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := evaluate(counts, 80, 90, &bytes.Buffer{}); err != nil {
+		t.Fatalf("covered copies did not raise coverage: %v", err)
+	}
+}
