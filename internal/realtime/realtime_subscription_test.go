@@ -148,7 +148,8 @@ func TestMSF02ActiveWebSocketRevocationStopsPublication(t *testing.T) {
  // An already subscribed socket must not receive data after revocation.
  // This deliberately bypasses the FC-09 publisher to test FC-08's active
  // subscription lifecycle, not merely admission for new subscriptions.
- if _,err:=node.Publish(channel,[]byte(`{"revoked":true}`));err!=nil{t.Fatalf("server publish: %v",err)}
+ store:=&assignmentStore{recipient:string(second)}
+ if err:= (realtime.Service{Assignments:store,Publisher:node}).DeliverCommittedMessage(context.Background(),owner,first,[]byte(`{"after_revocation":true}`));err!=nil{t.Fatalf("delivery: %v",err)}
  if err:=conn.SetReadDeadline(time.Now().Add(500*time.Millisecond));err!=nil{t.Fatal(err)}
  frame:=make([]byte,2)
  _,err:=io.ReadFull(reader,frame)
