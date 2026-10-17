@@ -45,11 +45,8 @@ func (a Authorizer) AuthorizeOperation(ctx context.Context, caller authenticatio
 		}
 		return ErrForbidden
 	}
-	if action == AdminRead {
-		if caller.AdministrativeStatus == "ADMIN" {
-			return nil
-		}
-		return ErrForbidden
+	if action == AdminRead || (action == Read && caller.AdministrativeStatus == "ADMIN") {
+		return nil
 	}
 	recipient, err := a.Assignments.GetAssignment(ctx, string(owner))
 	if err != nil || !chat.AccountID(recipient).Valid() {
@@ -69,8 +66,32 @@ func (a Authorizer) AuthorizeSend(ctx context.Context, caller authentication.Cal
 	return a.AuthorizeOperation(ctx, caller, owner, Send)
 }
 
-// AuthorizeRead permits only owner/current-recipient reads. Administrative
-// audit reads use explicit ADMIN_READ; they never grant sending privileges.
+// AuthorizeRead also permits current ADMIN audit reads without granting SEND.
+// No view-audit events are written by this module.
 func (a Authorizer) AuthorizeRead(ctx context.Context, caller authentication.Caller, owner chat.AccountID) error {
 	return a.AuthorizeOperation(ctx, caller, owner, Read)
+}
+
+// LockedAssignmentStore coordinates authorization with FC-12 replacement.
+type LockedAssignmentStore interface {
+	WithAssignmentLock(context.Context, string, func(string) error) error
+}
+
+// AdmitDelivery checks the current recipient and performs the synchronous
+// admission/publish action under the same per-owner lock as FC-12. The supplied
+// action must not enqueue deferred publication that can begin after unlock.
+func (a Authorizer) AdmitDelivery(ctx context.Context, caller authentication.Caller, owner chat.AccountID, publish func() error) error {
+	if !owner.Valid() || !chat.AccountID(caller.AccountID).Valid() || publish == nil {
+		return ErrForbidden
+	}
+	locked, ok := a.Assignments.(LockedAssignmentStore)
+	if !ok {
+		return ErrForbidden
+	}
+	return locked.WithAssignmentLock(ctx, string(owner), func(recipient string) error {
+		if !chat.AccountID(recipient).Valid() || (caller.AccountID != recipient && caller.AccountID != string(owner)) {
+			return ErrForbidden
+		}
+		return publish()
+	})
 }
