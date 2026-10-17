@@ -2,6 +2,7 @@ package realtime_test
 
 import (
  "bufio"
+ "bytes"
  "context"
  "crypto/rand"
  "encoding/base64"
@@ -144,12 +145,17 @@ func TestMSF02ActiveWebSocketRevocationStopsPublication(t *testing.T) {
  if reply:=socketCommand(t,conn,reader,1,"connect",map[string]any{});len(reply["connect"])==0{t.Fatalf("connection rejected: %v",reply)}
  channel:=realtime.Channel(owner,first)
  if reply:=socketCommand(t,conn,reader,2,"subscribe",map[string]any{"channel":channel});len(reply["subscribe"])==0{t.Fatalf("subscription rejected: %v",reply)}
+ store:=&assignmentStore{recipient:string(first)}
+ delivery:=realtime.Service{Assignments:store,Publisher:node}
+ if err:=delivery.DeliverCommittedMessage(context.Background(),owner,first,[]byte(`{"before_revocation":true}`));err!=nil{t.Fatalf("initial delivery: %v",err)}
+ before:=readRealtimeFrame(t,conn,reader)
+ if !bytes.Contains(before,[]byte("before_revocation")){t.Fatalf("active socket did not receive baseline publication: %s",before)}
  policy.change(second)
+ store.mu.Lock();store.recipient=string(second);store.mu.Unlock()
  // An already subscribed socket must not receive data after revocation.
  // This deliberately bypasses the FC-09 publisher to test FC-08's active
  // subscription lifecycle, not merely admission for new subscriptions.
- store:=&assignmentStore{recipient:string(second)}
- if err:= (realtime.Service{Assignments:store,Publisher:node}).DeliverCommittedMessage(context.Background(),owner,first,[]byte(`{"after_revocation":true}`));err!=nil{t.Fatalf("delivery: %v",err)}
+ if err:=delivery.DeliverCommittedMessage(context.Background(),owner,first,[]byte(`{"after_revocation":true}`));err!=nil{t.Fatalf("delivery: %v",err)}
  if err:=conn.SetReadDeadline(time.Now().Add(500*time.Millisecond));err!=nil{t.Fatal(err)}
  frame:=make([]byte,2)
  _,err:=io.ReadFull(reader,frame)
