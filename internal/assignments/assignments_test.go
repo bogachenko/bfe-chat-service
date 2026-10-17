@@ -28,7 +28,7 @@ func TestFC03OnlyCurrentAdmin(t *testing.T){
 func TestFC03InvalidUUIDAndNoAutoAssignment(t *testing.T){
  owner:=chat.AccountID("11111111-1111-4111-8111-111111111111")
  a:=&authStub{role:"ADMIN"};db:=&storeStub{};svc:=assignments.Service{Auth:a,Store:db}
- if _,err:=svc.GetAssignment(context.Background(),owner);err!=nil{t.Fatal(err)}
+ if _,err:=svc.GetAssignment(context.Background(),owner);!errors.Is(err,assignments.ErrStorageUnavailable){t.Fatalf("empty stub response: %v",err)}
  if db.writes!=0||a.calls!=0{t.Fatal("implicit assignment or auth status lookup")}
  for _,invalid:=range []chat.AccountID{"","bad","zzzzzzzz-zzzz-zzzz-zzzz-zzzzzzzzzzzz"}{
   if _,err:=svc.ReplaceRecipient(context.Background(),"token","proof",authentication.RequestBinding{},owner,invalid);!errors.Is(err,assignments.ErrInvalidRecipient){t.Fatalf("invalid %q: %v",invalid,err)}
