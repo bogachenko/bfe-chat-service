@@ -196,7 +196,7 @@ func readExplicitAuthDenial(c net.Conn,rd *bufio.Reader)error {
  body:=make([]byte,size)
  if _,err:=io.ReadFull(rd,body);err!=nil{return errors.New("auth denial frame truncated")}
  if header[0]&0x0f==0x8 {
-  if len(body)<2||int(body[0])<<8|int(body[1])!=centrifuge.DisconnectInvalidToken.Code{
+  if len(body)<2||int(body[0])<<8|int(body[1])!=int(centrifuge.DisconnectInvalidToken.Code){
    return errors.New("unexpected websocket close code")
   }
   return nil
