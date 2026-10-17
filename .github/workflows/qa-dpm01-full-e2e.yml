@@ -7,6 +7,11 @@ on:
         required: true
         default: '9a33850a5456d8e3ff40f5cdab6ded869da7110f'
         type: string
+      dp_m05_ref:
+        description: 'Exact 40-character approved DP-M05 commit SHA (Draft PR #10)'
+        required: true
+        default: '8c6602b04fd206c66c4ed3a89f9fccbe89bb45a7'
+        type: string
 permissions:
   contents: read
 jobs:
@@ -58,3 +63,76 @@ jobs:
         run: |
           cd bfe-drive
           go test -tags=integration -count=1 -run '^TestQADPM01RealDriveUDS$' -timeout=25m ./internal/httpapi
+
+  real_dp_m05_centrifuge_ws:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - name: Require explicit immutable DP-M05 commit
+        env:
+          DP_M05_SHA: ${{ inputs.dp_m05_ref }}
+        run: |
+          [[ "$DP_M05_SHA" =~ ^[a-f0-9]{40}$ ]] || { echo "::error::DP-M05 requires an exact commit SHA"; exit 1; }
+      - name: Checkout approved DP-M05 commit (not an old QA branch)
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.dp_m05_ref }}
+          persist-credentials: false
+      - name: Confirm exact Chat commit
+        env:
+          DP_M05_SHA: ${{ inputs.dp_m05_ref }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$DP_M05_SHA"
+          echo "DP-M05 commit: $(git rev-parse HEAD)"
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Build original auth probe and real Centrifuge WebSocket probe
+        run: |
+          go build -o "$RUNNER_TEMP/chat-auth-probe" ./qa/driveauthprobe
+          go build -o "$RUNNER_TEMP/chat-ws-probe" ./qa/wsprobe
+      - name: Require read-only BFE Drive access
+        env:
+          BFE_DRIVE_READ_TOKEN: ${{ secrets.BFE_DRIVE_READ_TOKEN }}
+        run: |
+          test -n "$BFE_DRIVE_READ_TOKEN" || { echo "::error::BFE_DRIVE_READ_TOKEN is required"; exit 1; }
+      - name: Read BFE Drive source (checkout only; no write permissions)
+        uses: actions/checkout@v5
+        with:
+          repository: bogachenko/bfe-drive
+          token: ${{ secrets.BFE_DRIVE_READ_TOKEN }}
+          ref: ${{ inputs.drive_ref }}
+          path: bfe-drive
+          persist-credentials: false
+      - name: Execute actual WS upgrade + Centrifuge connect via Drive UDS
+        id: ws_e2e
+        continue-on-error: true
+        env:
+          CHAT_AUTH_PROBE: ${{ runner.temp }}/chat-auth-probe
+          CHAT_WS_PROBE: ${{ runner.temp }}/chat-ws-probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$CHAT_AUTH_PROBE" --expect=jkt > "$RUNNER_TEMP/chat-ws-jkt"
+          export CHAT_WS_JKT="$(cat "$RUNNER_TEMP/chat-ws-jkt")"
+          cp qa/testdata/bfe_drive_chat_ws_e2e_test.go bfe-drive/internal/httpapi/qa_chat_ws_e2e_integration_test.go
+          cd bfe-drive
+          set -o pipefail
+          go test -tags=integration -count=1 -run '^TestQADPM05RealCentrifugeWebSocketUDS$' -timeout=30m ./internal/httpapi 2>&1 |
+            sed -e 's/opaque-session-token/[REDACTED]/g' -e 's/qa-renewal-token/[REDACTED]/g' |
+            tee "$GITHUB_WORKSPACE/dpm05-ws-e2e.log"
+      - name: Upload diagnostics (no access credentials)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dp-m05-real-ws-e2e
+          path: dpm05-ws-e2e.log
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Enforce E2E result
+        if: always()
+        env:
+          E2E_OUTCOME: ${{ steps.ws_e2e.outcome }}
+        run: |
+          test "$E2E_OUTCOME" = success
