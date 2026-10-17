@@ -30,3 +30,13 @@ Baseline: `12abd404c0fce742cf0d7727ffbad556a018720c`, Issue #3 production patch 
 - **Production defects:** previously filed [Issue #3](https://github.com/bogachenko/bfe-chat-service/issues/3) confirmed fixed by regression against `12abd40`; no new reproducible production defect in current passing regression suite.
 
 Only test, CI and QA-report files were changed. Production code and GRACE normative documents remain unchanged.
+
+## Fast CI / Full E2E separation — 2026-10-17
+
+- Fast PR workflow: `.github/workflows/qa-dpm01.yml` runs authentication tests, `go test -race`, 90% critical Authentication coverage gate, and Gremlins. It has **no private BFE Drive secret** and no real BFE Drive job.
+- Full manual workflow: `.github/workflows/qa-dpm01-full-e2e.yml` uses `workflow_dispatch`, BFE Drive commit `9a33850a5456d8e3ff40f5cdab6ded869da7110f`, compilation alongside all `internal/httpapi` integration tests, then real PostgreSQL 18.6 + BFE Auth UDS active/revoked/unavailable scenarios.
+- The **only use** of `BFE_DRIVE_READ_TOKEN` is in the manual Full E2E. CI fails closed when this secret is missing.
+- Corrected `renewal_token_hash` fixture from commit `232629e` is preserved: `sha256.Sum256(...)`, **32 bytes**, satisfying BFE Drive `login_sessions_renewal_token_hash_shape`.
+- **Execution status: NOT RUN** for the updated Full E2E workflow. The connected GitHub integration has no `workflow_dispatch` action; GitHub also normally requires a manually dispatched workflow file to be registered on the repository default branch. The test-only workflow changes are in PR #4's QA branch, not merged into default. Therefore there is no PostgreSQL or real BFE Auth UDS E2E result on this current configuration.
+- Required handoff: authorize the CI workflow registration/merge through repository policy, provision `BFE_DRIVE_READ_TOKEN` with scoped read-only access to the private BFE Drive repository, then explicitly dispatch the Full E2E on the QA ref and review the output.
+- DP-M01 **QA IN PROGRESS**; MS-F01 **OPEN**; Production Quality Gate **BLOCKED**. Do not use old CI run results as evidence for the new workflow configuration.
