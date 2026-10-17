@@ -82,7 +82,7 @@ func TestQADPM05RealCentrifugeWebSocketUDS(t *testing.T){
   if file==""{t.Fatal("CHAT_WS_MARKERS required")}
   out,err:=os.OpenFile(file,os.O_WRONLY|os.O_APPEND,0600)
   if err!=nil{t.Fatal("open private scenario markers")}
-  if _,err:=io.WriteString(out,name+" PASS\\n");err!=nil{_ =out.Close();t.Fatal("write scenario marker")}
+  if _,err:=io.WriteString(out,name+" PASS\n");err!=nil{_ =out.Close();t.Fatal("write scenario marker")}
   if err:=out.Close();err!=nil{t.Fatal("close scenario marker")}
  }
  expectStage:=func(want string){
