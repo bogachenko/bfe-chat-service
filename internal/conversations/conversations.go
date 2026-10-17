@@ -62,7 +62,9 @@ func (s Service) SendMessage(ctx context.Context, token, proof string, binding a
 	if s.Permissions == nil || s.Store == nil {
 		return storage.Message{}, ErrStorageUnavailable
 	}
-	if err := s.Permissions.AuthorizeSend(ctx, caller, owner); err != nil { return storage.Message{}, ErrForbidden }
+	if err := s.Permissions.AuthorizeSend(ctx, caller, owner); err != nil {
+		return storage.Message{}, ErrForbidden
+	}
 	content, err := documentcontext.ValidateDocumentContext(input.Text, input.Document)
 	if err != nil {
 		return storage.Message{}, ErrValidation
