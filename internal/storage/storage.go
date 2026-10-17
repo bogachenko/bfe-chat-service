@@ -111,3 +111,34 @@ func (s Store) ReadHistory(ctx context.Context, owner string, afterID int64, lim
 	}
 	return messages, nil
 }
+
+
+// WithAssignmentLock serializes a protected publication decision and its
+// synchronous action with FC-12 recipient replacement for the same owner.
+// The callback must finish the physical admission to publication before return.
+func (s Store) WithAssignmentLock(ctx context.Context, owner string, action func(string) error) error {
+	if s.DB == nil || owner == "" || action == nil {
+		return ErrInvalidInput
+	}
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `
+		SELECT pg_advisory_xact_lock(hashtextextended($1::uuid::text, 0))
+	`, owner); err != nil {
+		return err
+	}
+	var recipient string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT recipient_account_id::text FROM chat_assignments
+		WHERE owner_account_id = $1::uuid
+	`, owner).Scan(&recipient); err != nil {
+		return err
+	}
+	if err := action(recipient); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
