@@ -7,6 +7,11 @@ on:
         required: true
         default: '9a33850a5456d8e3ff40f5cdab6ded869da7110f'
         type: string
+      dp_m05_ref:
+        description: 'Exact 40-character approved DP-M05 commit SHA (Draft PR #10)'
+        required: true
+        default: '8c6602b04fd206c66c4ed3a89f9fccbe89bb45a7'
+        type: string
 permissions:
   contents: read
 jobs:
@@ -58,3 +63,100 @@ jobs:
         run: |
           cd bfe-drive
           go test -tags=integration -count=1 -run '^TestQADPM01RealDriveUDS$' -timeout=25m ./internal/httpapi
+
+  real_dp_m05_centrifuge_ws:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - name: Require explicit immutable DP-M05 commit
+        env:
+          DP_M05_SHA: ${{ inputs.dp_m05_ref }}
+        run: |
+          [[ "$DP_M05_SHA" =~ ^[a-f0-9]{40}$ ]] || { echo "::error::DP-M05 requires an exact commit SHA"; exit 1; }
+      - name: Checkout approved DP-M05 commit (not an old QA branch)
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.dp_m05_ref }}
+          persist-credentials: false
+      - name: Confirm exact Chat commit
+        env:
+          DP_M05_SHA: ${{ inputs.dp_m05_ref }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$DP_M05_SHA"
+          echo "DP-M05 commit: $(git rev-parse HEAD)"
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Checkout review harness separately (not part of tested production SHA)
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          path: e2e-harness
+          persist-credentials: false
+      - name: Install independent WebSocket test harness into pinned checkout
+        run: |
+          mkdir -p qa/wsprobe qa/testdata
+          cp e2e-harness/qa/wsprobe/main.go qa/wsprobe/main.go
+          cp e2e-harness/qa/testdata/bfe_drive_chat_ws_e2e_test.go qa/testdata/bfe_drive_chat_ws_e2e_test.go
+      - name: Build original auth probe and real Centrifuge WebSocket probe
+        run: |
+          go build -o "$RUNNER_TEMP/chat-auth-probe" ./qa/driveauthprobe
+          go build -o "$RUNNER_TEMP/chat-ws-probe" ./qa/wsprobe
+      - name: Require read-only BFE Drive access
+        env:
+          BFE_DRIVE_READ_TOKEN: ${{ secrets.BFE_DRIVE_READ_TOKEN }}
+        run: |
+          test -n "$BFE_DRIVE_READ_TOKEN" || { echo "::error::BFE_DRIVE_READ_TOKEN is required"; exit 1; }
+      - name: Read BFE Drive source (checkout only; no write permissions)
+        uses: actions/checkout@v5
+        with:
+          repository: bogachenko/bfe-drive
+          token: ${{ secrets.BFE_DRIVE_READ_TOKEN }}
+          ref: ${{ inputs.drive_ref }}
+          path: bfe-drive
+          persist-credentials: false
+      - name: Execute actual WS upgrade + Centrifuge connect via Drive UDS
+        id: ws_e2e
+        continue-on-error: true
+        env:
+          CHAT_AUTH_PROBE: ${{ runner.temp }}/chat-auth-probe
+          CHAT_WS_PROBE: ${{ runner.temp }}/chat-ws-probe
+          DP_M05_SHA: ${{ inputs.dp_m05_ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$CHAT_AUTH_PROBE" --expect=jkt > "$RUNNER_TEMP/chat-ws-jkt"
+          export CHAT_WS_JKT="$(cat "$RUNNER_TEMP/chat-ws-jkt")"
+          cp qa/testdata/bfe_drive_chat_ws_e2e_test.go bfe-drive/internal/httpapi/qa_chat_ws_e2e_integration_test.go
+          markers="$RUNNER_TEMP/dpm05-private-markers"
+          : > "$markers"
+          chmod 600 "$markers"
+          export CHAT_WS_MARKERS="$markers"
+          cd bfe-drive
+          result=FAIL
+          if go test -tags=integration -count=1 -run '^TestQADPM05RealCentrifugeWebSocketUDS$' -timeout=30m ./internal/httpapi > "$RUNNER_TEMP/qa-private-output" 2>&1; then
+            result=PASS
+          fi
+          report="$GITHUB_WORKSPACE/dpm05-ws-e2e.log"
+          printf 'Chat SHA: %s\nDrive SHA: %s\n' "$DP_M05_SHA" "$(git rev-parse HEAD)" > "$report"
+          for scenario in VALID_CONNECT OPEN_AFTER_REVOKE OLD_TOKEN_DENIED NEW_SESSION_CONNECTED NEW_SESSION_DELIVERED UDS_UNAVAILABLE_DENIED; do
+            status=FAIL
+            if grep -Fxq "$scenario PASS" "$markers"; then status=PASS; fi
+            printf '%s: %s\n' "$scenario" "$status" >> "$report"
+          done
+          printf 'E2E_RESULT: %s\n' "$result" >> "$report"
+          test "$result" = PASS
+      - name: Upload diagnostics (no access credentials)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dp-m05-real-ws-e2e
+          path: dpm05-ws-e2e.log
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Enforce E2E result
+        if: always()
+        env:
+          E2E_OUTCOME: ${{ steps.ws_e2e.outcome }}
+        run: test "$E2E_OUTCOME" = success
