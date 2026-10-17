@@ -55,13 +55,25 @@ func signedDPoP(private ed25519.PrivateKey,token string)string{
 }
 func assertExpected(expect string,caller authentication.Caller,err error){
  switch expect{
- case "ok":
-  if err!=nil||caller.AccountID==""||caller.AdministrativeStatus!="NON_ADMIN"{fail(fmt.Sprintf("valid BFE Drive identity: %+v err=%v",caller,err))}
- case "invalid":
-  if err!=authentication.ErrAuthInvalid||caller!=(authentication.Caller{}){fail(fmt.Sprintf("revoked token: %+v err=%v",caller,err))}
- case "unavailable":
-  if err!=authentication.ErrAuthUnavailable||caller!=(authentication.Caller{}){fail(fmt.Sprintf("missing UDS: %+v err=%v",caller,err))}
+ case "ok":assertValidSession(caller,err)
+ case "invalid":assertInvalidSession(caller,err)
+ case "unavailable":assertUnavailableSession(caller,err)
  default:fail("invalid --expect")
+ }
+}
+func assertValidSession(caller authentication.Caller,err error){
+ if err!=nil||caller.AccountID==""||caller.AdministrativeStatus!="NON_ADMIN"{
+  fail(fmt.Sprintf("valid BFE Drive identity: %+v err=%v",caller,err))
+ }
+}
+func assertInvalidSession(caller authentication.Caller,err error){
+ if err!=authentication.ErrAuthInvalid||caller!=(authentication.Caller{}){
+  fail(fmt.Sprintf("revoked token: %+v err=%v",caller,err))
+ }
+}
+func assertUnavailableSession(caller authentication.Caller,err error){
+ if err!=authentication.ErrAuthUnavailable||caller!=(authentication.Caller{}){
+  fail(fmt.Sprintf("missing UDS: %+v err=%v",caller,err))
  }
 }
 func must(err error){if err!=nil{fail(err.Error())}}
