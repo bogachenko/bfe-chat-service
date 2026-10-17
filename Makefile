@@ -18,7 +18,7 @@ dupl:
 complexity:
 	@cyclop -maxComplexity 10 ./...
 coverage:
-	$(GO) test -coverprofile=coverage.out ./...
+	$(GO) test -coverpkg=./cmd/...,./internal/... -coverprofile=coverage.out ./cmd/... ./internal/...\n\t$(GO) test ./tools/coverage-gate ./qa/driveauthprobe
 	@$(GO) tool cover -func=coverage.out
 	@$(GO) run ./tools/coverage-gate -profile coverage.out -min 80 -critical-min 90
 race:
