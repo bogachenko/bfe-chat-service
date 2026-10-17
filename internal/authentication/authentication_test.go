@@ -40,30 +40,44 @@ type fixture struct {
 
 func newFixture(t *testing.T)*fixture{
  t.Helper()
- dir:=t.TempDir();socket:=filepath.Join(dir,"auth.sock")
- listener,err:=net.Listen("unix",socket);if err!=nil{t.Fatal(err)}
- t.Cleanup(func(){_ =listener.Close()})
+ socket,listener:=fixtureSocket(t)
  public,private,err:=ed25519.GenerateKey(rand.Reader);if err!=nil{t.Fatal(err)}
- jwk:=jose.JSONWebKey{Key:public}
- thumb,err:=jwk.Thumbprint(crypto.SHA256);if err!=nil{t.Fatal(err)}
+ thumb,err:=(&jose.JSONWebKey{Key:public}).Thumbprint(crypto.SHA256);if err!=nil{t.Fatal(err)}
  f:=&fixture{private:private,public:public,jkt:base64.RawURLEncoding.EncodeToString(thumb),token:"opaque-session-token"}
  f.status.Store(http.StatusOK)
- mux:=http.NewServeMux()
- mux.HandleFunc("/internal/auth/validate",func(w http.ResponseWriter,r *http.Request){
-  f.hits.Add(1)
-  if r.Method!="POST"||r.Header.Get("Authorization")!="DPoP "+f.token{w.WriteHeader(http.StatusUnauthorized);return}
-  if d:=time.Duration(f.delay.Load());d>0{select{case <-r.Context().Done():return;case <-time.After(d):}}
-  status:=int(f.status.Load());w.WriteHeader(status)
-  if status==http.StatusOK{
-   admin:="NON_ADMIN";if f.admin.Load(){admin="ADMIN"}
-   _ =json.NewEncoder(w).Encode(map[string]string{"accountId":fakeAccount,"dpopJkt":f.jkt,"administrativeStatus":admin})
-  }
- })
- srv:=&http.Server{Handler:mux}
- go func(){_ =srv.Serve(listener)}()
- t.Cleanup(func(){_ =srv.Close()})
+ server:=&http.Server{Handler:fixtureHandler(f)}
+ go func(){_ =server.Serve(listener)}()
+ t.Cleanup(func(){_ =server.Close()})
  f.validator,err=authentication.NewValidator(socket,5*time.Minute);if err!=nil{t.Fatal(err)}
  return f
+}
+func fixtureSocket(t *testing.T)(string,net.Listener){
+ t.Helper()
+ socket:=filepath.Join(t.TempDir(),"auth.sock")
+ listener,err:=net.Listen("unix",socket);if err!=nil{t.Fatal(err)}
+ t.Cleanup(func(){_ =listener.Close()})
+ return socket,listener
+}
+func fixtureHandler(f *fixture)http.Handler{
+ mux:=http.NewServeMux()
+ mux.HandleFunc("/internal/auth/validate",f.serveValidation)
+ return mux
+}
+func (f *fixture) serveValidation(w http.ResponseWriter,r *http.Request){
+ f.hits.Add(1)
+ if r.Method!="POST"||r.Header.Get("Authorization")!="DPoP "+f.token{
+  w.WriteHeader(http.StatusUnauthorized)
+  return
+ }
+ if d:=time.Duration(f.delay.Load());d>0{
+  select{case <-r.Context().Done():return;case <-time.After(d):}
+ }
+ status:=int(f.status.Load())
+ w.WriteHeader(status)
+ if status!=http.StatusOK{return}
+ admin:="NON_ADMIN"
+ if f.admin.Load(){admin="ADMIN"}
+ _ =json.NewEncoder(w).Encode(map[string]string{"accountId":fakeAccount,"dpopJkt":f.jkt,"administrativeStatus":admin})
 }
 
 func (f *fixture) proof(t *testing.T,jti,method,target,token string,issued time.Time)string{
