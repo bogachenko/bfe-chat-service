@@ -39,24 +39,34 @@ func (a Authorizer) AuthorizeOperation(ctx context.Context, caller authenticatio
 	if !owner.Valid() || !chat.AccountID(caller.AccountID).Valid() || a.Assignments == nil {
 		return ErrForbidden
 	}
-	if action == Assign {
-		if caller.AdministrativeStatus == "ADMIN" {
-			return nil
-		}
-		return ErrForbidden
+	if action == Assign || action == AdminRead {
+		return administrativeAccess(caller, action)
 	}
-	if action == AdminRead || (action == Read && caller.AdministrativeStatus == "ADMIN") {
+	if action == Read && caller.AdministrativeStatus == "ADMIN" {
 		return nil
+	}
+	return a.authorizeParticipant(ctx, caller, owner, action)
+}
+
+func administrativeAccess(caller authentication.Caller, action Operation) error {
+	if (action == Assign || action == AdminRead) && caller.AdministrativeStatus == "ADMIN" {
+		return nil
+	}
+	return ErrForbidden
+}
+
+func (a Authorizer) authorizeParticipant(ctx context.Context, caller authentication.Caller, owner chat.AccountID, action Operation) error {
+	switch action {
+	case Send, Read, Subscribe, Deliver:
+	default:
+		return ErrForbidden
 	}
 	recipient, err := a.Assignments.GetAssignment(ctx, string(owner))
 	if err != nil || !chat.AccountID(recipient).Valid() {
 		return ErrForbidden
 	}
-	switch action {
-	case Send, Read, Subscribe, Deliver:
-		if caller.AccountID == string(owner) || caller.AccountID == recipient {
-			return nil
-		}
+	if caller.AccountID == string(owner) || caller.AccountID == recipient {
+		return nil
 	}
 	return ErrForbidden
 }
