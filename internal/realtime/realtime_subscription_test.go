@@ -77,26 +77,34 @@ func socketCommand(t *testing.T,c net.Conn,reader *bufio.Reader,id int,command s
  t.Helper()
  raw,err:=json.Marshal(map[string]any{"id":id,command:data})
  if err!=nil{t.Fatal(err)}
- raw=append(raw,'\n')
- if len(raw)>=126{t.Fatalf("command too long: %d",len(raw))}
- mask:=make([]byte,4)
- if _,err=rand.Read(mask);err!=nil{t.Fatal(err)}
- frame:=[]byte{0x81,0x80|byte(len(raw))}
- frame=append(frame,mask...)
- for i,v:=range raw{frame=append(frame,v^mask[i%4])}
- if err=c.SetWriteDeadline(time.Now().Add(5*time.Second));err!=nil{t.Fatal(err)}
- if _,err=c.Write(frame);err!=nil{t.Fatal(err)}
- if err=c.SetReadDeadline(time.Now().Add(5*time.Second));err!=nil{t.Fatal(err)}
- header:=make([]byte,2)
- if _,err=io.ReadFull(reader,header);err!=nil{t.Fatal(err)}
- n:=int(header[1]&0x7f)
- if n==126{extended:=make([]byte,2);if _,err=io.ReadFull(reader,extended);err!=nil{t.Fatal(err)};n=int(extended[0])<<8|int(extended[1])}
- if n==127{t.Fatal("unexpected large WS frame")}
- body:=make([]byte,n)
- if _,err=io.ReadFull(reader,body);err!=nil{t.Fatal(err)}
+ sendRealtimeFrame(t,c,append(raw,'\n'))
+ body:=readRealtimeFrame(t,c,reader)
  var reply map[string]json.RawMessage
  if err=json.Unmarshal(body,&reply);err!=nil{t.Fatalf("WS reply %q: %v",body,err)}
  return reply
+}
+func sendRealtimeFrame(t *testing.T,c net.Conn,raw []byte) {
+ t.Helper()
+ if len(raw)>=126{t.Fatalf("command too long: %d",len(raw))}
+ mask:=make([]byte,4)
+ if _,err:=rand.Read(mask);err!=nil{t.Fatal(err)}
+ frame:=[]byte{0x81,0x80|byte(len(raw))}
+ frame=append(frame,mask...)
+ for i,v:=range raw{frame=append(frame,v^mask[i%4])}
+ if err:=c.SetWriteDeadline(time.Now().Add(5*time.Second));err!=nil{t.Fatal(err)}
+ if _,err:=c.Write(frame);err!=nil{t.Fatal(err)}
+}
+func readRealtimeFrame(t *testing.T,c net.Conn,reader *bufio.Reader) []byte {
+ t.Helper()
+ if err:=c.SetReadDeadline(time.Now().Add(5*time.Second));err!=nil{t.Fatal(err)}
+ header:=make([]byte,2)
+ if _,err:=io.ReadFull(reader,header);err!=nil{t.Fatal(err)}
+ n:=int(header[1]&0x7f)
+ if n==126{extended:=make([]byte,2);if _,err:=io.ReadFull(reader,extended);err!=nil{t.Fatal(err)};n=int(extended[0])<<8|int(extended[1])}
+ if n==127{t.Fatal("unexpected large WS frame")}
+ body:=make([]byte,n)
+ if _,err:=io.ReadFull(reader,body);err!=nil{t.Fatal(err)}
+ return body
 }
 func TestFC08SubscriptionAuthorizationAndReassignment(t *testing.T) {
  policy:=&subscriptionPolicy{recipient:first}
