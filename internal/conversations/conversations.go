@@ -44,7 +44,7 @@ type Service struct {
 }
 
 type MessageInput struct {
-	IdempotencyKey chat.AccountID
+	IdempotencyKey string
 	Text string
 	Document *documentcontext.Document
 }
@@ -54,7 +54,7 @@ type MessageInput struct {
 func (s Service) SendMessage(ctx context.Context, token, proof string, binding authentication.RequestBinding, owner chat.AccountID, input MessageInput) (storage.Message, error) {
 	caller, err := s.authenticate(ctx, token, proof, binding)
 	if err != nil { return storage.Message{}, err }
-	if !owner.Valid() || !input.IdempotencyKey.Valid() {
+	if !owner.Valid() || !chat.AccountID(input.IdempotencyKey).Valid() {
 		return storage.Message{}, ErrValidation
 	}
 	if s.Permissions == nil || s.Store == nil { return storage.Message{}, ErrStorageUnavailable }
@@ -66,7 +66,7 @@ func (s Service) SendMessage(ctx context.Context, token, proof string, binding a
 		id = sql.NullString{String: content.Document.ID, Valid: true}
 		title = sql.NullString{String: content.Document.Title, Valid: true}
 	}
-	result, err := s.Store.CommitMessage(ctx, string(owner), caller.AccountID, string(input.IdempotencyKey), content.Text, id, title)
+	result, err := s.Store.CommitMessage(ctx, string(owner), caller.AccountID, input.IdempotencyKey, content.Text, id, title)
 	if err != nil { return storage.Message{}, classifyWriteError(err) }
 	return result, nil
 }
