@@ -129,13 +129,24 @@ jobs:
           "$CHAT_AUTH_PROBE" --expect=jkt > "$RUNNER_TEMP/chat-ws-jkt"
           export CHAT_WS_JKT="$(cat "$RUNNER_TEMP/chat-ws-jkt")"
           cp qa/testdata/bfe_drive_chat_ws_e2e_test.go bfe-drive/internal/httpapi/qa_chat_ws_e2e_integration_test.go
+          markers="$RUNNER_TEMP/dpm05-private-markers"
+          : > "$markers"
+          chmod 600 "$markers"
+          export CHAT_WS_MARKERS="$markers"
           cd bfe-drive
+          result=FAIL
           if go test -tags=integration -count=1 -run '^TestQADPM05RealCentrifugeWebSocketUDS$' -timeout=30m ./internal/httpapi > "$RUNNER_TEMP/qa-private-output" 2>&1; then
-            printf 'Chat SHA: %s\nDrive SHA: %s\nScenario: real Centrifuge WS lifecycle PASS\n' "$DP_M05_SHA" "$(git rev-parse HEAD)" > "$GITHUB_WORKSPACE/dpm05-ws-e2e.log"
-          else
-            printf 'Chat SHA: %s\nDrive SHA: %s\nScenario: real Centrifuge WS lifecycle FAIL\nRaw test output withheld to prevent credential disclosure.\n' "$DP_M05_SHA" "$(git rev-parse HEAD)" > "$GITHUB_WORKSPACE/dpm05-ws-e2e.log"
-            exit 1
+            result=PASS
           fi
+          report="$GITHUB_WORKSPACE/dpm05-ws-e2e.log"
+          printf 'Chat SHA: %s\nDrive SHA: %s\n' "$DP_M05_SHA" "$(git rev-parse HEAD)" > "$report"
+          for scenario in VALID_CONNECT OPEN_AFTER_REVOKE OLD_TOKEN_DENIED NEW_SESSION_CONNECTED NEW_SESSION_DELIVERED UDS_UNAVAILABLE_DENIED; do
+            status=FAIL
+            if grep -Fxq "$scenario PASS" "$markers"; then status=PASS; fi
+            printf '%s: %s\n' "$scenario" "$status" >> "$report"
+          done
+          printf 'E2E_RESULT: %s\n' "$result" >> "$report"
+          test "$result" = PASS
       - name: Upload diagnostics (no access credentials)
         if: always()
         uses: actions/upload-artifact@v4
