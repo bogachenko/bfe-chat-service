@@ -1,96 +1,168 @@
-// Command coverage-gate enforces code coverage thresholds with explicit critical scope.
+// Command coverage-gate enforces QR-08 production statement coverage.
+// Scope is explicit: cmd/bfe-chat-service and all eight internal packages.
+// qa/driveauthprobe and tools/coverage-gate are verified separately.
 package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 )
 
-type coverageCounts struct {
-	allTotal        uint64
-	allCovered      uint64
-	criticalTotal   uint64
-	criticalCovered uint64
-	criticalPresent bool
+const module = "github.com/bogachenko/bfe-chat-service/"
+
+var production = []string{
+	"cmd/bfe-chat-service",
+	"internal/authentication",
+	"internal/assignments",
+	"internal/authorization",
+	"internal/chat",
+	"internal/conversations",
+	"internal/documentcontext",
+	"internal/realtime",
+	"internal/storage",
+}
+
+var critical = []string{"internal/authentication", "internal/authorization"}
+
+var block = regexp.MustCompile(`^(.+):[0-9]+\.[0-9]+,[0-9]+\.[0-9]+$`)
+
+type counts struct{ total, hit uint64 }
+
+func (c counts) percent() float64 {
+	if c.total == 0 {
+		return 0
+	}
+	return 100 * float64(c.hit) / float64(c.total)
 }
 
 func main() {
-	profile := flag.String("profile", "coverage.out", "coverage profile")
-	min := flag.Float64("min", 80, "minimum total percent")
-	criticalMin := flag.Float64("critical-min", 90, "minimum critical percent")
+	profile := flag.String("profile", "coverage.out", "production coverage profile")
+	min := flag.Float64("min", 80, "minimum production percent")
+	criticalMin := flag.Float64("critical-min", 90, "minimum percent for each critical package")
 	flag.Parse()
 
-	counts := readCoverage(*profile)
-	if counts.allTotal == 0 || !counts.criticalPresent || counts.criticalTotal == 0 {
-		fail("coverage not measurable or critical packages missing")
+	f, err := os.Open(*profile)
+	if err != nil {
+		fail(err)
 	}
-	overall := 100 * float64(counts.allCovered) / float64(counts.allTotal)
-	crit := 100 * float64(counts.criticalCovered) / float64(counts.criticalTotal)
-	fmt.Printf("Coverage total %.2f%% (min %.2f%%), critical %.2f%% (min %.2f%%)\n", overall, *min, crit, *criticalMin)
-	if overall < *min || crit < *criticalMin {
-		fail("coverage threshold not met")
+	defer func() { _ = f.Close() }()
+	byPackage, err := parseProfile(f)
+	if err != nil {
+		fail(err)
+	}
+	if err := evaluate(byPackage, *min, *criticalMin, os.Stdout); err != nil {
+		fail(err)
 	}
 }
 
-func readCoverage(profile string) coverageCounts {
-	f, err := os.Open(profile)
-	if err != nil {
-		fail(err.Error())
+func parseProfile(r io.Reader) (map[string]counts, error) {
+	scan := bufio.NewScanner(r)
+	if !scan.Scan() {
+		return nil, errors.New("empty coverage profile")
 	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			fail(err.Error())
-		}
-	}()
-
-	scan := bufio.NewScanner(f)
-	if !scan.Scan() || !strings.HasPrefix(scan.Text(), "mode: ") {
-		fail("invalid coverage profile")
+	switch scan.Text() {
+	case "mode: set", "mode: count", "mode: atomic":
+	default:
+		return nil, errors.New("invalid coverage profile header")
 	}
-	var counts coverageCounts
+	byPackage := make(map[string]counts)
+	known := make(map[string]bool, len(production))
+	for _, pkg := range production {
+		known[pkg] = true
+	}
+	rows := 0
+	seen := make(map[string]uint64)
+	covered := make(map[string]bool)
 	for scan.Scan() {
-		counts.addRow(scan.Text())
+		fields := strings.Fields(scan.Text())
+		if len(fields) != 3 {
+			return nil, errors.New("invalid profile row")
+		}
+		match := block.FindStringSubmatch(fields[0])
+		if match == nil || !strings.HasPrefix(match[1], module) {
+			return nil, errors.New("invalid production file path")
+		}
+		path := strings.TrimPrefix(match[1], module)
+		last := strings.LastIndexByte(path, '/')
+		if last < 0 || !strings.HasSuffix(path, ".go") || !known[path[:last]] {
+			return nil, fmt.Errorf("unexpected production package: %s", path)
+		}
+		n, errN := strconv.ParseUint(fields[1], 10, 64)
+		hits, errHits := strconv.ParseUint(fields[2], 10, 64)
+		if errN != nil || errHits != nil {
+			return nil, errors.New("invalid statement counter")
+		}
+		// -coverpkg produces one profile entry per test binary. Identical
+		// source blocks must be counted once, covered if any run hit them.
+		key := fields[0]
+		prior, exists := seen[key]
+		if exists {
+			if prior != n {
+				return nil, errors.New("inconsistent repeated coverage block")
+			}
+			if hits > 0 {
+				c := byPackage[path[:last]]
+				if !covered[key] {
+					c.hit += n
+					covered[key] = true
+					byPackage[path[:last]] = c
+				}
+			}
+			continue
+		}
+		seen[key] = n
+		pkg := path[:last]
+		c := byPackage[pkg]
+		c.total += n
+		if hits > 0 {
+			c.hit += n
+			covered[key] = true
+		}
+		byPackage[pkg] = c
+		rows++
 	}
 	if err := scan.Err(); err != nil {
-		fail(err.Error())
+		return nil, err
 	}
-	return counts
+	if rows == 0 {
+		return nil, errors.New("empty coverage profile")
+	}
+	return byPackage, nil
 }
 
-func (c *coverageCounts) addRow(row string) {
-	fields := strings.Fields(row)
-	if len(fields) != 3 {
-		fail("invalid profile row")
+func evaluate(byPackage map[string]counts, minimum, criticalMinimum float64, out io.Writer) error {
+	total := counts{}
+	for _, pkg := range production {
+		c := byPackage[pkg]
+		if c.total == 0 {
+			return fmt.Errorf("missing production package: %s", pkg)
+		}
+		total.total += c.total
+		total.hit += c.hit
+		fmt.Fprintf(out, "%s: %.2f%%\n", pkg, c.percent())
 	}
-	n, e1 := strconv.ParseUint(fields[1], 10, 64)
-	count, e2 := strconv.ParseUint(fields[2], 10, 64)
-	if e1 != nil || e2 != nil {
-		fail("invalid counter")
+	fmt.Fprintf(out, "Production coverage: %.2f%% (minimum %.2f%%)\n", total.percent(), minimum)
+	if total.percent() < minimum {
+		return errors.New("production coverage below threshold")
 	}
-	c.allTotal += n
-	if count > 0 {
-		c.allCovered += n
-	}
-	if isCriticalPackage(fields[0]) {
-		c.criticalPresent = true
-		c.criticalTotal += n
-		if count > 0 {
-			c.criticalCovered += n
+	for _, pkg := range critical {
+		c := byPackage[pkg]
+		fmt.Fprintf(out, "Critical %s: %.2f%% (minimum %.2f%%)\n", pkg, c.percent(), criticalMinimum)
+		if c.percent() < criticalMinimum {
+			return fmt.Errorf("critical package below threshold: %s", pkg)
 		}
 	}
+	return nil
 }
 
-func isCriticalPackage(path string) bool {
-	return strings.Contains(path, "/internal/authentication/") ||
-		strings.Contains(path, "/internal/authorization/") ||
-		strings.Contains(path, "/internal/realtime/")
-}
-
-func fail(reason string) {
-	fmt.Fprintln(os.Stderr, "coverage gate:", reason)
+func fail(err error) {
+	fmt.Fprintln(os.Stderr, "coverage gate:", err)
 	os.Exit(1)
 }

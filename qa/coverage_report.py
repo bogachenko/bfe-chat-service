@@ -30,10 +30,10 @@ def main():
     p.add_argument("--output", default="coverage-report.md")
     a = p.parse_args()
     module = [r for r in read(a.module_profile) if "/internal/storage/" in r[0]]
-    project = read(a.project_profile)
+    project = [r for r in read(a.project_profile) if "/cmd/bfe-chat-service/" in r[0] or "/internal/" in r[0]]
     module_pc, project_pc = percent(module), percent(project)
     critical = []
-    for name in ("auth", "dpop", "access"):
+    for name in ("authentication", "authorization"):
         folder = Path("internal") / name
         relevant = [r for r in project if "/internal/" + name + "/" in r[0]]
         if not folder.is_dir() or not list(folder.glob("*.go")):
@@ -45,7 +45,8 @@ def main():
             status = "%.2f%% %s" % (pc, "PASS" if pc >= 90 else "FAIL")
         critical.append((name, status))
     module_pass = module_pc >= 80
-    project_pass = project_pc >= 80 and all(status.endswith("PASS") for _, status in critical)
+    cmd_present = any("/cmd/bfe-chat-service/" in r[0] for r in project)
+    project_pass = cmd_present and project_pc >= 80 and all(status.endswith("PASS") for _, status in critical)
     lines = [
         "# Staged Coverage Report",
         "",
@@ -62,9 +63,10 @@ def main():
     ]
     lines.extend("- internal/%s: %s" % value for value in critical)
     lines.extend([
+        "- cmd/bfe-chat-service: " + ("INCLUDED" if cmd_present else "MISSING"),
         "- Production Quality Gate: " + ("PASS" if project_pass else "BLOCKED"),
         "",
-        "Missing critical modules are NOT IMPLEMENTED, never considered verified.",
+        "Missing critical packages or cmd entrypoint are BLOCKING, never considered verified.",
         "Production quality thresholds are unchanged and blocking.",
         "",
     ])

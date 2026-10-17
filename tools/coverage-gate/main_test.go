@@ -1,25 +1,124 @@
 package main
 
-import "testing"
+import (
+	"bytes"
+	"fmt"
+	"strings"
+	"testing"
+)
 
-func TestIsCriticalPackage(t *testing.T) {
- t.Parallel()
- cases:=[]struct{name,path string;want bool}{
-  {"authentication","github.com/bogachenko/bfe-chat-service/internal/authentication/authentication.go:1.2,2.5",true},
-  {"authorization","github.com/bogachenko/bfe-chat-service/internal/authorization/authorization.go:1.2,2.5",true},
-  {"realtime","github.com/bogachenko/bfe-chat-service/internal/realtime/realtime.go:1.2,2.5",true},
-  {"unrelated package","github.com/bogachenko/bfe-chat-service/internal/documentcontext/context.go:1.2,2.5",false},
-  {"legacy path is not current package","github.com/bogachenko/bfe-chat-service/internal/auth/foo.go:1.2,2.5",false},
- }
- for _,tc:=range cases {
-  t.Run(tc.name,func(t *testing.T){t.Parallel();if got:=isCriticalPackage(tc.path);got!=tc.want {t.Fatalf("critical=%t want=%t for %q",got,tc.want,tc.path)}})
- }
+func profile(covered bool) string {
+	var out strings.Builder
+	out.WriteString("mode: atomic\n")
+	for _, pkg := range production {
+		hit := 1
+		if !covered {
+			hit = 0
+		}
+		fmt.Fprintf(&out, "%s%s/example.go:1.1,2.1 1 %d\n", module, pkg, hit)
+	}
+	return out.String()
 }
-func TestCoverageCounts(t *testing.T) {
- t.Parallel()
- var counts coverageCounts
- counts.addRow("github.com/bogachenko/bfe-chat-service/internal/realtime/realtime.go:1.2,2.5 5 1")
- counts.addRow("github.com/bogachenko/bfe-chat-service/internal/realtime/realtime.go:3.2,4.5 3 0")
- counts.addRow("github.com/bogachenko/bfe-chat-service/internal/conversations/conversations.go:1.2,2.5 2 1")
- if counts.allTotal!=10||counts.allCovered!=7||counts.criticalTotal!=8||counts.criticalCovered!=5||!counts.criticalPresent {t.Fatalf("counts=%+v",counts)}
+
+func TestCoverageGateValid(t *testing.T) {
+	got, err := parseProfile(strings.NewReader(profile(true)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := evaluate(got, 80, 90, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCoverageGateEmptyProfile(t *testing.T) {
+	for _, data := range []string{"", "mode: atomic\n"} {
+		if _, err := parseProfile(strings.NewReader(data)); err == nil {
+			t.Fatal("empty profile accepted")
+		}
+	}
+}
+
+func TestCoverageGateMissingCriticalPackage(t *testing.T) {
+	data := strings.ReplaceAll(profile(true), module+"internal/authorization/example.go:1.1,2.1 1 1\n", "")
+	byPackage, err := parseProfile(strings.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := evaluate(byPackage, 80, 90, &bytes.Buffer{}); err == nil {
+		t.Fatal("missing critical package accepted")
+	}
+}
+
+func TestCoverageGateInsufficientCoverage(t *testing.T) {
+	byPackage, err := parseProfile(strings.NewReader(profile(false)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := evaluate(byPackage, 80, 90, &bytes.Buffer{}); err == nil {
+		t.Fatal("zero coverage accepted")
+	}
+	data := strings.ReplaceAll(profile(true), module+"internal/authentication/example.go:1.1,2.1 1 1", module+"internal/authentication/example.go:1.1,2.1 1 0")
+	byPackage, err = parseProfile(strings.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := evaluate(byPackage, 80, 90, &bytes.Buffer{}); err == nil {
+		t.Fatal("critical package under 90% accepted")
+	}
+}
+
+func TestCoverageGateZeroStatementBlock(t *testing.T) {
+	data := profile(true) + module + "internal/authentication/empty.go:1.1,1.1 0 0\n"
+	byPackage, err := parseProfile(strings.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := evaluate(byPackage, 80, 90, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCoverageGateMalformedProfile(t *testing.T) {
+	for _, data := range []string{
+		"not a header\n",
+		"mode: atomic\ninvalid row\n",
+		"mode: atomic\n" + module + "internal/authentication/a.go:1.1,2.1 nope 1\n",
+		"mode: atomic\n" + module + "tools/coverage-gate/main.go:1.1,2.1 1 1\n",
+		"mode: atomic\n" + module + "internal/authentication/a.go:1.1,2.1 invalid 1\n",
+	} {
+		if _, err := parseProfile(strings.NewReader(data)); err == nil {
+			t.Fatalf("malformed profile accepted: %q", data)
+		}
+	}
+}
+
+func TestCoverageGateDeduplicatesBlocksAcrossTestBinaries(t *testing.T) {
+	base := profile(true)
+	// A second package's test binary includes the same blocks with zero hits.
+	var duplicates strings.Builder
+	for _, line := range strings.Split(strings.TrimSpace(base), "\n")[1:] {
+		fields := strings.Fields(line)
+		if len(fields) != 3 {
+			t.Fatalf("bad fixture: %q", line)
+		}
+		fmt.Fprintf(&duplicates, "%s %s 0\n", fields[0], fields[1])
+	}
+	withDuplicates := base + duplicates.String()
+	counts, err := parseProfile(strings.NewReader(withDuplicates))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := evaluate(counts, 80, 90, &bytes.Buffer{}); err != nil {
+		t.Fatalf("zero-hit copies reduced coverage: %v", err)
+	}
+
+	// Reverse order: zero-hit records before the covered copies.
+	first := "mode: atomic\n" + duplicates.String() + strings.TrimPrefix(base, "mode: atomic\n")
+	counts, err = parseProfile(strings.NewReader(first))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := evaluate(counts, 80, 90, &bytes.Buffer{}); err != nil {
+		t.Fatalf("covered copies did not raise coverage: %v", err)
+	}
 }
