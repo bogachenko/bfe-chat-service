@@ -86,16 +86,7 @@ func (s Service) DeliverCommittedMessage(ctx context.Context, owner, committedRe
 		return ErrDeliverySkipped
 	}
 	err := s.Assignments.WithAssignmentLock(ctx, string(owner), func(current string) error {
-		if !chat.AccountID(current).Valid() {
-			return ErrDeliverySkipped
-		}
-		if err := s.publish(owner, owner, data); err != nil {
-			return err
-		}
-		if current != string(committedRecipient) || current == string(owner) {
-			return nil
-		}
-		return s.publish(owner, committedRecipient, data)
+		return s.deliverUnderLock(owner, committedRecipient, chat.AccountID(current), data)
 	})
 	if err == nil || errors.Is(err, ErrDeliverySkipped) || errors.Is(err, ErrDeliveryFailed) {
 		return err
@@ -108,4 +99,17 @@ func (s Service) publish(owner, viewer chat.AccountID, data []byte) error {
 		return ErrDeliveryFailed
 	}
 	return nil
+}
+
+func (s Service) deliverUnderLock(owner, committedRecipient, current chat.AccountID, data []byte) error {
+	if !current.Valid() {
+		return ErrDeliverySkipped
+	}
+	if err := s.publish(owner, owner, data); err != nil {
+		return err
+	}
+	if current != committedRecipient || current == owner {
+		return nil
+	}
+	return s.publish(owner, committedRecipient, data)
 }
