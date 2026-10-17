@@ -156,9 +156,10 @@ func TestDeliverCommittedMessageFailurePaths(t *testing.T) {
 func TestDeliverySerializesReassignment(t *testing.T) {
  s:=&assignmentStore{recipient:string(first)}
  entered:=make(chan struct{})
+ var signalOnce sync.Once
  release:=make(chan struct{})
  p:=&publisher{onPublish:func(channel string){
-  if channel==realtime.Channel(owner,owner){close(entered);<-release}
+  if channel==realtime.Channel(owner,owner){signalOnce.Do(func(){close(entered);<-release})}
  }}
  delivered:=make(chan error,1)
  go func(){delivered<-service(s,p).DeliverCommittedMessage(context.Background(),owner,first,payload)}()
