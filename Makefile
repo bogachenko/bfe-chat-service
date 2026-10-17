@@ -25,6 +25,7 @@ coverage:
 coverage-tools:
 	$(GO) build ./tools/coverage-gate ./qa/driveauthprobe
 	$(GO) test ./tools/coverage-gate ./qa/driveauthprobe
+	$(GO) run ./qa/driveauthprobe -socket /nonexistent/bfe-auth-qr08.sock -expect unavailable
 
 race:
 	$(GO) test -race ./...
