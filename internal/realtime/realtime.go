@@ -4,14 +4,14 @@ package realtime
 
 import (
 	"context"
-	"errors"
 	"encoding/json"
+	"errors"
 	"strings"
 
-	"github.com/centrifugal/centrifuge"
 	"github.com/bogachenko/bfe-chat-service/internal/authentication"
 	"github.com/bogachenko/bfe-chat-service/internal/authorization"
 	"github.com/bogachenko/bfe-chat-service/internal/chat"
+	"github.com/centrifugal/centrifuge"
 )
 
 var (
