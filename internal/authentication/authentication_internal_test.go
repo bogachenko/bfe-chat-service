@@ -45,9 +45,10 @@ func TestReplayStoreExpiryAndSeparation(t *testing.T){
  if len(v.seen)!=1{t.Fatalf("stale entries not removed: %d",len(v.seen))}
 }
 func TestVerifiedClaimsHeaderAndThumbprint(t *testing.T){
- pub,priv,err:=ed25519.GenerateKey(rand.Reader);if err!=nil{t.Fatal(err)}
- jwk:=jose.JSONWebKey{Key:pub}
- thumb,err:=jwk.Thumbprint(crypto.SHA256);if err!=nil{t.Fatal(err)}
+ pub,priv,err:=ed25519.GenerateKey(rand.Reader)
+ if err!=nil{t.Fatal(err)}
+ thumb,err:=(&jose.JSONWebKey{Key:pub}).Thumbprint(crypto.SHA256)
+ if err!=nil{t.Fatal(err)}
  jkt:=base64.RawURLEncoding.EncodeToString(thumb)
  for _,tc:=range []struct{name,typ string;body string;expected string;valid bool}{
   {"valid","dpop+jwt",`{"jti":"abc","iat":1700000000}`,jkt,true},
@@ -58,14 +59,27 @@ func TestVerifiedClaimsHeaderAndThumbprint(t *testing.T){
   {"wrong JKT","dpop+jwt",`{"jti":"abc","iat":1700000000}`,"incorrect",false},
  }{
   t.Run(tc.name,func(t *testing.T){
-   signer,err:=jose.NewSigner(jose.SigningKey{Algorithm:jose.EdDSA,Key:jose.JSONWebKey{Key:priv,Algorithm:string(jose.EdDSA)}},&jose.SignerOptions{EmbedJWK:true,ExtraHeaders:map[jose.HeaderKey]interface{}{jose.HeaderType:tc.typ}})
-   if err!=nil{t.Fatal(err)}
-   signed,err:=signer.Sign([]byte(tc.body));if err!=nil{t.Fatal(err)}
-   compact,err:=signed.CompactSerialize();if err!=nil{t.Fatal(err)}
-   got,err:=verifiedClaims(compact,tc.expected)
-   if tc.valid{if err!=nil||got.JTI!="abc"{t.Fatalf("valid: %+v %v",got,err)}}else if err==nil{t.Fatalf("invalid proof accepted: %+v",got)}
+   compact:=makeHeaderTestJWS(t,priv,tc.typ,tc.body)
+   assertHeaderClaims(t,compact,tc.expected,tc.valid)
   })
  }
+}
+func makeHeaderTestJWS(t *testing.T,priv ed25519.PrivateKey,typ,body string)string{
+ t.Helper()
+ signer,err:=jose.NewSigner(jose.SigningKey{Algorithm:jose.EdDSA,Key:jose.JSONWebKey{Key:priv,Algorithm:string(jose.EdDSA)}},&jose.SignerOptions{EmbedJWK:true,ExtraHeaders:map[jose.HeaderKey]interface{}{jose.HeaderType:typ}})
+ if err!=nil{t.Fatal(err)}
+ signed,err:=signer.Sign([]byte(body));if err!=nil{t.Fatal(err)}
+ compact,err:=signed.CompactSerialize();if err!=nil{t.Fatal(err)}
+ return compact
+}
+func assertHeaderClaims(t *testing.T,compact,expected string,valid bool){
+ t.Helper()
+ got,err:=verifiedClaims(compact,expected)
+ if valid{
+  if err!=nil||got.JTI!="abc"{t.Fatalf("valid: %+v %v",got,err)}
+  return
+ }
+ if err==nil{t.Fatalf("invalid proof accepted: %+v",got)}
 }
 func TestValidateProofInvalidRequestBoundary(t *testing.T){
  v:=&Validator{freshness:time.Minute,seen:make(map[replayKey]time.Time)}
