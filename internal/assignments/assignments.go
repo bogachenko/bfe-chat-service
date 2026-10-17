@@ -58,6 +58,13 @@ func (s Service) ReplaceRecipient(ctx context.Context, token, proof string, bind
 		return chat.Assignment{}, ErrStorageUnavailable
 	}
 	if err := s.Store.CommitAssignment(ctx, string(owner), string(recipient)); err != nil {
+		var sqlState interface{ SQLState() string }
+		if errors.As(err, &sqlState) {
+			switch sqlState.SQLState() {
+			case "40001", "40P01", "23505":
+				return chat.Assignment{}, ErrAssignmentConflict
+			}
+		}
 		return chat.Assignment{}, ErrStorageUnavailable
 	}
 	return a, nil
