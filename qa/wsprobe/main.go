@@ -46,47 +46,51 @@ func main(){
  account:=flag.String("account","","Fixture account UUID")
  expect:=flag.String("expect","ok","ok, invalid or unavailable")
  flag.Parse()
- if *socket=="" {exit(errors.New("missing socket"))}
- owner=chat.AccountID(*account)
- if !owner.Valid(){exit(errors.New("invalid fixture account"))}
+ if err:=runProbe(*socket,*account,*expect);err!=nil{exit(err)}
+}
+func verifyProbeArgs(socket,account,expect string)error{
+ if socket==""{return errors.New("missing socket")}
+ owner=chat.AccountID(account)
+ if !owner.Valid(){return errors.New("invalid fixture account")}
+ if expect!="ok"&&expect!="invalid"&&expect!="unavailable"&&expect!="lifecycle"{return errors.New("invalid expectation")}
+ return nil
+}
+func runProbe(socket,account,expect string)error{
+ if err:=verifyProbeArgs(socket,account,expect);err!=nil{return err}
  token:=os.Getenv("CHAT_WS_TOKEN")
- if token==""{exit(errors.New("missing fixture token"))}
- if *expect!="ok"&&*expect!="invalid"&&*expect!="unavailable"&&*expect!="lifecycle"{exit(errors.New("invalid expectation"))}
- v,err:=authentication.NewValidator(*socket,5*time.Minute);if err!=nil{exit(err)}
- node,err:=centrifuge.New(centrifuge.Config{});if err!=nil{exit(err)}
+ if token==""{return errors.New("missing fixture token")}
+ v,err:=authentication.NewValidator(socket,5*time.Minute);if err!=nil{return err}
+ node,err:=centrifuge.New(centrifuge.Config{});if err!=nil{return err}
  svc:=realtime.Service{Auth:v,Permissions:policy{},Assignments:assignment{},Publisher:publish{node:node}}
- if err:=svc.Bind(node,endpoint);err!=nil{exit(err)}
- if err:=node.Run();err!=nil{exit(err)}
+ if err:=svc.Bind(node,endpoint);err!=nil{return err}
+ if err:=node.Run();err!=nil{return err}
  defer func(){ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second);defer cancel();_ =node.Shutdown(ctx)}()
  srv:=httptest.NewServer(centrifuge.NewWebsocketHandler(node,centrifuge.WebsocketConfig{}))
  defer srv.Close()
- if *expect=="lifecycle" {
-  if err:=lifecycle(strings.TrimPrefix(srv.URL,"http://"),node,token);err!=nil{exit(err)}
- } else if err:=checkWebsocket(strings.TrimPrefix(srv.URL,"http://"),token,*expect);err!=nil{exit(err)}
- fmt.Println("real Centrifuge WebSocket + BFE Drive UDS: "+*expect+" PASS")
+ if err:=exerciseWebSocket(strings.TrimPrefix(srv.URL,"http://"),node,token,expect);err!=nil{return err}
+ fmt.Println("real Centrifuge WebSocket + BFE Drive UDS: "+expect+" PASS")
+ return nil
 }
+func exerciseWebSocket(addr string,node *centrifuge.Node,token,expect string)error{
+ if expect=="lifecycle"{return lifecycle(addr,node,token)}
+ return checkWebsocket(addr,token,expect)
+}
+
 func checkWebsocket(addr,token,expect string)error{
- conn,err:=net.DialTimeout("tcp",addr,5*time.Second);if err!=nil{return err}
- defer func() { _ = conn.Close() }()
- key:=make([]byte,16);if _,err=rand.Read(key);err!=nil{return err}
- req:=fmt.Sprintf("GET /ws HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: %s\r\n\r\n",addr,base64.StdEncoding.EncodeToString(key))
- if _,err=io.WriteString(conn,req);err!=nil{return err}
- rd:=bufio.NewReader(conn)
- response,err:=http.ReadResponse(rd,&http.Request{Method:http.MethodGet});if err!=nil{return err}
- defer func() { _ = response.Body.Close() }()
- if response.StatusCode!=http.StatusSwitchingProtocols{return fmt.Errorf("unexpected WebSocket upgrade status: %d",response.StatusCode)}
+ conn,rd,err:=openSocket(addr);if err!=nil{return err}
+ defer func(){_ = conn.Close()}()
  proof,err:=signedProof(token);if err!=nil{return err}
  data,err:=json.Marshal(map[string]string{"dpop":proof});if err!=nil{return err}
  command,err:=json.Marshal(map[string]any{"id":1,"connect":map[string]any{"token":token,"data":json.RawMessage(data)}});if err!=nil{return err}
  if err:=sendFrame(conn,append(command,'\n'));err!=nil{return err}
  if expect!="ok"{return readExplicitAuthDenial(conn,rd)}
- raw,err:=receiveFrame(conn,rd)
- if err!=nil{return err}
+ raw,err:=receiveFrame(conn,rd);if err!=nil{return err}
  var reply map[string]json.RawMessage
  if err:=json.Unmarshal(raw,&reply);err!=nil{return errors.New("connect reply malformed")}
  if len(reply["connect"])==0{return errors.New("valid session was not accepted")}
  return nil
 }
+
 func sendFrame(c net.Conn,data []byte)error{
  if len(data)>65535{return errors.New("WebSocket command too large")}
  mask:=make([]byte,4);if _,err:=rand.Read(mask);err!=nil{return err}
@@ -127,37 +131,46 @@ func exit(err error){
 
 func lifecycle(addr string,node *centrifuge.Node,token string)error {
  conn,reader,err:=openSocket(addr);if err!=nil{return err}
- defer func() { _ = conn.Close() }()
+ defer func(){_ = conn.Close()}()
  if err:=connectCommand(conn,reader,token,1,true);err!=nil{return err}
  if err:=subscribeCommand(conn,reader,2);err!=nil{return err}
  fmt.Println("READY")
  commands:=bufio.NewReader(os.Stdin)
+ if err:=verifyRevokedSession(conn,reader,node,token,commands,addr);err!=nil{return err}
+ return verifyFreshSession(addr,node,commands,token)
+}
+func verifyRevokedSession(conn net.Conn,reader *bufio.Reader,node *centrifuge.Node,token string,commands *bufio.Reader,addr string)error{
  stage,err:=commands.ReadString('\n');if err!=nil{return errors.New("missing revoke stage")}
  if strings.TrimSpace(stage)!="REVOKED"{return errors.New("invalid revoke stage")}
- // Existing connection stays subscribed after logout. A synchronous publication
- // proves that it has not been forcibly disconnected on BFE Drive revocation.
  if _,err:=node.Publish(realtime.Channel(owner,owner),[]byte(`{"phase":"after-revoke"}`));err!=nil{return err}
  event,err:=receiveFrame(conn,reader);if err!=nil{return err}
  if !strings.Contains(string(event),"after-revoke"){return errors.New("open socket lost delivery after revocation")}
  fmt.Println("OPEN_AFTER_REVOKE")
  if err:=checkWebsocket(addr,token,"invalid");err!=nil{return err}
  fmt.Println("OLD_TOKEN_DENIED")
- stage,err=commands.ReadString('\n');if err!=nil{return errors.New("missing new session stage")}
+ return nil
+}
+func verifyFreshSession(addr string,node *centrifuge.Node,commands *bufio.Reader,oldToken string)error{
+ stage,err:=commands.ReadString('\n');if err!=nil{return errors.New("missing new session stage")}
  if strings.TrimSpace(stage)!="NEW"{return errors.New("invalid new session stage")}
  fresh,err:=commands.ReadString('\n');if err!=nil{return errors.New("missing new token")}
  fresh=strings.TrimSpace(fresh)
- if fresh==""||fresh==token{return errors.New("new session credential invalid")}
+ if fresh==""||fresh==oldToken{return errors.New("new session credential invalid")}
+ return verifyFreshConnection(addr,node,fresh)
+}
+func verifyFreshConnection(addr string,node *centrifuge.Node,fresh string)error{
  next,rd,err:=openSocket(addr);if err!=nil{return err}
- defer func() { _ = next.Close() }()
+ defer func(){_ = next.Close()}()
  if err:=connectCommand(next,rd,fresh,3,true);err!=nil{return err}
  if err:=subscribeCommand(next,rd,4);err!=nil{return err}
  fmt.Println("NEW_SESSION_CONNECTED")
  if _,err:=node.Publish(realtime.Channel(owner,owner),[]byte(`{"phase":"new-session"}`));err!=nil{return err}
- event,err=receiveFrame(next,rd);if err!=nil{return err}
+ event,err:=receiveFrame(next,rd);if err!=nil{return err}
  if !strings.Contains(string(event),"new-session"){return errors.New("fresh connection did not receive message")}
  fmt.Println("NEW_SESSION_DELIVERED")
  return nil
 }
+
 func openSocket(addr string)(net.Conn,*bufio.Reader,error){
  conn,err:=net.DialTimeout("tcp",addr,5*time.Second);if err!=nil{return nil,nil,err}
  key:=make([]byte,16);if _,err:=rand.Read(key);err!=nil{_ =conn.Close();return nil,nil,err}
@@ -191,22 +204,24 @@ func subscribeCommand(c net.Conn,rd *bufio.Reader,id int)error{
 }
 
 func readExplicitAuthDenial(c net.Conn,rd *bufio.Reader)error {
- if err:=c.SetReadDeadline(time.Now().Add(5*time.Second));err!=nil{return err}
- header:=make([]byte,2)
- if _,err:=io.ReadFull(rd,header);err!=nil{return errors.New("auth denial missing (transport failure)")}
- size:=int(header[1]&0x7f)
- if size==126||size==127||header[1]&0x80!=0{return errors.New("invalid auth denial frame")}
- body:=make([]byte,size)
- if _,err:=io.ReadFull(rd,body);err!=nil{return errors.New("auth denial frame truncated")}
- if header[0]&0x0f==0x8 {
-  if len(body)<2||int(body[0])<<8|int(body[1])!=int(centrifuge.DisconnectInvalidToken.Code){
-   return errors.New("unexpected websocket close code")
-  }
+ opcode,body,err:=readDenialFrame(c,rd);if err!=nil{return err}
+ if opcode==0x8 {
+  if len(body)<2||int(body[0])<<8|int(body[1])!=int(centrifuge.DisconnectInvalidToken.Code){return errors.New("unexpected websocket close code")}
   return nil
  }
- if header[0]&0x0f!=0x1{return errors.New("unexpected auth denial frame type")}
+ if opcode!=0x1{return errors.New("unexpected auth denial frame type")}
  var reply struct{Disconnect struct{Code uint32 `json:"code"`} `json:"disconnect"`}
  if err:=json.Unmarshal(body,&reply);err!=nil{return errors.New("auth rejection malformed")}
  if reply.Disconnect.Code!=uint32(centrifuge.DisconnectInvalidToken.Code){return errors.New("expected Centrifuge invalid-token denial (3500)")}
  return nil
+}
+func readDenialFrame(c net.Conn,rd *bufio.Reader)(byte,[]byte,error){
+ if err:=c.SetReadDeadline(time.Now().Add(5*time.Second));err!=nil{return 0,nil,err}
+ header:=make([]byte,2)
+ if _,err:=io.ReadFull(rd,header);err!=nil{return 0,nil,errors.New("auth denial missing (transport failure)")}
+ size:=int(header[1]&0x7f)
+ if size==126||size==127||header[1]&0x80!=0{return 0,nil,errors.New("invalid auth denial frame")}
+ body:=make([]byte,size)
+ if _,err:=io.ReadFull(rd,body);err!=nil{return 0,nil,errors.New("auth denial frame truncated")}
+ return header[0]&0x0f,body,nil
 }
