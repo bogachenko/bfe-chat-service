@@ -5,7 +5,6 @@ import (
  "errors"
  "testing"
 
- "github.com/bogachenko/bfe-chat-service/internal/authentication"
  "github.com/bogachenko/bfe-chat-service/internal/authorization"
  "github.com/bogachenko/bfe-chat-service/internal/chat"
 )
@@ -57,5 +56,5 @@ func TestFC07AdmitDeliveryRequiresLockAndPublication(t *testing.T){
  fail:=errors.New("publication error")
  err:=locked.AdmitDelivery(context.Background(),caller(first,""),owner,func()error{return fail})
  if !errors.Is(err,fail){t.Fatalf("publish failure swallowed: %v",err)}
- var _ authentication.Caller = caller(first,"")
+ var _ = caller(first,"")
 }
