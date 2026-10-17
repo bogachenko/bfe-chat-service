@@ -78,6 +78,8 @@ func parseProfile(r io.Reader) (map[string]counts, error) {
 		known[pkg] = true
 	}
 	rows := 0
+	seen := make(map[string]uint64)
+	covered := make(map[string]bool)
 	for scan.Scan() {
 		fields := strings.Fields(scan.Text())
 		if len(fields) != 3 {
@@ -97,11 +99,31 @@ func parseProfile(r io.Reader) (map[string]counts, error) {
 		if errN != nil || errHits != nil {
 			return nil, errors.New("invalid statement counter")
 		}
+		// -coverpkg produces one profile entry per test binary. Identical
+		// source blocks must be counted once, covered if any run hit them.
+		key := fields[0]
+		prior, exists := seen[key]
+		if exists {
+			if prior != n {
+				return nil, errors.New("inconsistent repeated coverage block")
+			}
+			if hits > 0 {
+				c := byPackage[path[:last]]
+				if !covered[key] {
+					c.hit += n
+					covered[key] = true
+					byPackage[path[:last]] = c
+				}
+			}
+			continue
+		}
+		seen[key] = n
 		pkg := path[:last]
 		c := byPackage[pkg]
 		c.total += n
 		if hits > 0 {
 			c.hit += n
+			covered[key] = true
 		}
 		byPackage[pkg] = c
 		rows++
