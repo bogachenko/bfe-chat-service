@@ -293,3 +293,17 @@ func TestDPM02MS11AssignmentRollbackVisibleToNextSend(t *testing.T){
  if m.Replayed||m.RecipientID!=recipientA{t.Fatalf("post-rollback send used invalid recipient: %+v",m)}
  if rows(t,db,"chat_messages")!=1{t.Fatal("lost or duplicate message after rollback")}
 }
+
+func TestDPM02FC04ReadCurrentAssignmentFromPostgres(t *testing.T){
+ db,s:=database(t)
+ got,err:=s.GetAssignment(context.Background(),owner)
+ if err!=sql.ErrNoRows||got!=""{t.Fatalf("expected NO_ASSIGNMENT storage sentinel: %q %v",got,err)}
+ for _,to:=range []string{recipientA,recipientB,recipientA}{
+  assign(t,s,to)
+  got,err=s.GetAssignment(context.Background(),owner)
+  if err!=nil||got!=to{t.Fatalf("stale recipient: got=%s want=%s err=%v",got,to,err)}
+ }
+ if rows(t,db,"chat_conversations")!=0||rows(t,db,"chat_messages")!=0{
+  t.Fatal("FC-04/FC-12 created messages or auto-created conversation")
+ }
+}
