@@ -14,10 +14,10 @@ import (
 )
 
 var (
-	ErrForbidden = errors.New("FORBIDDEN")
-	ErrNoAssignment = errors.New("NO_ASSIGNMENT")
+	ErrForbidden          = errors.New("FORBIDDEN")
+	ErrNoAssignment       = errors.New("NO_ASSIGNMENT")
 	ErrStorageUnavailable = errors.New("STORAGE_UNAVAILABLE")
-	ErrValidation = errors.New("VALIDATION_ERROR")
+	ErrValidation         = errors.New("VALIDATION_ERROR")
 )
 
 // Authenticator revalidates the caller at the protected operation boundary.
@@ -38,15 +38,15 @@ type Store interface {
 }
 
 type Service struct {
-	Auth Authenticator
+	Auth        Authenticator
 	Permissions Authorizer
-	Store Store
+	Store       Store
 }
 
 type MessageInput struct {
 	IdempotencyKey string
-	Text string
-	Document *documentcontext.Document
+	Text           string
+	Document       *documentcontext.Document
 }
 
 // SendMessage implements FC-05. FC-11 resolves the recipient under the

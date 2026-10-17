@@ -67,15 +67,15 @@ func (s Store) GetAssignment(ctx context.Context, owner string) (string, error) 
 }
 
 type HistoryMessage struct {
-	ID int64
-	OwnerID string
-	SenderID string
-	RecipientID string
+	ID             int64
+	OwnerID        string
+	SenderID       string
+	RecipientID    string
 	IdempotencyKey string
-	Body string
-	DocumentID sql.NullString
-	DocumentTitle sql.NullString
-	CreatedAt time.Time
+	Body           string
+	DocumentID     sql.NullString
+	DocumentTitle  sql.NullString
+	CreatedAt      time.Time
 }
 
 // ReadHistory implements FC-06 persistence. An owner filter and keyset cursor
@@ -92,7 +92,9 @@ func (s Store) ReadHistory(ctx context.Context, owner string, afterID int64, lim
 		WHERE owner_account_id = $1::uuid AND id > $2
 		ORDER BY id ASC LIMIT $3
 	`, owner, afterID, limit)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer func() { _ = rows.Close() }()
 	messages := make([]HistoryMessage, 0)
 	for rows.Next() {
@@ -104,6 +106,8 @@ func (s Store) ReadHistory(ctx context.Context, owner string, afterID int64, lim
 		}
 		messages = append(messages, m)
 	}
-	if err := rows.Err(); err != nil { return nil, err }
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return messages, nil
 }
