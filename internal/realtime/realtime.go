@@ -5,6 +5,7 @@ package realtime
 import (
 	"context"
 	"errors"
+	"encoding/json"
 	"strings"
 
 	"github.com/centrifugal/centrifuge"
@@ -81,10 +82,10 @@ func (s Service) Bind(node *centrifuge.Node, publicWebSocketURL string) error {
 // The lock covers authorization and synchronous publishing, serializing both
 // with FC-12. A changed assignment skips recipient delivery entirely.
 func (s Service) DeliverCommittedMessage(ctx context.Context, owner, committedRecipient chat.AccountID, data []byte) error {
-	if !owner.Valid() || !committedRecipient.Valid() || s.Assignments == nil || s.Publisher == nil || len(data) == 0 {
+	if !owner.Valid() || !committedRecipient.Valid() || s.Assignments == nil || s.Publisher == nil || !json.Valid(data) {
 		return ErrDeliverySkipped
 	}
-	return s.Assignments.WithAssignmentLock(ctx, string(owner), func(current string) error {
+	err := s.Assignments.WithAssignmentLock(ctx, string(owner), func(current string) error {
 		if !chat.AccountID(current).Valid() {
 			return ErrDeliverySkipped
 		}
@@ -96,6 +97,10 @@ func (s Service) DeliverCommittedMessage(ctx context.Context, owner, committedRe
 		}
 		return s.publish(owner, committedRecipient, data)
 	})
+	if err == nil || errors.Is(err, ErrDeliverySkipped) || errors.Is(err, ErrDeliveryFailed) {
+		return err
+	}
+	return ErrDeliveryFailed
 }
 
 func (s Service) publish(owner, viewer chat.AccountID, data []byte) error {
