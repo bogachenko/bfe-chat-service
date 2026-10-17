@@ -45,7 +45,7 @@ func TestDP02AuthAndStoreFailures(t *testing.T){
  }
 }
 func TestDP02FC04ErrorBranches(t *testing.T){
- for _,tc:=range []struct{owner chat.AccountID;store *stubStorage;want error}{
+ for _,tc:=range []struct{owner chat.AccountID;store assignments.Store;want error}{
   {"not-a-uuid",&stubStorage{},assignments.ErrInvalidRecipient},
   {qaOwner,nil,assignments.ErrStorageUnavailable},
   {qaOwner,&stubStorage{getErr:sql.ErrNoRows},assignments.ErrNoAssignment},
