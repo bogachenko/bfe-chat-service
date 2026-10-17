@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   go-quality:
-    timeout-minutes: 55
+    timeout-minutes: 30
     # Never execute pull_request head code on a personal self-hosted runner.
     # Only the protected main push path can use the local machine.
     runs-on: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'self-hosted' || 'ubuntu-24.04' }}
@@ -18,16 +18,14 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-          cache: false
+          cache: true
+          cache-dependency-path: go.sum
       - name: Restore pinned Go tools cache
         id: tools-cache
         uses: actions/cache@v4
         with:
-          path: |
-            ~/go/bin
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: go-tools-self-hosted-go1.27.2-v4-lint2.14.0-gosec2.29.0-vuln1.9.0-dupl1.1.0-cyclop1.2.3-gremlins0.6.0-x-tools0.52.0
+          path: ~/go/bin
+          key: go-tools-bin-only-go1.27.2-v5-lint2.14.0-gosec2.29.0-vuln1.9.0-dupl1.1.0-cyclop1.2.3-gremlins0.6.0-x-tools0.52.0
       - name: Install pinned tools
         if: steps.tools-cache.outputs.cache-hit != 'true'
         run: |
