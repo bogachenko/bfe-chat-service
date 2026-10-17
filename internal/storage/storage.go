@@ -112,7 +112,6 @@ func (s Store) ReadHistory(ctx context.Context, owner string, afterID int64, lim
 	return messages, nil
 }
 
-
 // WithAssignmentLock serializes a protected publication decision and its
 // synchronous action with FC-12 recipient replacement for the same owner.
 // The callback must finish the physical admission to publication before return.

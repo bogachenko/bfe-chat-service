@@ -15,12 +15,12 @@ var ErrForbidden = errors.New("FORBIDDEN")
 type Operation string
 
 const (
-	Send       Operation = "SEND"
-	Read       Operation = "READ"
-	Assign     Operation = "ASSIGN"
-	AdminRead  Operation = "ADMIN_READ"
-	Subscribe  Operation = "SUBSCRIBE"
-	Deliver    Operation = "DELIVER"
+	Send      Operation = "SEND"
+	Read      Operation = "READ"
+	Assign    Operation = "ASSIGN"
+	AdminRead Operation = "ADMIN_READ"
+	Subscribe Operation = "SUBSCRIBE"
+	Deliver   Operation = "DELIVER"
 )
 
 // AssignmentStore reads the authoritative, current assignment from PostgreSQL.
