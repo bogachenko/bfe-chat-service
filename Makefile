@@ -1,4 +1,4 @@
-.PHONY: fmt vet lint security vulncheck dupl complexity coverage race integration mutation-pr mutation-full quality
+.PHONY: fmt vet lint security vulncheck dupl complexity coverage coverage-tools race integration mutation-pr mutation-full quality
 GO ?= go
 GOFILES := $(shell find cmd internal -type f -name '*.go' ! -name '*_test.go' 2>/dev/null)
 BASE_REF ?= origin/main
@@ -21,6 +21,10 @@ coverage:
 	$(GO) test -coverpkg=./cmd/...,./internal/... -coverprofile=coverage.out ./cmd/... ./internal/...\n\t$(GO) test ./tools/coverage-gate ./qa/driveauthprobe
 	@$(GO) tool cover -func=coverage.out
 	@$(GO) run ./tools/coverage-gate -profile coverage.out -min 80 -critical-min 90
+coverage-tools:
+	$(GO) build ./tools/coverage-gate ./qa/driveauthprobe
+	$(GO) test ./tools/coverage-gate ./qa/driveauthprobe
+
 race:
 	$(GO) test -race ./...
 integration:
