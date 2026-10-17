@@ -53,8 +53,9 @@ func TestQADPM01RealDriveUDS(t *testing.T){
  VALUES('chat-qa-reality-check','verifier','ACTIVE','NON_ADMIN') RETURNING id`).Scan(&accountID);err!=nil{t.Fatal(err)}
  token:="opaque-session-token"
  hash:=sha256.Sum256([]byte(token))
+ renewalHash:=sha256.Sum256([]byte("qa-renewal-token"))
  _,err=pool.Exec(ctx,`INSERT INTO login_sessions(account_id,access_token_hash,session_expires_at,session_invalidated,renewal_token_hash,renewal_invalidated,dpop_jkt)
- VALUES($1,$2,clock_timestamp()+interval '1 hour',false,$3,false,$4)`,accountID,hash[:],[]byte("qa-renewal-digest"),jkt)
+ VALUES($1,$2,clock_timestamp()+interval '1 hour',false,$3,false,$4)`,accountID,hash[:],renewalHash[:],jkt)
  if err!=nil{t.Fatal(err)}
  socket:=filepath.Join(t.TempDir(),"drive-auth.sock")
  listener,err:=net.Listen("unix",socket);if err!=nil{t.Fatal(err)}
