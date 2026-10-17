@@ -77,7 +77,7 @@ func checkWebsocket(addr,token,expect string)error{
  if response.StatusCode!=http.StatusSwitchingProtocols{return fmt.Errorf("unexpected WebSocket upgrade status: %d",response.StatusCode)}
  proof,err:=signedProof(token);if err!=nil{return err}
  data,err:=json.Marshal(map[string]string{"dpop":proof});if err!=nil{return err}
- command,err:=json.Marshal(map[string]any{"id":1,"connect":map[string]any{"token":token,"data":data}});if err!=nil{return err}
+ command,err:=json.Marshal(map[string]any{"id":1,"connect":map[string]any{"token":token,"data":json.RawMessage(data)}});if err!=nil{return err}
  if err:=sendFrame(conn,append(command,'\n'));err!=nil{return err}
  if expect!="ok"{return readExplicitAuthDenial(conn,rd)}
  raw,err:=receiveFrame(conn,rd)
@@ -168,7 +168,7 @@ func openSocket(addr string)(net.Conn,*bufio.Reader,error){
 func connectCommand(c net.Conn,rd *bufio.Reader,token string,id int,allowed bool)error{
  proof,err:=signedProof(token);if err!=nil{return err}
  d,err:=json.Marshal(map[string]string{"dpop":proof});if err!=nil{return err}
- raw,err:=json.Marshal(map[string]any{"id":id,"connect":map[string]any{"token":token,"data":d}});if err!=nil{return err}
+ raw,err:=json.Marshal(map[string]any{"id":id,"connect":map[string]any{"token":token,"data":json.RawMessage(d)}});if err!=nil{return err}
  if err:=sendFrame(c,append(raw,'\n'));err!=nil{return err}
  reply,err:=receiveFrame(c,rd);if err!=nil{return err}
  var parsed map[string]json.RawMessage
