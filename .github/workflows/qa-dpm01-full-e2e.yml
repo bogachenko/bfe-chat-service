@@ -130,30 +130,10 @@ jobs:
           export CHAT_WS_JKT="$(cat "$RUNNER_TEMP/chat-ws-jkt")"
           cp qa/testdata/bfe_drive_chat_ws_e2e_test.go bfe-drive/internal/httpapi/qa_chat_ws_e2e_integration_test.go
           cd bfe-drive
-          set -o pipefail
-          if go test -tags=integration -count=1 -run '^TestQADPM05RealCentrifugeWebSocketUDS
-      - name: Upload diagnostics (no access credentials)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dp-m05-real-ws-e2e
-          path: dpm05-ws-e2e.log
-          if-no-files-found: warn
-          retention-days: 14
-      - name: Enforce E2E result
-        if: always()
-        env:
-          E2E_OUTCOME: ${{ steps.ws_e2e.outcome }}
-        run: |
-          test "$E2E_OUTCOME" = success
- -timeout=30m ./internal/httpapi > "$RUNNER_TEMP/qa-private-output" 2>&1; then
-            printf 'Chat SHA: %s\\nDrive SHA: %s\\nScenario: real Centrifuge WS lifecycle PASS\\n' \
-              "$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)" "$(git rev-parse HEAD)" \
-              > "$GITHUB_WORKSPACE/dpm05-ws-e2e.log"
+          if go test -tags=integration -count=1 -run '^TestQADPM05RealCentrifugeWebSocketUDS$' -timeout=30m ./internal/httpapi > "$RUNNER_TEMP/qa-private-output" 2>&1; then
+            printf 'Chat SHA: %s\nDrive SHA: %s\nScenario: real Centrifuge WS lifecycle PASS\n' "$DP_M05_SHA" "$(git rev-parse HEAD)" > "$GITHUB_WORKSPACE/dpm05-ws-e2e.log"
           else
-            printf 'Chat SHA: %s\\nDrive SHA: %s\\nScenario: real Centrifuge WS lifecycle FAIL\\nRaw test output withheld to prevent credential disclosure.\\n' \
-              "${DP_M05_SHA:-see-checkout}" "$(git rev-parse HEAD)" \
-              > "$GITHUB_WORKSPACE/dpm05-ws-e2e.log"
+            printf 'Chat SHA: %s\nDrive SHA: %s\nScenario: real Centrifuge WS lifecycle FAIL\nRaw test output withheld to prevent credential disclosure.\n' "$DP_M05_SHA" "$(git rev-parse HEAD)" > "$GITHUB_WORKSPACE/dpm05-ws-e2e.log"
             exit 1
           fi
       - name: Upload diagnostics (no access credentials)
@@ -168,5 +148,4 @@ jobs:
         if: always()
         env:
           E2E_OUTCOME: ${{ steps.ws_e2e.outcome }}
-        run: |
-          test "$E2E_OUTCOME" = success
+        run: test "$E2E_OUTCOME" = success
