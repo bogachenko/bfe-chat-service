@@ -244,3 +244,66 @@ func TestFC11FC12InvalidUUIDsAndFailedDB(t *testing.T){
  if _,err:=s.CommitMessage(context.Background(),owner,sender,k(713),"message",sql.NullString{},sql.NullString{});err==nil{t.Fatal("closed DB allowed send")}
  if err:=s.CommitAssignment(context.Background(),owner,recipientB);err==nil{t.Fatal("closed DB allowed assignment")}
 }
+
+func TestDPM02MS05SimultaneousReassignmentsAndSends(t *testing.T){
+ db,s:=database(t)
+ assign(t,s,recipientA)
+ const count=32
+ start:=make(chan struct{})
+ var wg sync.WaitGroup
+ errs:=make([]error,count*2)
+ messages:=make([]storage.Message,count)
+ for i:=0;i<count;i++{
+  wg.Add(2)
+  go func(i int){defer wg.Done();<-start;to:=recipientA;if i%2!=0{to=recipientB};errs[2*i]=s.CommitAssignment(context.Background(),owner,to)}(i)
+  go func(i int){defer wg.Done();<-start;messages[i],errs[2*i+1]=s.CommitMessage(context.Background(),owner,sender,k(2000+i),"concurrent",sql.NullString{},sql.NullString{})}(i)
+ }
+ close(start)
+ wg.Wait()
+ for i,err:=range errs{if err!=nil{t.Fatalf("operation %d: %v",i,err)}}
+ seen:=make(map[int64]bool)
+ for i,m:=range messages{
+  if m.Replayed||m.ID==0||(m.RecipientID!=recipientA&&m.RecipientID!=recipientB)||seen[m.ID]{
+   t.Fatalf("lost, duplicate or invalid recipient for message %d: %+v",i,m)
+  }
+  seen[m.ID]=true
+  var persisted string
+  if err:=db.QueryRow("SELECT recipient_account_id::text FROM chat_messages WHERE id=$1",m.ID).Scan(&persisted);err!=nil{t.Fatal(err)}
+  if persisted!=m.RecipientID{t.Fatalf("message %d shifted recipient %s -> %s",i,m.RecipientID,persisted)}
+ }
+ if rows(t,db,"chat_messages")!=count{t.Fatal("concurrent sends lost or duplicated")}
+ var assignments int
+ if err:=db.QueryRow("SELECT count(*) FROM chat_assignments WHERE owner_account_id=$1",owner).Scan(&assignments);err!=nil{t.Fatal(err)}
+ if assignments!=1{t.Fatalf("multiple final assignments: %d",assignments)}
+}
+func TestDPM02MS11AssignmentRollbackVisibleToNextSend(t *testing.T){
+ db,s:=database(t)
+ assign(t,s,recipientA)
+ tx,err:=db.BeginTx(context.Background(),nil)
+ if err!=nil{t.Fatal(err)}
+ defer func(){_ =tx.Rollback()}()
+ var changed string
+ if err:=tx.QueryRow("SELECT recipient_account_id::text FROM chat_commit_assignment($1::uuid,$2::uuid)",owner,recipientB).Scan(&changed);err!=nil{t.Fatal(err)}
+ if changed!=recipientB{t.Fatalf("transaction did not stage B: %s",changed)}
+ if err:=tx.Rollback();err!=nil{t.Fatal(err)}
+ var current string
+ if err:=db.QueryRow("SELECT recipient_account_id::text FROM chat_assignments WHERE owner_account_id=$1",owner).Scan(&current);err!=nil{t.Fatal(err)}
+ if current!=recipientA{t.Fatalf("rollback changed persisted assignment: %s",current)}
+ m:=send(t,s,2700)
+ if m.Replayed||m.RecipientID!=recipientA{t.Fatalf("post-rollback send used invalid recipient: %+v",m)}
+ if rows(t,db,"chat_messages")!=1{t.Fatal("lost or duplicate message after rollback")}
+}
+
+func TestDPM02FC04ReadCurrentAssignmentFromPostgres(t *testing.T){
+ db,s:=database(t)
+ got,err:=s.GetAssignment(context.Background(),owner)
+ if err!=sql.ErrNoRows||got!=""{t.Fatalf("expected NO_ASSIGNMENT storage sentinel: %q %v",got,err)}
+ for _,to:=range []string{recipientA,recipientB,recipientA}{
+  assign(t,s,to)
+  got,err=s.GetAssignment(context.Background(),owner)
+  if err!=nil||got!=to{t.Fatalf("stale recipient: got=%s want=%s err=%v",got,to,err)}
+ }
+ if rows(t,db,"chat_conversations")!=0||rows(t,db,"chat_messages")!=0{
+  t.Fatal("FC-04/FC-12 created messages or auto-created conversation")
+ }
+}

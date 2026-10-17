@@ -1,0 +1,33 @@
+name: DP-M02 Independent QA
+on:
+  pull_request:
+    paths:
+      - 'internal/assignments/**'
+      - 'internal/storage/**'
+      - '.github/workflows/qa-dpm02.yml'
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: FC-03 FC-04 FC-12 security, authorization and race
+        run: go test -race -count=1 ./internal/assignments/...
+      - name: Critical assignment coverage 90 percent
+        run: |
+          go test -count=1 -coverprofile=dp-m02-coverage.out ./internal/assignments/...
+          go tool cover -func=dp-m02-coverage.out | tee dp-m02-coverage.txt
+          awk '/^total:/ {gsub(/%/, "", $3); found=1; if ($3+0 < 90) exit 1} END {if (!found) exit 1}' dp-m02-coverage.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dp-m02-coverage
+          path: |
+            dp-m02-coverage.out
+            dp-m02-coverage.txt
+          if-no-files-found: ignore

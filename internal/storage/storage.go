@@ -49,3 +49,18 @@ func (s Store) CommitAssignment(ctx context.Context, owner, recipient string) er
 		FROM chat_commit_assignment($1::uuid, $2::uuid)
 	`, owner, recipient).Scan(&saved)
 }
+
+// GetAssignment implements the read-only FC-04 storage operation.
+// No BFE target-account lookup or assignment mutation is performed.
+func (s Store) GetAssignment(ctx context.Context, owner string) (string, error) {
+	if s.DB == nil || owner == "" {
+		return "", ErrInvalidInput
+	}
+	var recipient string
+	err := s.DB.QueryRowContext(ctx, `
+		SELECT recipient_account_id::text
+		FROM chat_assignments
+		WHERE owner_account_id = $1::uuid
+	`, owner).Scan(&recipient)
+	return recipient, err
+}
