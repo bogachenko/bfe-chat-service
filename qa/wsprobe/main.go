@@ -79,19 +79,12 @@ func checkWebsocket(addr,token,expect string)error{
  data,err:=json.Marshal(map[string]string{"dpop":proof});if err!=nil{return err}
  command,err:=json.Marshal(map[string]any{"id":1,"connect":map[string]any{"token":token,"data":data}});if err!=nil{return err}
  if err:=sendFrame(conn,append(command,'\n'));err!=nil{return err}
+ if expect!="ok"{return readExplicitAuthDenial(conn,rd)}
  raw,err:=receiveFrame(conn,rd)
- if expect=="ok" {
-  if err!=nil{return err}
-  var reply map[string]json.RawMessage
-  if err:=json.Unmarshal(raw,&reply);err!=nil{return err}
-  if len(reply["connect"])==0{return errors.New("valid session was not accepted")}
-  return nil
- }
- if err!=nil{return fmt.Errorf("expected explicit authorization rejection, got transport error: %w",err)}
+ if err!=nil{return err}
  var reply map[string]json.RawMessage
- if err:=json.Unmarshal(raw,&reply);err!=nil{return errors.New("authentication rejection frame malformed")}
- if len(reply["connect"])>0{return errors.New("invalid session accepted")}
- if len(reply["error"])==0 && len(reply["disconnect"])==0{return errors.New("missing explicit Centrifuge rejection")}
+ if err:=json.Unmarshal(raw,&reply);err!=nil{return errors.New("connect reply malformed")}
+ if len(reply["connect"])==0{return errors.New("valid session was not accepted")}
  return nil
 }
 func sendFrame(c net.Conn,data []byte)error{
@@ -191,5 +184,26 @@ func subscribeCommand(c net.Conn,rd *bufio.Reader,id int)error{
  var parsed map[string]json.RawMessage
  if err:=json.Unmarshal(response,&parsed);err!=nil{return err}
  if len(parsed["subscribe"])==0{return errors.New("subscription denied")}
+ return nil
+}
+
+func readExplicitAuthDenial(c net.Conn,rd *bufio.Reader)error {
+ if err:=c.SetReadDeadline(time.Now().Add(5*time.Second));err!=nil{return err}
+ header:=make([]byte,2)
+ if _,err:=io.ReadFull(rd,header);err!=nil{return errors.New("auth denial missing (transport failure)")}
+ size:=int(header[1]&0x7f)
+ if size==126||size==127||header[1]&0x80!=0{return errors.New("invalid auth denial frame")}
+ body:=make([]byte,size)
+ if _,err:=io.ReadFull(rd,body);err!=nil{return errors.New("auth denial frame truncated")}
+ if header[0]&0x0f==0x8 {
+  if len(body)<2||int(body[0])<<8|int(body[1])!=centrifuge.DisconnectInvalidToken.Code{
+   return errors.New("unexpected websocket close code")
+  }
+  return nil
+ }
+ if header[0]&0x0f!=0x1{return errors.New("unexpected auth denial frame type")}
+ var reply struct{Disconnect struct{Code uint32 `json:"code"`} `json:"disconnect"`}
+ if err:=json.Unmarshal(body,&reply);err!=nil{return errors.New("auth rejection malformed")}
+ if reply.Disconnect.Code!=uint32(centrifuge.DisconnectInvalidToken.Code){return errors.New("expected Centrifuge invalid-token denial (3500)")}
  return nil
 }
