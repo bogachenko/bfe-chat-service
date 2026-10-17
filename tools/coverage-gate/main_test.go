@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"errors"
+	"io"
 	"strings"
 	"testing"
 )
@@ -122,3 +124,41 @@ func TestCoverageGateDeduplicatesBlocksAcrossTestBinaries(t *testing.T) {
 		t.Fatalf("covered copies did not raise coverage: %v", err)
 	}
 }
+
+type failingReportWriter struct {
+	remaining int
+	err       error
+}
+
+func (w *failingReportWriter) Write(p []byte) (int, error) {
+	if w.remaining == 0 {
+		return 0, w.err
+	}
+	w.remaining--
+	return len(p), nil
+}
+
+func TestCoverageReportWriteErrors(t *testing.T) {
+	all, err := parseProfile(strings.NewReader(profile(true)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name     string
+		successes int
+	}{
+		{name: "package row", successes: 0},
+		{name: "production summary", successes: len(production)},
+		{name: "critical row", successes: len(production) + 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			writeErr := errors.New("report sink failed")
+			out := &failingReportWriter{remaining: tc.successes, err: writeErr}
+			if err := evaluate(all, 80, 90, out); !errors.Is(err, writeErr) {
+				t.Fatalf("evaluate error = %v; want wrapped write error", err)
+			}
+		})
+	}
+}
+
+var _ io.Writer = (*failingReportWriter)(nil)
