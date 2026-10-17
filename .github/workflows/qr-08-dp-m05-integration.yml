@@ -1,0 +1,62 @@
+name: QR-08 + DP-M05 Integration Evidence
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'internal/realtime/**'
+      - 'tools/coverage-gate/**'
+      - '.github/workflows/qr-08-dp-m05-integration.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Production coverage (80 / 90)
+        id: coverage
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          make coverage 2>&1 | tee qr08-coverage.log
+      - name: Race checks
+        id: race
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          go test -race ./... 2>&1 | tee qr08-race.log
+      - name: Integration checks
+        id: integration
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          make integration 2>&1 | tee qr08-integration.log
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qr08-dpm05-evidence
+          path: |
+            qr08-*.log
+            coverage.out
+          if-no-files-found: warn
+      - name: Enforce outcomes
+        if: always()
+        env:
+          COVERAGE: ${{ steps.coverage.outcome }}
+          RACE: ${{ steps.race.outcome }}
+          INTEGRATION: ${{ steps.integration.outcome }}
+        run: |
+          echo "coverage=$COVERAGE race=$RACE integration=$INTEGRATION"
+          test "$COVERAGE" = success
+          test "$RACE" = success
+          test "$INTEGRATION" = success
