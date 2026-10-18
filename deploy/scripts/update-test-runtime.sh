@@ -3,7 +3,8 @@ set -euo pipefail
 
 # BFE Chat Service test VPS deployment. Never writes to BFE Drive paths.
 # --check is read-only. A deployment requires explicit QA and Command Center sign-off.
-mode="${1:---check}"
+mode="${1:-}"
+[[ -n "$mode" ]] || mode="--check"
 [[ "$mode" == "--check" || "$mode" == "--deploy" ]] || { echo "usage: $0 --check|--deploy" >&2; exit 2; }
 : "${BFE_TEST_VPS_SSH_TARGET:?required: BFE_TEST_VPS_SSH_TARGET}"
 : "${BFE_TEST_PUBLIC_HOST:?required: BFE_TEST_PUBLIC_HOST}"
