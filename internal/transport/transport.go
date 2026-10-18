@@ -30,77 +30,167 @@ type Handler struct {
 	PublicOrigin string
 }
 
-func NewHandler(messages conversations.Service, recipient assignments.Service, realTime realtime.Service, node *centrifuge.Node, socketURL, publicOrigin string) (http.Handler,error) {
- if node==nil || messages.Auth==nil || messages.Permissions==nil || messages.Store==nil {return nil,errors.New("transport dependencies missing")}
- if recipient.Auth==nil || recipient.Store==nil {return nil,errors.New("assignment dependencies missing")}
- if err:=validateOrigin(socketURL,publicOrigin);err!=nil{return nil,err}
- if err:=realTime.Bind(node,socketURL);err!=nil{return nil,err}
- return Handler{Messages:messages,Assignments:recipient,WebSocket:centrifuge.NewWebsocketHandler(node,centrifuge.WebsocketConfig{}),PublicOrigin:strings.TrimSuffix(publicOrigin,"/")},nil
+func NewHandler(messages conversations.Service, recipient assignments.Service, realTime realtime.Service, node *centrifuge.Node, socketURL, publicOrigin string) (http.Handler, error) {
+	if node == nil || messages.Auth == nil || messages.Permissions == nil || messages.Store == nil {
+		return nil, errors.New("transport dependencies missing")
+	}
+	if recipient.Auth == nil || recipient.Store == nil {
+		return nil, errors.New("assignment dependencies missing")
+	}
+	if err := validateOrigin(socketURL, publicOrigin); err != nil {
+		return nil, err
+	}
+	if err := realTime.Bind(node, socketURL); err != nil {
+		return nil, err
+	}
+	return Handler{Messages: messages, Assignments: recipient, WebSocket: centrifuge.NewWebsocketHandler(node, centrifuge.WebsocketConfig{}), PublicOrigin: strings.TrimSuffix(publicOrigin, "/")}, nil
 }
-func validateOrigin(socketURL,publicOrigin string)error{
- origin,err:=url.Parse(publicOrigin)
- if err!=nil{return errors.New("invalid public origin")}
- if origin.Scheme!="https" || origin.Host=="" || origin.User!=nil || origin.RawQuery!="" || origin.Fragment!="" {return errors.New("invalid public origin")}
- if origin.Path!=""&&origin.Path!="/"{return errors.New("invalid origin path")}
- socket,err:=url.Parse(socketURL)
- if err!=nil{return errors.New("invalid websocket endpoint")}
- if socket.Scheme!="wss"||socket.Host!=origin.Host||socket.Path!="/ws"{return errors.New("invalid websocket endpoint")}
- if socket.User!=nil||socket.RawQuery!=""||socket.Fragment!=""{return errors.New("invalid websocket endpoint")}
- return nil
+func validateOrigin(socketURL, publicOrigin string) error {
+	origin, err := url.Parse(publicOrigin)
+	if err != nil {
+		return errors.New("invalid public origin")
+	}
+	if origin.Scheme != "https" || origin.Host == "" || origin.User != nil || origin.RawQuery != "" || origin.Fragment != "" {
+		return errors.New("invalid public origin")
+	}
+	if origin.Path != "" && origin.Path != "/" {
+		return errors.New("invalid origin path")
+	}
+	socket, err := url.Parse(socketURL)
+	if err != nil {
+		return errors.New("invalid websocket endpoint")
+	}
+	if socket.Scheme != "wss" || socket.Host != origin.Host || socket.Path != "/ws" {
+		return errors.New("invalid websocket endpoint")
+	}
+	if socket.User != nil || socket.RawQuery != "" || socket.Fragment != "" {
+		return errors.New("invalid websocket endpoint")
+	}
+	return nil
 }
-func (h Handler) ServeHTTP(w http.ResponseWriter,r *http.Request){
- w.Header().Set("Cache-Control","no-store")
- w.Header().Set("X-Content-Type-Options","nosniff")
- if r.URL.RawQuery!=""||r.URL.User!=nil{writeError(w,http.StatusBadRequest,"VALIDATION_ERROR");return}
- if r.URL.Path=="/ws"{h.serveSocket(w,r);return}
- h.serveConversation(w,r)
+func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if r.URL.RawQuery != "" || r.URL.User != nil {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR")
+		return
+	}
+	if r.URL.Path == "/ws" {
+		h.serveSocket(w, r)
+		return
+	}
+	h.serveConversation(w, r)
 }
-func(h Handler)serveSocket(w http.ResponseWriter,r *http.Request){
- if r.Method!=http.MethodGet{methodNotAllowed(w,"GET");return}
- if h.WebSocket==nil{writeError(w,http.StatusServiceUnavailable,"SERVICE_UNAVAILABLE");return}
- h.WebSocket.ServeHTTP(w,r)
+func (h Handler) serveSocket(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w, "GET")
+		return
+	}
+	if h.WebSocket == nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE")
+		return
+	}
+	h.WebSocket.ServeHTTP(w, r)
 }
-func(h Handler)serveConversation(w http.ResponseWriter,r *http.Request){
- path:=strings.TrimPrefix(r.URL.Path,"/v1/conversations/")
- parts:=strings.Split(path,"/")
- if path==r.URL.Path||len(parts)!=2||!chat.AccountID(parts[0]).Valid(){writeError(w,http.StatusNotFound,"NOT_FOUND");return}
- owner:=chat.AccountID(parts[0])
- token,proof,ok:=credentials(r)
- if !ok{writeError(w,http.StatusUnauthorized,"AUTH_INVALID");return}
- binding:=authentication.RequestBinding{Method:r.Method,Target:h.PublicOrigin+r.URL.EscapedPath()}
- switch parts[1]{
- case "messages":h.serveMessage(w,r,token,proof,binding,owner)
- case "history":h.serveHistory(w,r,token,proof,binding,owner)
- case "assignment":h.serveAssignment(w,r,token,proof,binding,owner)
- default:writeError(w,http.StatusNotFound,"NOT_FOUND")
- }
+func (h Handler) serveConversation(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/v1/conversations/")
+	parts := strings.Split(path, "/")
+	if path == r.URL.Path || len(parts) != 2 || !chat.AccountID(parts[0]).Valid() {
+		writeError(w, http.StatusNotFound, "NOT_FOUND")
+		return
+	}
+	owner := chat.AccountID(parts[0])
+	token, proof, ok := credentials(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "AUTH_INVALID")
+		return
+	}
+	binding := authentication.RequestBinding{Method: r.Method, Target: h.PublicOrigin + r.URL.EscapedPath()}
+	switch parts[1] {
+	case "messages":
+		h.serveMessage(w, r, token, proof, binding, owner)
+	case "history":
+		h.serveHistory(w, r, token, proof, binding, owner)
+	case "assignment":
+		h.serveAssignment(w, r, token, proof, binding, owner)
+	default:
+		writeError(w, http.StatusNotFound, "NOT_FOUND")
+	}
 }
-func(h Handler)serveMessage(w http.ResponseWriter,r *http.Request,token,proof string,binding authentication.RequestBinding,owner chat.AccountID){
- if r.Method!=http.MethodPost{methodNotAllowed(w,"POST");return}
- var body struct{IdempotencyKey string `json:"idempotencyKey"`;Text string `json:"text"`;Document *struct{ID string `json:"id"`;Title string `json:"title"`} `json:"document"`}
- if !decode(w,r,&body){return}
- in:=conversations.MessageInput{IdempotencyKey:body.IdempotencyKey,Text:body.Text}
- if body.Document!=nil{in.Document=&documentcontext.Document{ID:body.Document.ID,Title:body.Document.Title}}
- result,err:=h.Messages.SendMessage(r.Context(),token,proof,binding,owner,in)
- if err!=nil{writeDomainError(w,err);return}
- writeJSON(w,http.StatusOK,result)
+func (h Handler) serveMessage(w http.ResponseWriter, r *http.Request, token, proof string, binding authentication.RequestBinding, owner chat.AccountID) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w, "POST")
+		return
+	}
+	var body struct {
+		IdempotencyKey string `json:"idempotencyKey"`
+		Text           string `json:"text"`
+		Document       *struct {
+			ID    string `json:"id"`
+			Title string `json:"title"`
+		} `json:"document"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	in := conversations.MessageInput{IdempotencyKey: body.IdempotencyKey, Text: body.Text}
+	if body.Document != nil {
+		in.Document = &documentcontext.Document{ID: body.Document.ID, Title: body.Document.Title}
+	}
+	result, err := h.Messages.SendMessage(r.Context(), token, proof, binding, owner, in)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
-func(h Handler)serveHistory(w http.ResponseWriter,r *http.Request,token,proof string,binding authentication.RequestBinding,owner chat.AccountID){
- if r.Method!=http.MethodGet{methodNotAllowed(w,"GET");return}
- after:=int64(0);limit:=50
- if value:=r.Header.Get("X-After-ID");value!=""{n,err:=strconv.ParseInt(value,10,64);if err!=nil{writeError(w,http.StatusBadRequest,"VALIDATION_ERROR");return};after=n}
- if value:=r.Header.Get("X-Limit");value!=""{n,err:=strconv.Atoi(value);if err!=nil{writeError(w,http.StatusBadRequest,"VALIDATION_ERROR");return};limit=n}
- messages,err:=h.Messages.ReadHistory(r.Context(),token,proof,binding,owner,after,limit)
- if err!=nil{writeDomainError(w,err);return}
- writeJSON(w,http.StatusOK,messages)
+func (h Handler) serveHistory(w http.ResponseWriter, r *http.Request, token, proof string, binding authentication.RequestBinding, owner chat.AccountID) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w, "GET")
+		return
+	}
+	after := int64(0)
+	limit := 50
+	if value := r.Header.Get("X-After-ID"); value != "" {
+		n, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "VALIDATION_ERROR")
+			return
+		}
+		after = n
+	}
+	if value := r.Header.Get("X-Limit"); value != "" {
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "VALIDATION_ERROR")
+			return
+		}
+		limit = n
+	}
+	messages, err := h.Messages.ReadHistory(r.Context(), token, proof, binding, owner, after, limit)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, messages)
 }
-func(h Handler)serveAssignment(w http.ResponseWriter,r *http.Request,token,proof string,binding authentication.RequestBinding,owner chat.AccountID){
- if r.Method!=http.MethodPut{methodNotAllowed(w,"PUT");return}
- var input struct{RecipientAccountID string `json:"recipientAccountId"`}
- if !decode(w,r,&input){return}
- result,err:=h.Assignments.ReplaceRecipient(r.Context(),token,proof,binding,owner,chat.AccountID(input.RecipientAccountID))
- if err!=nil{writeDomainError(w,err);return}
- writeJSON(w,http.StatusOK,result)
+func (h Handler) serveAssignment(w http.ResponseWriter, r *http.Request, token, proof string, binding authentication.RequestBinding, owner chat.AccountID) {
+	if r.Method != http.MethodPut {
+		methodNotAllowed(w, "PUT")
+		return
+	}
+	var input struct {
+		RecipientAccountID string `json:"recipientAccountId"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	result, err := h.Assignments.ReplaceRecipient(r.Context(), token, proof, binding, owner, chat.AccountID(input.RecipientAccountID))
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func credentials(r *http.Request) (string, string, bool) {
