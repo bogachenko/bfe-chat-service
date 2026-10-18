@@ -102,6 +102,7 @@ install -d -o bfe-chat -g bfe-chat -m 0700 /var/lib/bfe-chat-service
 backup="$(mktemp -d /var/lib/bfe-chat-service/backup.XXXXXXXX)"
 chmod 0700 "$backup"
 had_binary=0; had_unit=0; had_migrations=0
+migration_attempted=0
 if [[ -f /usr/local/bin/bfe-chat-service ]]; then
   cp -a /usr/local/bin/bfe-chat-service "$backup/binary"
   had_binary=1
@@ -119,6 +120,10 @@ schema_before="$(runuser -u bfe-chat -- psql -X -v ON_ERROR_STOP=1 -h /run/postg
 [[ "$schema_before" =~ ^[0-9]+$ ]] || { echo "ERROR: cannot verify current Chat schema; deployment stopped" >&2; exit 1; }
 rollback() {
   systemctl stop bfe-chat-service.service || true
+  if [[ "$migration_attempted" -eq 1 ]]; then
+    echo "ERROR: PostgreSQL migration may have partially modified schema without advancing goose version; automatic rollback forbidden. Chat stopped; inspect DB and recover manually." >&2
+    return 1
+  fi
   schema_after="$(runuser -u bfe-chat -- psql -X -v ON_ERROR_STOP=1 -h /run/postgresql -U bfe-chat -d bfe_chat -Atqc "SELECT COALESCE(MAX(version_id),0) FROM goose_db_version WHERE is_applied" 2>/dev/null)" || schema_after=UNKNOWN
   if [[ "$schema_after" != "$schema_before" ]]; then
     echo "ERROR: Chat schema changed or cannot be verified ($schema_before -> $schema_after); automatic rollback is UNSAFE. Chat stopped; manual recovery required." >&2
@@ -155,6 +160,10 @@ chown -R root:root /opt/bfe-chat-service/migrations
 install -o root -g root -m 0644 "$CHAT_STAGE/bfe-chat-service.service" /etc/systemd/system/bfe-chat-service.service
 systemctl daemon-reload
 systemctl enable bfe-chat-service.service
+# The executable runs goose.UpContext during startup. Set the marker BEFORE
+# systemctl restart; goose may partially modify objects and fail without
+# advancing goose_db_version. Never infer rollback safety from version alone.
+migration_attempted=1
 systemctl restart bfe-chat-service.service
 systemctl is-active --quiet bfe-chat-service.service
 main_pid="$(systemctl show -p MainPID --value bfe-chat-service.service)"
