@@ -27,16 +27,21 @@ func TestIndependentFC10NormalizationAndValidation(t *testing.T) {
  }
  for _,tc:=range cases {
   t.Run(tc.name,func(t *testing.T){
-   beforeID,beforeTitle:="",""
-   if tc.doc!=nil {beforeID,beforeTitle=tc.doc.ID,tc.doc.Title}
-   got,err:=documentcontext.ValidateDocumentContext(tc.text,tc.doc)
-   if tc.reject {
-    if !errors.Is(err,documentcontext.ErrValidation)||got!=(documentcontext.MessageContent{}) {t.Fatalf("want validation error, got %+v %v",got,err)}
-   } else {
-    if err!=nil||got.Text!=tc.wantText{t.Fatalf("got %+v %v",got,err)}
-    if tc.doc==nil {if got.Document!=nil{t.Fatal("unexpected reference")}} else if got.Document==nil||got.Document.ID!=tc.wantID||got.Document.Title!=tc.wantTitle||got.Document==tc.doc{t.Fatalf("reference=%+v",got.Document)}
-   }
-   if tc.doc!=nil&&(tc.doc.ID!=beforeID||tc.doc.Title!=beforeTitle){t.Fatal("input document mutated")}
+   checkIndependentFC10Case(t,tc.text,tc.doc,tc.wantText,tc.wantID,tc.wantTitle,tc.reject)
   })
  }
+}
+
+func checkIndependentFC10Case(t *testing.T,text string,doc *documentcontext.Document,wantText,wantID,wantTitle string,reject bool) {
+ t.Helper()
+ beforeID,beforeTitle:="",""
+ if doc!=nil {beforeID,beforeTitle=doc.ID,doc.Title}
+ got,err:=documentcontext.ValidateDocumentContext(text,doc)
+ if reject {
+  if !errors.Is(err,documentcontext.ErrValidation)||got!=(documentcontext.MessageContent{}) {t.Fatalf("want validation error, got %+v %v",got,err)}
+ } else {
+  if err!=nil||got.Text!=wantText{t.Fatalf("got %+v %v",got,err)}
+  if doc==nil {if got.Document!=nil{t.Fatal("unexpected reference")}} else if got.Document==nil||got.Document.ID!=wantID||got.Document.Title!=wantTitle||got.Document==doc{t.Fatalf("reference=%+v",got.Document)}
+ }
+ if doc!=nil&&(doc.ID!=beforeID||doc.Title!=beforeTitle){t.Fatal("input document mutated")}
 }
