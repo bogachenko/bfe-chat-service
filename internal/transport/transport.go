@@ -50,17 +50,28 @@ func validateOrigin(socketURL, publicOrigin string) error {
 	if err != nil {
 		return errors.New("invalid public origin")
 	}
+	if err := validatePublicOrigin(origin); err != nil {
+		return err
+	}
+	socket, err := url.Parse(socketURL)
+	if err != nil {
+		return errors.New("invalid websocket endpoint")
+	}
+	return validateSocketURL(socket, origin.Host)
+}
+
+func validatePublicOrigin(origin *url.URL) error {
 	if origin.Scheme != "https" || origin.Host == "" || origin.User != nil || origin.RawQuery != "" || origin.Fragment != "" {
 		return errors.New("invalid public origin")
 	}
 	if origin.Path != "" && origin.Path != "/" {
 		return errors.New("invalid origin path")
 	}
-	socket, err := url.Parse(socketURL)
-	if err != nil {
-		return errors.New("invalid websocket endpoint")
-	}
-	if socket.Scheme != "wss" || socket.Host != origin.Host || socket.Path != "/ws" {
+	return nil
+}
+
+func validateSocketURL(socket *url.URL, host string) error {
+	if socket.Scheme != "wss" || socket.Host != host || socket.Path != "/ws" {
 		return errors.New("invalid websocket endpoint")
 	}
 	if socket.User != nil || socket.RawQuery != "" || socket.Fragment != "" {
@@ -68,6 +79,7 @@ func validateOrigin(socketURL, publicOrigin string) error {
 	}
 	return nil
 }
+
 func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
