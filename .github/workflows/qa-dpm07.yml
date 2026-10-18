@@ -30,9 +30,11 @@ jobs:
         run: |
           go test -tags=integration -covermode=atomic -coverprofile=module-coverage.out -timeout=25m ./internal/storage/...
           go tool cover -func=module-coverage.out | tee module-coverage.txt
-          go test -tags=integration -covermode=atomic -coverprofile=project-coverage.out -timeout=25m ./...
+          go test -tags=integration -count=1 -covermode=atomic -coverpkg=./cmd/...,./internal/... -coverprofile=project-coverage.out -timeout=25m ./cmd/... ./internal/...
           go tool cover -func=project-coverage.out | tee project-coverage.txt
+          python3 -m unittest discover -s qa -p 'test_coverage_report.py'
           python3 qa/coverage_report.py --module-profile module-coverage.out --project-profile project-coverage.out --output coverage-report.md
+          go run ./tools/coverage-gate -profile project-coverage.out -min 80 -critical-min 90
       - uses: actions/upload-artifact@v4
         if: always()
         with:
