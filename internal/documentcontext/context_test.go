@@ -34,14 +34,32 @@ func TestIndependentFC10NormalizationAndValidation(t *testing.T) {
 
 func checkIndependentFC10Case(t *testing.T,text string,doc *documentcontext.Document,wantText,wantID,wantTitle string,reject bool) {
  t.Helper()
- beforeID,beforeTitle:="",""
- if doc!=nil {beforeID,beforeTitle=doc.ID,doc.Title}
+ var before documentcontext.Document
+ if doc!=nil {before=*doc}
  got,err:=documentcontext.ValidateDocumentContext(text,doc)
  if reject {
-  if !errors.Is(err,documentcontext.ErrValidation)||got!=(documentcontext.MessageContent{}) {t.Fatalf("want validation error, got %+v %v",got,err)}
+  checkRejectedFC10(t,got,err)
  } else {
-  if err!=nil||got.Text!=wantText{t.Fatalf("got %+v %v",got,err)}
-  if doc==nil {if got.Document!=nil{t.Fatal("unexpected reference")}} else if got.Document==nil||got.Document.ID!=wantID||got.Document.Title!=wantTitle||got.Document==doc{t.Fatalf("reference=%+v",got.Document)}
+  checkAcceptedFC10(t,got,err,doc,wantText,wantID,wantTitle)
  }
- if doc!=nil&&(doc.ID!=beforeID||doc.Title!=beforeTitle){t.Fatal("input document mutated")}
+ if doc!=nil&&*doc!=before {t.Fatal("input document mutated")}
+}
+
+func checkRejectedFC10(t *testing.T,got documentcontext.MessageContent,err error) {
+ t.Helper()
+ if !errors.Is(err,documentcontext.ErrValidation)||got!=(documentcontext.MessageContent{}) {
+  t.Fatalf("want validation error, got %+v %v",got,err)
+ }
+}
+
+func checkAcceptedFC10(t *testing.T,got documentcontext.MessageContent,err error,doc *documentcontext.Document,wantText,wantID,wantTitle string) {
+ t.Helper()
+ if err!=nil||got.Text!=wantText {t.Fatalf("got %+v %v",got,err)}
+ if doc==nil {
+  if got.Document!=nil {t.Fatal("unexpected reference")}
+  return
+ }
+ if got.Document==nil||got.Document.ID!=wantID||got.Document.Title!=wantTitle||got.Document==doc {
+  t.Fatalf("reference=%+v",got.Document)
+ }
 }
