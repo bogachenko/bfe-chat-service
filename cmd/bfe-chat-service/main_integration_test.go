@@ -7,7 +7,6 @@ import (
  "io"
  "net"
  "net/http"
- "os"
  "path/filepath"
  "strconv"
  "testing"
@@ -32,7 +31,7 @@ func TestDPM08RealPostgreSQLBootstrapHTTPAndShutdown(t *testing.T){
  socket:=filepath.Join(t.TempDir(),"drive-auth.sock")
  uds,err:=net.Listen("unix",socket)
  if err!=nil{t.Fatal("start fixture UDS")}
- defer uds.Close()
+ defer func(){_ =uds.Close()}()
  drive:=&http.Server{Handler:http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){w.WriteHeader(http.StatusUnauthorized)})}
  go func(){_ =drive.Serve(uds)}()
  defer func(){_ =drive.Close()}()
@@ -76,7 +75,7 @@ func TestDPM08RejectsUnreachablePostgresBeforeListener(t *testing.T){
  socket:=filepath.Join(t.TempDir(),"auth.sock")
  l,err:=net.Listen("unix",socket)
  if err!=nil{t.Fatal(err)}
- defer l.Close()
+ defer func(){_ =l.Close()}()
  t.Setenv("BFE_M08_MISSING_DB","postgres://127.0.0.1:1/bfe?connect_timeout=1")
  ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second)
  defer cancel()
