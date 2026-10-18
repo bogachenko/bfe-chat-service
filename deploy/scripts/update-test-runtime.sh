@@ -97,14 +97,58 @@ tar -C "$temp/payload" -cf - . | remote "sudo -n tar -C '$stage' -xf -"
 remote "sudo -n env CHAT_STAGE='$stage' CHAT_SHA='$sha' CHAT_COMMIT='$commit' bash -s" <<'REMOTE_DEPLOY'
 set -euo pipefail
 [[ "$(sha256sum "$CHAT_STAGE/bfe-chat-service" | awk '{print $1}')" == "$CHAT_SHA" ]]
-# Independent ownership; never restart/modify BFE Drive, nginx or PostgreSQL.
-if [[ -e /usr/local/bin/bfe-chat-service ]]; then
-  install -d -o root -g root -m 0700 /var/lib/bfe-chat-service/release-backup
-  cp -a /usr/local/bin/bfe-chat-service /var/lib/bfe-chat-service/release-backup/bfe-chat-service.previous
+# Snapshot all Chat-owned runtime assets before any mutation.
+install -d -o bfe-chat -g bfe-chat -m 0700 /var/lib/bfe-chat-service
+backup="$(mktemp -d /var/lib/bfe-chat-service/backup.XXXXXXXX)"
+chmod 0700 "$backup"
+had_binary=0; had_unit=0; had_migrations=0
+if [[ -f /usr/local/bin/bfe-chat-service ]]; then
+  cp -a /usr/local/bin/bfe-chat-service "$backup/binary"
+  had_binary=1
 fi
+if [[ -f /etc/systemd/system/bfe-chat-service.service ]]; then
+  cp -a /etc/systemd/system/bfe-chat-service.service "$backup/unit"
+  had_unit=1
+fi
+if [[ -d /opt/bfe-chat-service/migrations ]]; then
+  cp -a /opt/bfe-chat-service/migrations "$backup/migrations"
+  had_migrations=1
+fi
+# Take the pre-deployment schema snapshot from the independent Chat database.
+schema_before="$(runuser -u bfe-chat -- psql -X -v ON_ERROR_STOP=1 -h /run/postgresql -U bfe-chat -d bfe_chat -Atqc "SELECT COALESCE(MAX(version_id),0) FROM goose_db_version WHERE is_applied")"
+[[ "$schema_before" =~ ^[0-9]+$ ]] || { echo "ERROR: cannot verify current Chat schema; deployment stopped" >&2; exit 1; }
+rollback() {
+  systemctl stop bfe-chat-service.service || true
+  schema_after="$(runuser -u bfe-chat -- psql -X -v ON_ERROR_STOP=1 -h /run/postgresql -U bfe-chat -d bfe_chat -Atqc "SELECT COALESCE(MAX(version_id),0) FROM goose_db_version WHERE is_applied" 2>/dev/null)" || schema_after=UNKNOWN
+  if [[ "$schema_after" != "$schema_before" ]]; then
+    echo "ERROR: Chat schema changed or cannot be verified ($schema_before -> $schema_after); automatic rollback is UNSAFE. Chat stopped; manual recovery required." >&2
+    return 1
+  fi
+  if [[ "$had_binary" -ne 1 || "$had_unit" -ne 1 ]]; then
+    echo "ERROR: no complete previous binary/systemd unit; safe rollback impossible. Chat stopped." >&2
+    return 1
+  fi
+  install -o root -g root -m 0755 "$backup/binary" /usr/local/bin/bfe-chat-service
+  install -o root -g root -m 0644 "$backup/unit" /etc/systemd/system/bfe-chat-service.service
+  if [[ "$had_migrations" -eq 1 ]]; then
+    rm -rf /opt/bfe-chat-service/migrations
+    cp -a "$backup/migrations" /opt/bfe-chat-service/migrations
+  fi
+  systemctl daemon-reload
+  systemctl restart bfe-chat-service.service || { echo "ERROR: previous Chat service failed to restart" >&2; return 1; }
+  systemctl is-active --quiet bfe-chat-service.service || return 1
+  echo "ERROR: candidate failed; previous Chat binary and unit restored; schema unchanged" >&2
+}
+failure() {
+  trap - ERR
+  if ! rollback; then
+    echo "ERROR: unsafe rollback; Chat stopped for operator intervention" >&2
+  fi
+  exit 1
+}
+trap failure ERR
 install -o root -g root -m 0755 "$CHAT_STAGE/bfe-chat-service" /usr/local/bin/bfe-chat-service.new
 mv -f /usr/local/bin/bfe-chat-service.new /usr/local/bin/bfe-chat-service
-install -d -o bfe-chat -g bfe-chat -m 0700 /var/lib/bfe-chat-service
 install -d -o root -g root -m 0755 /opt/bfe-chat-service/migrations
 cp -a "$CHAT_STAGE/migrations/." /opt/bfe-chat-service/migrations/
 chown -R root:root /opt/bfe-chat-service/migrations
@@ -113,11 +157,16 @@ systemctl daemon-reload
 systemctl enable bfe-chat-service.service
 systemctl restart bfe-chat-service.service
 systemctl is-active --quiet bfe-chat-service.service
-ss -H -ltn '( sport = :8081 )' | grep -Fq '127.0.0.1:8081'
-# Fail closed: any migration failure leaves Chat unhealthy; no automatic schema downgrade.
+main_pid="$(systemctl show -p MainPID --value bfe-chat-service.service)"
+[[ "$main_pid" =~ ^[1-9][0-9]*$ ]]
+ss -H -ltnp '( sport = :8081 )' | grep -Fq "pid=$main_pid,"
+ss -H -ltnp '( sport = :8081 )' | grep -Fq '127.0.0.1:8081'
 install -d -o root -g root -m 0700 /var/lib/bfe-chat-service/deploy-state
 printf '%s %s\n' "$CHAT_COMMIT" "$CHAT_SHA" > /var/lib/bfe-chat-service/deploy-state/test-release.txt
 chmod 0600 /var/lib/bfe-chat-service/deploy-state/test-release.txt
+trap - ERR
 rm -rf "$CHAT_STAGE"
+echo "Chat runtime update and readiness: PASS"
+
 REMOTE_DEPLOY
 echo "BFE Chat test runtime: DEPLOYED commit=$commit binary_sha256=$sha"
