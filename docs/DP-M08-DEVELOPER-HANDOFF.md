@@ -17,7 +17,7 @@ All errors use bounded public reason codes and never echo underlying errors, tok
 
 ## Integration boundary
 
-The production executable currently blocks startup because deployment configuration for BFE Auth UDS, PostgreSQL, TLS origin, and Centrifuge lifecycle is not defined in the approved server bootstrap. This PR adds the transport adapter, **not** an invented runtime configuration or public listener. Runtime startup must be separately reviewed before production enabling.
+The production executable is wired to the approved UDS validator, PostgreSQL/pgx+goose, authorization, Centrifuge node, and DP-M08 HTTP router. It binds only a loopback HTTP address, for the existing external HTTPS reverse proxy, and requires explicit `-public-origin`, `-drive-auth-uds`, `-migrations` and a PostgreSQL DSN supplied via the named environment variable (`-dsn-env`). Startup fails closed on missing dependencies. Runtime deployment configuration, socket OS permissions, reverse-proxy TLS and DPoP freshness policy must be reviewed independently before production rollout.
 
 ## Independent QA
 
