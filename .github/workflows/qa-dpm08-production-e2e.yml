@@ -26,6 +26,13 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$CHAT_SHA"
           [[ "$CHAT_SHA" =~ ^[a-f0-9]{40}$ ]]
+      - name: Initialize safe report even if build fails
+        env:
+          CHAT_SHA: ${{ github.sha }}
+        run: |
+          printf 'CHAT_SHA: %s\nDRIVE_SHA: %s\nE2E_RESULT: NOT_RUN\n' \
+            "$CHAT_SHA" "9a33850a5456d8e3ff40f5cdab6ded869da7110f" \
+            > dpm08-e2e-safe-report.txt
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
