@@ -160,9 +160,13 @@ func (h Handler) serveMessage(w http.ResponseWriter, r *http.Request, token, pro
 	writeJSON(w, http.StatusOK, result)
 }
 func (h Handler) publishCommitted(ctx context.Context, owner chat.AccountID, id int64, recipient chat.AccountID, replayed bool) {
-	if replayed || h.Realtime.Publisher == nil { return }
+	if replayed || h.Realtime.Publisher == nil {
+		return
+	}
 	payload, err := json.Marshal(map[string]int64{"messageId": id})
-	if err != nil { return }
+	if err != nil {
+		return
+	}
 	// Delivery is best-effort after FC-11 commit; failures cannot undo persistence.
 	_ = h.Realtime.DeliverCommittedMessage(ctx, owner, recipient, payload)
 }
