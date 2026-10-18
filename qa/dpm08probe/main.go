@@ -38,61 +38,105 @@ func main(){
  }
 }
 func stage(name string){fmt.Println(name);_ =os.Stdout.Sync()}
+type scenario struct {
+ address string
+ owner string
+ root string
+ token string
+ conn net.Conn
+ reader *bufio.Reader
+ commands *bufio.Reader
+}
+
 func run(address,owner string)error{
  token:=os.Getenv("CHAT_DPM08_TOKEN")
  if token==""||address==""||owner==""{return errors.New("missing private fixture configuration")}
- root:="/v1/conversations/"+owner
- if err:=expectHTTP(address,http.MethodPut,root+"/assignment",token,
+ sc:=scenario{address:address,owner:owner,root:"/v1/conversations/"+owner,token:token,commands:bufio.NewReader(os.Stdin)}
+ if err:=sc.initialHTTP();err!=nil{return err}
+ if err:=sc.openConnection();err!=nil{return err}
+ defer func(){_ =sc.conn.Close()}()
+ if err:=sc.deliverBeforeRevoke();err!=nil{return err}
+ if err:=sc.checkRevoked();err!=nil{return err}
+ if err:=sc.checkFreshSession();err!=nil{return err}
+ return sc.checkUDSOutage()
+}
+func(sc scenario)initialHTTP()error{
+ if err:=expectHTTP(sc.address,http.MethodPut,sc.root+"/assignment",sc.token,
   map[string]string{"recipientAccountId":"22222222-2222-2222-2222-222222222222"},200);err!=nil{return err}
  stage("HTTP_ASSIGNMENT")
- if err:=expectHTTP(address,http.MethodPost,root+"/messages",token,
+ if err:=expectHTTP(sc.address,http.MethodPost,sc.root+"/messages",sc.token,
   map[string]any{"idempotencyKey":"33333333-3333-3333-3333-333333333333","text":"initial"},200);err!=nil{return err}
  stage("HTTP_SEND")
- if err:=expectHTTP(address,http.MethodGet,root+"/history",token,nil,200);err!=nil{return err}
+ if err:=expectHTTP(sc.address,http.MethodGet,sc.root+"/history",sc.token,nil,200);err!=nil{return err}
  stage("HTTP_HISTORY")
- if err:=expectHTTP(address,http.MethodPost,"/v1/conversations/"+otherOwner+"/messages",token,
+ if err:=expectHTTP(sc.address,http.MethodPost,"/v1/conversations/"+otherOwner+"/messages",sc.token,
   map[string]any{"idempotencyKey":"44444444-4444-4444-4444-444444444444","text":"must deny"},403);err!=nil{return err}
  stage("HTTP_FORBIDDEN")
- conn,rd,err:=openSocket(address)
+ return nil
+}
+func(sc *scenario)openConnection()error{
+ conn,rd,err:=openSocket(sc.address)
  if err!=nil{return err}
- defer func(){_ =conn.Close()}()
- if err:=connectCommand(conn,rd,token,1);err!=nil{return err}
+ sc.conn=conn
+ sc.reader=rd
+ if err:=connectCommand(conn,rd,sc.token,1);err!=nil{return err}
  stage("WS_CONNECT")
- if err:=subscribeCommand(conn,rd,owner,2);err!=nil{return err}
+ if err:=subscribeCommand(conn,rd,sc.owner,2);err!=nil{return err}
  stage("WS_SUBSCRIBE")
- if err:=expectHTTP(address,http.MethodPost,root+"/messages",token,
+ return nil
+}
+func(sc scenario)deliverBeforeRevoke()error{
+ if err:=expectHTTP(sc.address,http.MethodPost,sc.root+"/messages",sc.token,
   map[string]any{"idempotencyKey":"55555555-5555-5555-5555-555555555555","text":"realtime"},200);err!=nil{return err}
- if err:=receivePublication(conn,rd);err!=nil{return err}
+ if err:=receivePublication(sc.conn,sc.reader);err!=nil{return err}
  stage("WS_DELIVERY")
- commands:=bufio.NewReader(os.Stdin)
- if err:=expectControl(commands,"REVOKED");err!=nil{return err}
- if err:=expectHTTP(address,http.MethodGet,root+"/history",token,nil,401);err!=nil{return err}
+ return nil
+}
+func(sc scenario)checkRevoked()error{
+ if err:=expectControl(sc.commands,"REVOKED");err!=nil{return err}
+ if err:=expectHTTP(sc.address,http.MethodGet,sc.root+"/history",sc.token,nil,401);err!=nil{return err}
  stage("HTTP_REVOKED")
- if err:=expectDeniedSocket(address,token);err!=nil{return err}
+ if err:=expectDeniedSocket(sc.address,sc.token);err!=nil{return err}
  stage("WS_RECONNECT_DENIED")
- if err:=expectControl(commands,"NEW");err!=nil{return err}
- fresh,err:=commands.ReadString('\n')
+ return nil
+}
+func(sc scenario)checkFreshSession()error{
+ if err:=expectControl(sc.commands,"NEW");err!=nil{return err}
+ fresh,err:=sc.commands.ReadString('\n')
  if err!=nil{return errors.New("fresh token unavailable")}
  fresh=strings.TrimSpace(fresh)
- if fresh==""||fresh==token{return errors.New("invalid second session")}
- if err:=expectHTTP(address,http.MethodGet,root+"/history",fresh,nil,200);err!=nil{return err}
+ if fresh==""||fresh==sc.token{return errors.New("invalid second session")}
+ if err:=expectHTTP(sc.address,http.MethodGet,sc.root+"/history",fresh,nil,200);err!=nil{return err}
  stage("HTTP_FRESH_SESSION")
- newer,newReader,err:=openSocket(address)
+ return sc.verifyFreshConnections(fresh)
+}
+func(sc scenario)verifyFreshConnections(fresh string)error{
+ newer,rd,err:=openSocket(sc.address)
  if err!=nil{return err}
  defer func(){_ =newer.Close()}()
- if err:=connectCommand(newer,newReader,fresh,3);err!=nil{return err}
- if err:=subscribeCommand(newer,newReader,owner,4);err!=nil{return err}
+ if err:=connectCommand(newer,rd,fresh,3);err!=nil{return err}
+ if err:=subscribeCommand(newer,rd,sc.owner,4);err!=nil{return err}
  stage("WS_FRESH_RECONNECT")
- if err:=expectHTTP(address,http.MethodPost,root+"/messages",fresh,
+ if err:=expectHTTP(sc.address,http.MethodPost,sc.root+"/messages",fresh,
   map[string]any{"idempotencyKey":"66666666-6666-6666-6666-666666666666","text":"after revoke"},200);err!=nil{return err}
- if err:=receivePublication(conn,rd);err!=nil{return err}
+ if err:=receivePublication(sc.conn,sc.reader);err!=nil{return err}
  stage("OPEN_AFTER_REVOKE")
- if err:=receivePublication(newer,newReader);err!=nil{return err}
+ if err:=receivePublication(newer,rd);err!=nil{return err}
  stage("WS_FRESH_DELIVERY")
- if err:=expectControl(commands,"UDS_DOWN");err!=nil{return err}
- if err:=expectHTTP(address,http.MethodGet,root+"/history",fresh,nil,503);err!=nil{return err}
+ return nil
+}
+func(sc scenario)checkUDSOutage()error{
+ if err:=expectControl(sc.commands,"UDS_DOWN");err!=nil{return err}
+ // The fixture revokes the UDS only after the second access token has been
+ // established. Obtain it again from the private control channel instead of
+ // persisting it in a report or command-line arguments.
+ fresh,err:=sc.commands.ReadString('\n')
+ if err!=nil{return errors.New("outage token unavailable")}
+ fresh=strings.TrimSpace(fresh)
+ if fresh==""||fresh==sc.token{return errors.New("invalid outage fixture token")}
+ if err:=expectHTTP(sc.address,http.MethodGet,sc.root+"/history",fresh,nil,503);err!=nil{return err}
  stage("HTTP_UDS_UNAVAILABLE")
- if err:=expectDeniedSocket(address,fresh);err!=nil{return err}
+ if err:=expectDeniedSocket(sc.address,fresh);err!=nil{return err}
  stage("WS_UDS_UNAVAILABLE")
  return nil
 }
@@ -232,6 +276,9 @@ func expectDeniedSocket(addr,token string)error{
  if err:=sendCommand(conn,1,"connect",map[string]any{"token":token,"data":map[string]string{"dpop":proof}});err!=nil{return err}
  op,raw,err:=receiveFrame(conn,reader)
  if err!=nil{return errors.New("expected explicit invalid-session close, not timeout")}
+ return verifyInvalidTokenDisconnect(op,raw)
+}
+func verifyInvalidTokenDisconnect(op byte,raw []byte)error{
  const invalidCode=3500
  if op==8 {
   if len(raw)<2||int(raw[0])<<8|int(raw[1])!=invalidCode{return errors.New("unexpected WS close code")}
