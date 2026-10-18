@@ -4,6 +4,7 @@
 package transport
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -155,7 +156,15 @@ func (h Handler) serveMessage(w http.ResponseWriter, r *http.Request, token, pro
 		writeDomainError(w, err)
 		return
 	}
+	h.publishCommitted(r.Context(), owner, result.ID, chat.AccountID(result.RecipientID), result.Replayed)
 	writeJSON(w, http.StatusOK, result)
+}
+func (h Handler) publishCommitted(ctx context.Context, owner chat.AccountID, id int64, recipient chat.AccountID, replayed bool) {
+	if replayed || h.Realtime.Publisher == nil { return }
+	payload, err := json.Marshal(map[string]int64{"messageId": id})
+	if err != nil { return }
+	// Delivery is best-effort after FC-11 commit; failures cannot undo persistence.
+	_ = h.Realtime.DeliverCommittedMessage(ctx, owner, recipient, payload)
 }
 func (h Handler) serveHistory(w http.ResponseWriter, r *http.Request, token, proof string, binding authentication.RequestBinding, owner chat.AccountID) {
 	if r.Method != http.MethodGet {
