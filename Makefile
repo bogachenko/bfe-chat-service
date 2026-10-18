@@ -1,4 +1,4 @@
-.PHONY: fmt vet lint security vulncheck dupl complexity coverage coverage-tools race integration mutation-pr mutation-full quality
+.PHONY: fmt vet lint security vulncheck dupl complexity coverage coverage-tools race integration mutation-pr mutation-full quality check-test-runtime update-test-runtime
 GO ?= go
 GOFILES := $(shell find cmd internal -type f -name '*.go' ! -name '*_test.go' 2>/dev/null)
 BASE_REF ?= origin/main
@@ -38,3 +38,11 @@ mutation-pr:
 mutation-full:
 	gremlins unleash --exclude-files '.*_test\.go$$' --exclude-files '.*\.pb\.go$$'
 quality: fmt vet lint security vulncheck dupl complexity coverage race
+
+# Same SSH/public host as BFE Drive test VPS; separate Chat state/service.
+check-test-runtime:
+	bash ./deploy/scripts/update-test-runtime.sh --check
+
+# Explicit deployment approval is enforced inside the script; no implicit rollout.
+update-test-runtime:
+	bash ./deploy/scripts/update-test-runtime.sh --deploy
