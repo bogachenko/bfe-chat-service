@@ -1,0 +1,26 @@
+name: DP-M08 gofmt correction
+on:
+  push:
+    branches: [feat/dp-m08-transport]
+    paths: ['.github/workflows/dp-m08-format-once.yml']
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feat/dp-m08-transport
+          persist-credentials: true
+      - name: Apply gofmt
+        run: |
+          gofmt -w cmd/bfe-chat-service/main.go internal/transport/transport.go
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add cmd/bfe-chat-service/main.go internal/transport/transport.go
+          if ! git diff --cached --quiet; then
+            git commit -m 'style(dp-m08): gofmt refactored production code'
+            git push origin HEAD:feat/dp-m08-transport
+          fi
