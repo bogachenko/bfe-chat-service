@@ -109,7 +109,7 @@ func TestQADPM08ProductionExecutableRealDriveUDS(t *testing.T){
   if _,err:=io.WriteString(out,stage+" PASS\n");err!=nil{_ =out.Close();t.Fatal("private marker write failed")}
   if err:=out.Close();err!=nil{t.Fatal("close private marker file")}
  }
- for _,stage:=range []string{"HTTP_ASSIGNMENT","HTTP_SEND","HTTP_HISTORY","HTTP_FORBIDDEN","WS_CONNECT","WS_SUBSCRIBE","WS_DELIVERY"}{expect(stage)}
+ for _,stage:=range []string{"HTTP_ASSIGNMENT","HTTP_SEND","HTTP_HISTORY","HTTP_FORBIDDEN","WS_CONNECT","WS_SUBSCRIBE","WS_DELIVERY_HTTP_COMMITTED","WS_EVENT_FRAME","WS_EVENT_PARSED","WS_DELIVERY"}{expect(stage)}
  oldHash:=sha256.Sum256([]byte(old))
  changed,err:=pool.Exec(ctx,`UPDATE login_sessions SET session_invalidated=true WHERE access_token_hash=$1`,oldHash[:])
  if err!=nil||changed.RowsAffected()!=1{t.Fatal("revoke old real BFE Drive session")}
