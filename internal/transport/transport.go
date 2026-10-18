@@ -27,6 +27,7 @@ type Handler struct {
 	Messages     conversations.Service
 	Assignments  assignments.Service
 	WebSocket    http.Handler
+	Realtime     realtime.Service
 	PublicOrigin string
 }
 
@@ -43,7 +44,7 @@ func NewHandler(messages conversations.Service, recipient assignments.Service, r
 	if err := realTime.Bind(node, socketURL); err != nil {
 		return nil, err
 	}
-	return Handler{Messages: messages, Assignments: recipient, WebSocket: centrifuge.NewWebsocketHandler(node, centrifuge.WebsocketConfig{}), PublicOrigin: strings.TrimSuffix(publicOrigin, "/")}, nil
+	return Handler{Messages: messages, Assignments: recipient, WebSocket: centrifuge.NewWebsocketHandler(node, centrifuge.WebsocketConfig{}), Realtime: realTime, PublicOrigin: strings.TrimSuffix(publicOrigin, "/")}, nil
 }
 func validateOrigin(socketURL, publicOrigin string) error {
 	origin, err := url.Parse(publicOrigin)
