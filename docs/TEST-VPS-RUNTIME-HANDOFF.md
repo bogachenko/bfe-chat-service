@@ -7,7 +7,7 @@
 Required local environment:
 - `BFE_TEST_VPS_SSH_TARGET`: **same value as BFE Drive test runtime**. Never substitute production.
 - `BFE_TEST_PUBLIC_HOST`: existing test HTTPS hostname (same as BFE Drive).
-- `BFE_CHAT_TEST_PUBLIC_ORIGIN=https://$BFE_TEST_PUBLIC_HOST`: exact public DPoP origin for this first shared-host deployment.
+- `BFE_CHAT_TEST_PUBLIC_ORIGIN`: **separate Chat HTTPS hostname** on the same VPS (for example `https://chat-test.example.org`), different from `https://$BFE_TEST_PUBLIC_HOST`. The actual DNS/TLS/virtual host must be approved by VPS operator.
 - `BFE_CHAT_TEST_DRIVE_AUTH_UDS`: **actual** existing Drive Internal Auth socket absolute pathname on VPS. Never assume path.
 - `BFE_CHAT_TEST_VPS_BASELINE=$HOME/.config/bfe-drive-test/vps-baseline.json`: existing approved BFE Drive test VPS baseline (SSH-target SHA and machine ID SHA). Path is explicit, never invented.
 - Optional `BFE_TEST_VPS_SSH_IDENTITY_FILE`: absolute SSH private key path, used with `IdentitiesOnly=yes`. Host key must already be pinned in known_hosts.
@@ -20,7 +20,7 @@ Existing BFE Drive Makefile also requires `BFE_TEST_POSTBOX_SENDER_ADDRESS`. **C
 2. Dedicated `bfe-chat` system user, PostgreSQL role and **separate** `bfe_chat` database with migrations permission; no access to `bfe_drive` tables or credentials.
 3. Existing Chat-only `/etc/bfe-chat-service/runtime.env` (0600; owner `bfe-chat`) containing `BFE_CHAT_DATABASE_URL`, `BFE_CHAT_PUBLIC_ORIGIN`, `BFE_CHAT_DRIVE_AUTH_UDS`. The DSN is secret and MUST NOT be committed or passed as an SSH argument.
 4. `bfe-chat` has OS read/connect permission to the **existing** BFE Drive Internal Auth UDS, without changing socket/service ownership globally or restarting Drive.
-5. **Independent Nginx test configuration**, provisioned/reviewed by VPS operator, forwards Chat HTTP/WebSocket paths to `127.0.0.1:8081` under the existing HTTPS host, preserving DPoP HTU/Host and WebSocket Upgrade. It must not overwrite Drive locations or open port 8081 publicly. Script checks installed Nginx configuration for loopback backend and `nginx -t`, and **does not edit nginx**.
+5. **Independent Nginx test configuration**, provisioned/reviewed by VPS operator, forwards Chat HTTP/WebSocket paths to `127.0.0.1:8081` under a **separate Chat HTTPS virtual host**, preserving DPoP HTU/Host and WebSocket Upgrade. It must not overwrite Drive locations or open port 8081 publicly. Script checks installed Nginx configuration for loopback backend and `nginx -t`, and **does not edit nginx**.
 6. Free localhost port `8081`, otherwise it must already belong to the running `bfe-chat-service.service`. Make sure test DB backup/restore and PostgreSQL 18.6 compatibility were independently validated before any service startup that runs goose migrations.
 7. `sudo -n` constrained to the reviewed operations; review least privilege. Separate service's binary `/usr/local/bin/bfe-chat-service`, unit `bfe-chat-service.service`, migrations `/opt/bfe-chat-service/migrations`, and provenance `/var/lib/bfe-chat-service/deploy-state` do not overlap BFE Drive.
 
