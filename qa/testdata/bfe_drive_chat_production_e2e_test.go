@@ -106,27 +106,22 @@ func TestQADPM08ProductionExecutableRealDriveUDS(t *testing.T){
   if !scanner.Scan()||strings.TrimSpace(scanner.Text())!=stage{t.Fatalf("DP-M08 milestone %s did not complete",stage)}
   out,err:=os.OpenFile(markerPath,os.O_APPEND|os.O_WRONLY,0600)
   if err!=nil{t.Fatal("private marker file unavailable")}
-  if _,err:=io.WriteString(out,stage+" PASS
-");err!=nil{_ =out.Close();t.Fatal("private marker write failed")}
+  if _,err:=io.WriteString(out,stage+" PASS\n");err!=nil{_ =out.Close();t.Fatal("private marker write failed")}
   if err:=out.Close();err!=nil{t.Fatal("close private marker file")}
  }
  for _,stage:=range []string{"HTTP_ASSIGNMENT","HTTP_SEND","HTTP_HISTORY","HTTP_FORBIDDEN","WS_CONNECT","WS_SUBSCRIBE","WS_DELIVERY"}{expect(stage)}
  oldHash:=sha256.Sum256([]byte(old))
  changed,err:=pool.Exec(ctx,`UPDATE login_sessions SET session_invalidated=true WHERE access_token_hash=$1`,oldHash[:])
  if err!=nil||changed.RowsAffected()!=1{t.Fatal("revoke old real BFE Drive session")}
- if _,err:=io.WriteString(childIn,"REVOKED
-");err!=nil{t.Fatal("send revoke boundary")}
+ if _,err:=io.WriteString(childIn,"REVOKED\n");err!=nil{t.Fatal("send revoke boundary")}
  expect("HTTP_REVOKED")
  expect("WS_RECONNECT_DENIED")
  fresh:=fixtureRandomToken(t)
  insertSession(t,ctx,pool,accountID,fresh,jkt)
- if _,err:=io.WriteString(childIn,"NEW
-"+fresh+"
-");err!=nil{t.Fatal("send fresh-session boundary")}
+ if _,err:=io.WriteString(childIn,"NEW\n"+fresh+"\n");err!=nil{t.Fatal("send fresh-session boundary")}
  for _,stage:=range []string{"HTTP_FRESH_SESSION","WS_FRESH_RECONNECT","OPEN_AFTER_REVOKE","WS_FRESH_DELIVERY"}{expect(stage)}
  if err:=server.Close();err!=nil{t.Fatal("close real BFE Drive UDS")}
- if _,err:=io.WriteString(childIn,"UDS_DOWN
-");err!=nil{t.Fatal("send unavailable boundary")}
+ if _,err:=io.WriteString(childIn,"UDS_DOWN\n"+fresh+"\n");err!=nil{t.Fatal("send unavailable boundary")}
  expect("HTTP_UDS_UNAVAILABLE")
  expect("WS_UDS_UNAVAILABLE")
  if err:=childIn.Close();err!=nil{t.Fatal("close private stage pipe")}
