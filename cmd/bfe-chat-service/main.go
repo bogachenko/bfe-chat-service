@@ -60,13 +60,13 @@ func run(ctx context.Context, args []string) error {
 	}
 	info, err := os.Stat(*uds)
 	if err != nil || info.Mode()&os.ModeSocket == 0 {
-		return errors.New("Drive authentication UDS unavailable")
+		return errors.New("drive authentication UDS unavailable")
 	}
 	db, err := sql.Open("pgx", dbURL)
 	if err != nil {
 		return errors.New("database initialization failed")
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	if err := db.PingContext(ctx); err != nil {
 		return errors.New("database unavailable")
 	}
@@ -82,7 +82,7 @@ func run(ctx context.Context, args []string) error {
 	}
 	node, err := centrifuge.New(centrifuge.Config{})
 	if err != nil {
-		return errors.New("Centrifuge initialization failed")
+		return errors.New("centrifuge initialization failed")
 	}
 	store := storage.Store{DB: db}
 	permissions := authorization.Authorizer{Assignments: store}
@@ -97,9 +97,9 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return errors.New("listener unavailable")
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	if err := node.Run(); err != nil {
-		return errors.New("Centrifuge startup failed")
+		return errors.New("centrifuge startup failed")
 	}
 	defer func() {
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
