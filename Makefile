@@ -18,13 +18,14 @@ dupl:
 complexity:
 	@cyclop -maxComplexity 10 ./...
 coverage:
-	$(GO) test -tags=integration -timeout=40m -coverpkg=./cmd/...,./internal/... -coverprofile=coverage.out ./cmd/... ./internal/...
+	$(GO) test -tags=integration -count=1 -timeout=40m -covermode=atomic -coverpkg=./cmd/...,./internal/... -coverprofile=coverage.out ./cmd/... ./internal/...
 	$(MAKE) coverage-tools
 	@$(GO) tool cover -func=coverage.out
 	@$(GO) run ./tools/coverage-gate -profile coverage.out -min 80 -critical-min 90
 coverage-tools:
 	$(GO) build ./tools/coverage-gate ./qa/driveauthprobe
 	$(GO) test ./tools/coverage-gate ./qa/driveauthprobe
+	python3 -m unittest discover -s qa -p 'test_coverage_report.py'
 	$(GO) run ./qa/driveauthprobe -socket /nonexistent/bfe-auth-qr08.sock -expect unavailable
 
 race:
