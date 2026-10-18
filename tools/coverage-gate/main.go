@@ -1,5 +1,5 @@
 // Command coverage-gate enforces QR-08 production statement coverage.
-// Scope is explicit: cmd/bfe-chat-service and all eight internal packages.
+// Scope is explicit: cmd/bfe-chat-service and all production internal packages.
 // qa/driveauthprobe and tools/coverage-gate are verified separately.
 package main
 
@@ -27,6 +27,7 @@ var production = []string{
 	"internal/documentcontext",
 	"internal/realtime",
 	"internal/storage",
+	"internal/transport",
 }
 
 var critical = []string{"internal/authentication", "internal/authorization"}
