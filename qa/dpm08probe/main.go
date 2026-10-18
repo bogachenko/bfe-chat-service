@@ -120,7 +120,7 @@ func(sc scenario)verifyFreshConnections(fresh string)error{
  stage("WS_FRESH_RECONNECT")
  if err:=expectHTTP(sc.address,http.MethodPost,sc.root+"/messages",fresh,
   map[string]any{"idempotencyKey":"66666666-6666-6666-6666-666666666666","text":"after revoke"},200);err!=nil{return err}
- if err:=receivePublication(sc.conn,sc.reader);err!=nil{return err}
+ if err:=receivePublication(sc.conn,sc.reader,false);err!=nil{return err}
  stage("OPEN_AFTER_REVOKE")
  if err:=receivePublication(newer,rd,false);err!=nil{return err}
  stage("WS_FRESH_DELIVERY")
