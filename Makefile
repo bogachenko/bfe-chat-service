@@ -1,4 +1,4 @@
-.PHONY: fmt vet lint security vulncheck dupl complexity coverage coverage-tools race integration mutation-pr mutation-full quality check-test-runtime update-test-runtime
+.PHONY: fmt vet lint security vulncheck dupl complexity coverage coverage-tools race integration mutation-pr mutation-full quality check-test-runtime update-test-runtime test-test-runtime
 GO ?= go
 GOFILES := $(shell find cmd internal -type f -name '*.go' ! -name '*_test.go' 2>/dev/null)
 BASE_REF ?= origin/main
@@ -37,7 +37,11 @@ mutation-pr:
 	gremlins unleash --diff "$(BASE_REF)" --exclude-files '.*_test\.go$$' --exclude-files '.*\.pb\.go$$'
 mutation-full:
 	gremlins unleash --exclude-files '.*_test\.go$$' --exclude-files '.*\.pb\.go$$'
-quality: fmt vet lint security vulncheck dupl complexity coverage race
+test-test-runtime:
+	bash -n deploy/scripts/update-test-runtime.sh
+	python3 -m unittest discover -s deploy/tests -p 'test_*.py'
+
+quality: fmt vet lint security vulncheck dupl complexity coverage race test-test-runtime
 
 # Same SSH/public host as BFE Drive test VPS; separate Chat state/service.
 check-test-runtime:
