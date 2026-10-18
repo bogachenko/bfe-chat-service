@@ -1,0 +1,101 @@
+name: DP-M08 Executable + Real BFE Drive E2E
+on:
+  push:
+    branches: [feat/dp-m08-transport]
+    paths:
+      - 'qa/dpm08probe/**'
+      - 'qa/testdata/bfe_drive_chat_production_e2e_test.go'
+      - 'cmd/bfe-chat-service/**'
+      - 'internal/transport/**'
+      - '.github/workflows/qa-dpm08-production-e2e.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real_executable_drive_uds:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Assert immutable Chat Service checkout
+        env:
+          CHAT_SHA: ${{ github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$CHAT_SHA"
+          [[ "$CHAT_SHA" =~ ^[a-f0-9]{40}$ ]]
+      - name: Initialize safe report even if build fails
+        env:
+          CHAT_SHA: ${{ github.sha }}
+        run: |
+          printf 'CHAT_SHA: %s\nDRIVE_SHA: %s\nE2E_RESULT: NOT_RUN\n' \
+            "$CHAT_SHA" "9a33850a5456d8e3ff40f5cdab6ded869da7110f" \
+            > dpm08-e2e-safe-report.txt
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Build production executable and E2E probes
+        run: |
+          go build -o "$RUNNER_TEMP/bfe-chat-production" ./cmd/bfe-chat-service
+          go build -o "$RUNNER_TEMP/dpm08-probe" ./qa/dpm08probe
+          go build -o "$RUNNER_TEMP/drive-auth-probe" ./qa/driveauthprobe
+      - name: Require read-only BFE Drive repository access
+        env:
+          BFE_DRIVE_READ_TOKEN: ${{ secrets.BFE_DRIVE_READ_TOKEN }}
+        run: |
+          test -n "$BFE_DRIVE_READ_TOKEN" || { echo "::error::Read-only Drive token required"; exit 1; }
+      - uses: actions/checkout@v5
+        with:
+          repository: bogachenko/bfe-drive
+          ref: 9a33850a5456d8e3ff40f5cdab6ded869da7110f
+          token: ${{ secrets.BFE_DRIVE_READ_TOKEN }}
+          path: bfe-drive
+          persist-credentials: false
+      - name: Assert immutable Drive commit
+        run: test "$(git -C bfe-drive rev-parse HEAD)" = "9a33850a5456d8e3ff40f5cdab6ded869da7110f"
+      - name: Execute real production HTTP + Centrifuge E2E
+        id: execute
+        continue-on-error: true
+        shell: bash
+        env:
+          CHAT_SHA: ${{ github.sha }}
+          CHAT_M08_BINARY: ${{ runner.temp }}/bfe-chat-production
+          CHAT_M08_PROBE: ${{ runner.temp }}/dpm08-probe
+          CHAT_M08_MIGRATIONS: ${{ github.workspace }}/internal/storage/migrations
+        run: |
+          set -euo pipefail
+          umask 077
+          export CHAT_M08_JKT="$("$RUNNER_TEMP/drive-auth-probe" -expect=jkt)"
+          export CHAT_M08_MARKERS="$RUNNER_TEMP/dpm08-private-markers"
+          : > "$CHAT_M08_MARKERS"
+          cp qa/testdata/bfe_drive_chat_production_e2e_test.go bfe-drive/internal/httpapi/qa_chat_dpm08_production_integration_test.go
+          cd bfe-drive
+          result=FAIL
+          if go test -tags=integration -count=1 -run '^TestQADPM08ProductionExecutableRealDriveUDS$' -timeout=15m ./internal/httpapi > "$RUNNER_TEMP/dpm08-private-test-output" 2>&1; then
+            result=PASS
+          fi
+          report="$GITHUB_WORKSPACE/dpm08-e2e-safe-report.txt"
+          printf 'CHAT_SHA: %s\nDRIVE_SHA: %s\n' "$CHAT_SHA" "$(git rev-parse HEAD)" > "$report"
+          for scenario in HTTP_ASSIGNMENT HTTP_SEND HTTP_HISTORY HTTP_FORBIDDEN WS_CONNECT WS_SUBSCRIBE WS_DELIVERY_HTTP_COMMITTED WS_EVENT_FRAME WS_EVENT_PARSED WS_DELIVERY HTTP_REVOKED WS_RECONNECT_DENIED HTTP_FRESH_SESSION WS_FRESH_RECONNECT OPEN_AFTER_REVOKE WS_FRESH_DELIVERY HTTP_UDS_UNAVAILABLE WS_UDS_UNAVAILABLE; do
+            status=FAIL
+            if grep -Fxq "$scenario PASS" "$CHAT_M08_MARKERS"; then status=PASS; fi
+            printf '%s: %s\n' "$scenario" "$status" >> "$report"
+          done
+          printf 'E2E_RESULT: %s\n' "$result" >> "$report"
+          test "$result" = PASS
+      - name: Upload allowlisted safe report only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dp-m08-production-real-drive-e2e
+          path: dpm08-e2e-safe-report.txt
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Enforce actual E2E outcome
+        if: always()
+        env:
+          OUTCOME: ${{ steps.execute.outcome }}
+        run: test "$OUTCOME" = success

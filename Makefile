@@ -23,8 +23,8 @@ coverage:
 	@$(GO) tool cover -func=coverage.out
 	@$(GO) run ./tools/coverage-gate -profile coverage.out -min 80 -critical-min 90
 coverage-tools:
-	$(GO) build ./tools/coverage-gate ./qa/driveauthprobe
-	$(GO) test ./tools/coverage-gate ./qa/driveauthprobe
+	$(GO) build ./tools/coverage-gate ./qa/driveauthprobe ./qa/dpm08probe
+	$(GO) test ./tools/coverage-gate ./qa/driveauthprobe ./qa/dpm08probe
 	python3 -m unittest discover -s qa -p 'test_coverage_report.py'
 	$(GO) run ./qa/driveauthprobe -socket /nonexistent/bfe-auth-qr08.sock -expect unavailable
 
