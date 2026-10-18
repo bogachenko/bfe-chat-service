@@ -54,6 +54,8 @@ test -f /etc/bfe-chat-service/runtime.env
 test "$(stat -c %a /etc/bfe-chat-service/runtime.env)" = 600
 test "$(stat -c %U /etc/bfe-chat-service/runtime.env)" = bfe-chat
 grep -Eq '^BFE_CHAT_DATABASE_URL=' /etc/bfe-chat-service/runtime.env
+ grep -Fxq "BFE_CHAT_PUBLIC_ORIGIN=$CHAT_ORIGIN" /etc/bfe-chat-service/runtime.env
+ grep -Fxq "BFE_CHAT_DRIVE_AUTH_UDS=$CHAT_UDS" /etc/bfe-chat-service/runtime.env
 runuser -u bfe-chat -- psql -X -v ON_ERROR_STOP=1 -h /run/postgresql -d bfe_chat -Atqc 'SELECT 1' | grep -qx 1
 # Dedicated listener must be unused or already owned by this service.
 if ss -H -ltn '( sport = :8081 )' | grep -q .; then
@@ -91,6 +93,7 @@ if [[ -e /usr/local/bin/bfe-chat-service ]]; then
 fi
 install -o root -g root -m 0755 "$CHAT_STAGE/bfe-chat-service" /usr/local/bin/bfe-chat-service.new
 mv -f /usr/local/bin/bfe-chat-service.new /usr/local/bin/bfe-chat-service
+install -d -o bfe-chat -g bfe-chat -m 0700 /var/lib/bfe-chat-service
 install -d -o root -g root -m 0755 /opt/bfe-chat-service/migrations
 cp -a "$CHAT_STAGE/migrations/." /opt/bfe-chat-service/migrations/
 chown -R root:root /opt/bfe-chat-service/migrations
