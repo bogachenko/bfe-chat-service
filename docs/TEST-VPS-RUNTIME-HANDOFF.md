@@ -47,3 +47,10 @@ This builds from clean immutable Git HEAD (Go 1.27.2, target amd64/arm64), valid
 - Do not mark as Production readiness or deploy before approval.
 
 **Gate:** DRAFT PR / INDEPENDENT QA PENDING / VPS NOT TOUCHED / PRODUCTION RELEASE PROHIBITED.
+
+## PR #24 remediation: rollback and scope checks
+
+- Preflight is **read-only** and prints fixed PASS markers, never database rows, credentials or complete nginx configuration. It checks host baseline SHA, Drive uptime, restricted UDS, dedicated PostgreSQL role/database, **denial of CONNECT and table privileges in BFE Drive database**, nginx HTTPS `server_name` / `listen 443 ssl` / both HTTP and WebSocket upstream locations in **one** `server` block, and TCP 8081 PID matching systemd `MainPID`. A free port is allowed before initial deployment; a foreign listener is blocking.
+- Candidate installation snapshots old **binary, unit and Chat migrations**. On failure it stops Chat and compares the Chat goose schema version. If unchanged, it restores old binary/unit/migrations and restarts only Chat. If schema advanced, schema check fails, or no complete old unit/binary exists, it **leaves Chat stopped** and requires manual recovery. PostgreSQL migrations are **never automatically rolled back**.
+- Automated negative tests cover split vhosts, plain HTTP, incorrect proxy, duplicate hostname, foreign process, public listener, duplicate listeners and malformed config. `make test-test-runtime` is blocking within `make quality`. These tests do **not** touch the VPS.
+- Limitations pending Independent QA: verify against the real existing test nginx topology, systemd unit semantics, DB privilege model and real service identity. `make check-test-runtime` must be run by the authorized test VPS operator as a separate read-only check. Review backup/migration recovery and SSH/sudo privilege minimization before any deployment.
