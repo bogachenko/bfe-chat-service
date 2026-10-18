@@ -17,6 +17,7 @@ import (
  "github.com/bogachenko/bfe-chat-service/internal/chat"
  "github.com/bogachenko/bfe-chat-service/internal/conversations"
  "github.com/bogachenko/bfe-chat-service/internal/documentcontext"
+ "github.com/bogachenko/bfe-chat-service/internal/realtime"
   "github.com/centrifugal/centrifuge"
 )
 
@@ -29,13 +30,14 @@ type Handler struct {
  PublicOrigin string
 }
 
-func NewHandler(messages conversations.Service, recipient assignments.Service, node *centrifuge.Node, socketURL, publicOrigin string) (http.Handler,error) {
+func NewHandler(messages conversations.Service, recipient assignments.Service, realTime realtime.Service, node *centrifuge.Node, socketURL, publicOrigin string) (http.Handler,error) {
  if node==nil || messages.Auth==nil || messages.Permissions==nil || messages.Store==nil ||
  recipient.Auth==nil || recipient.Store==nil {return nil,errors.New("transport dependencies missing")}
  origin,err:=url.Parse(publicOrigin)
  if err!=nil || origin.Scheme!="https" || origin.Host=="" || origin.User!=nil || origin.RawQuery!="" || origin.Fragment!="" || (origin.Path!=""&&origin.Path!="/") {return nil,errors.New("invalid public origin")}
  websocket,err:=url.Parse(socketURL)
  if err!=nil||websocket.Scheme!="wss"||websocket.Host!=origin.Host||websocket.Path!="/ws"||websocket.User!=nil||websocket.RawQuery!=""||websocket.Fragment!=""{return nil,errors.New("invalid websocket endpoint")}
+ if err:=realTime.Bind(node,socketURL);err!=nil{return nil,err}
  return Handler{Messages:messages,Assignments:recipient,WebSocket:centrifuge.NewWebsocketHandler(node,centrifuge.WebsocketConfig{}),PublicOrigin:strings.TrimSuffix(publicOrigin,"/")},nil
 }
 
