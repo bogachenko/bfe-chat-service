@@ -88,7 +88,8 @@ func(sc *scenario)openConnection()error{
 func(sc scenario)deliverBeforeRevoke()error{
  if err:=expectHTTP(sc.address,http.MethodPost,sc.root+"/messages",sc.token,
   map[string]any{"idempotencyKey":"55555555-5555-5555-5555-555555555555","text":"realtime"},200);err!=nil{return err}
- if err:=receivePublication(sc.conn,sc.reader);err!=nil{return err}
+ stage("WS_DELIVERY_HTTP_COMMITTED")
+ if err:=receivePublication(sc.conn,sc.reader,true);err!=nil{return err}
  stage("WS_DELIVERY")
  return nil
 }
@@ -121,7 +122,7 @@ func(sc scenario)verifyFreshConnections(fresh string)error{
   map[string]any{"idempotencyKey":"66666666-6666-6666-6666-666666666666","text":"after revoke"},200);err!=nil{return err}
  if err:=receivePublication(sc.conn,sc.reader);err!=nil{return err}
  stage("OPEN_AFTER_REVOKE")
- if err:=receivePublication(newer,rd);err!=nil{return err}
+ if err:=receivePublication(newer,rd,false);err!=nil{return err}
  stage("WS_FRESH_DELIVERY")
  return nil
 }
@@ -258,11 +259,13 @@ func subscribeCommand(conn net.Conn,reader *bufio.Reader,owner string,id int)err
  if json.Unmarshal(raw,&reply)!=nil||len(reply.Subscribe)==0{return errors.New("authorized WS Subscribe rejected")}
  return nil
 }
-func receivePublication(conn net.Conn,reader *bufio.Reader)error{
+func receivePublication(conn net.Conn,reader *bufio.Reader,diagnostics bool)error{
  op,raw,err:=receiveFrame(conn,reader)
  if err!=nil||op!=1{return errors.New("realtime publication unavailable")}
+ if diagnostics{stage("WS_EVENT_FRAME")}
  var push struct{Push struct{Pub struct{Data json.RawMessage `json:"data"`} `json:"pub"`} `json:"push"`}
  if json.Unmarshal(raw,&push)!=nil||len(push.Push.Pub.Data)==0{return errors.New("unexpected realtime frame")}
+ if diagnostics{stage("WS_EVENT_PARSED")}
  var event struct{MessageID int64 `json:"messageId"`}
  if json.Unmarshal(push.Push.Pub.Data,&event)!=nil||event.MessageID<=0{return errors.New("invalid committed message event")}
  return nil
