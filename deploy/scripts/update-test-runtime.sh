@@ -59,18 +59,24 @@ test "$(stat -c %U /etc/bfe-chat-service/runtime.env)" = bfe-chat
 grep -Eq '^BFE_CHAT_DATABASE_URL=' /etc/bfe-chat-service/runtime.env
  grep -Fxq "BFE_CHAT_PUBLIC_ORIGIN=$CHAT_ORIGIN" /etc/bfe-chat-service/runtime.env
  grep -Fxq "BFE_CHAT_DRIVE_AUTH_UDS=$CHAT_UDS" /etc/bfe-chat-service/runtime.env
-runuser -u bfe-chat -- psql -X -v ON_ERROR_STOP=1 -h /run/postgresql -d bfe_chat -Atqc 'SELECT 1' | grep -qx 1
-# Dedicated listener must be unused or already owned by this service.
-if ss -H -ltn '( sport = :8081 )' | grep -q .; then
-  systemctl is-active --quiet bfe-chat-service.service
-  ss -H -ltn '( sport = :8081 )' | grep -Fq '127.0.0.1:8081'
-fi
-# Existing nginx route is a separately managed prerequisite; never edit BFE Drive nginx.
-nginx_config="$(nginx -T 2>/dev/null)"
-grep -Fq '127.0.0.1:8081' <<< "$nginx_config"
-grep -Fq "$CHAT_HOST" <<< "$nginx_config"
+# Verify isolated role and database without returning credentials or database content.
+role_sql="SELECT CASE WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname='bfe-chat' AND NOT rolsuper AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolreplication AND NOT rolbypassrls) AND EXISTS (SELECT 1 FROM pg_database WHERE datname='bfe_chat' AND pg_get_userbyid(datdba)='bfe-chat') AND has_database_privilege('bfe-chat','bfe_chat','CONNECT') AND NOT has_database_privilege('bfe-chat','bfe_drive','CONNECT') THEN 'PASS' ELSE 'FAIL' END"
+runuser -u postgres -- psql -X -v ON_ERROR_STOP=1 -d postgres -Atqc "$role_sql" | grep -qx PASS
+# Defense in depth: no grants to BFE Drive data even when the DB CONNECT ACL is restrictive.
+runuser -u postgres -- psql -X -v ON_ERROR_STOP=1 -d bfe_drive -Atqc "SELECT CASE WHEN EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.relkind IN ('r','p','v','m','S','f') AND (has_table_privilege('bfe-chat',c.oid,'SELECT') OR has_table_privilege('bfe-chat',c.oid,'INSERT') OR has_table_privilege('bfe-chat',c.oid,'UPDATE') OR has_table_privilege('bfe-chat',c.oid,'DELETE'))) THEN 'FAIL' ELSE 'PASS' END" | grep -qx PASS
+runuser -u bfe-chat -- psql -X -v ON_ERROR_STOP=1 -h /run/postgresql -U bfe-chat -d bfe_chat -Atqc 'SELECT 1' | grep -qx 1
+# Listener ownership and the correct HTTPS server block are evaluated locally from read-only probes.
 REMOTE_CHECK
-echo "BFE Chat test VPS preflight: PASS (shared VPS, separate service, DB, port, UDS)"
+tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+remote 'sudo -n nginx -T 2>&1' > "$tmp/nginx"
+remote 'sudo -n ss -H -ltnp "( sport = :8081 )"' > "$tmp/ss"
+pid="$(remote 'sudo -n systemctl show -p MainPID --value bfe-chat-service.service')" || pid=0
+# Empty port is permitted only before initial deployment.
+if [[ ! -s "$tmp/ss" ]]; then pid=2; fi
+python3 deploy/scripts/check-test-runtime.py --nginx "$tmp/nginx" --host "$chat_host" --ss "$tmp/ss" --pid "$pid"
+echo "PRECHECK: VPS_ID=PASS DRIVE_HEALTH=PASS UDS=PASS DB_ISOLATION=PASS NGINX=PASS PORT_OWNER=PASS"
+
+echo "BFE Chat test VPS preflight: PASS (read-only, secret-free report)"
 [[ "$mode" == "--deploy" ]] || { echo "CHECK ONLY: no VPS changes"; exit 0; }
 
 # Reproducible candidate build; build locally, transport only binary, migrations, unit.
