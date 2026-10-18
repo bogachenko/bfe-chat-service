@@ -5,17 +5,29 @@ from pathlib import Path
 
 def read(path):
     lines = Path(path).read_text().splitlines()
-    if not lines or not lines[0].startswith("mode: "):
+    if not lines or lines[0] not in ("mode: set", "mode: count", "mode: atomic"):
         raise ValueError("invalid coverage profile")
-    rows = []
+    # One statement block can occur in multiple package test binaries.
+    # Count each block once; merge hit state using logical OR.
+    blocks = {}
     for line in lines[1:]:
         items = line.split()
         if len(items) != 3:
             raise ValueError("invalid profile row")
-        rows.append((items[0].split(":", 1)[0], int(items[1]), int(items[2]) > 0))
-    if not rows:
+        location, statements, hits = items
+        if ":" not in location or "," not in location:
+            raise ValueError("invalid coverage block location")
+        count, covered = int(statements), int(hits) > 0
+        if count < 0:
+            raise ValueError("negative statement count")
+        previous = blocks.get(location)
+        if previous is not None and previous[0] != count:
+            raise ValueError("inconsistent repeated coverage block")
+        blocks[location] = (count, covered or (previous[1] if previous else False))
+    if not blocks:
         raise ValueError("empty profile")
-    return rows
+    return [(key.split(":", 1)[0], count, covered)
+            for key, (count, covered) in blocks.items()]
 
 def percent(rows):
     size = sum(n for _, n, _ in rows)
