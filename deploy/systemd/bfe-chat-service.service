@@ -1,0 +1,25 @@
+[Unit]
+Description=BFE Chat Service (test VPS)
+After=network-online.target postgresql.service bfe-drive.service
+Wants=network-online.target
+Requires=bfe-drive.service
+
+[Service]
+Type=simple
+User=bfe-chat
+Group=bfe-chat
+EnvironmentFile=/etc/bfe-chat-service/runtime.env
+ExecStart=/usr/local/bin/bfe-chat-service -listen 127.0.0.1:8081 -public-origin ${BFE_CHAT_PUBLIC_ORIGIN} -drive-auth-uds ${BFE_CHAT_DRIVE_AUTH_UDS} -dsn-env BFE_CHAT_DATABASE_URL -migrations /opt/bfe-chat-service/migrations
+WorkingDirectory=/var/lib/bfe-chat-service
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/bfe-chat-service
+UMask=0077
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
