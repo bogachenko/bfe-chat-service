@@ -14,7 +14,9 @@ if [[ "$mode" == "--deploy" ]]; then
   [[ "${BFE_CHAT_TEST_DEPLOY_APPROVED:-}" == "YES" ]] || { echo "deployment blocked: BFE_CHAT_TEST_DEPLOY_APPROVED=YES required after Independent QA" >&2; exit 1; }
 fi
 for bin in git go ssh python3 sha256sum tar; do command -v "$bin" >/dev/null || { echo "missing: $bin" >&2; exit 1; }; done
-[[ "$BFE_CHAT_TEST_PUBLIC_ORIGIN" == "https://$BFE_TEST_PUBLIC_HOST" ]] || { echo "origin must equal https://BFE_TEST_PUBLIC_HOST (no guessed host/port)" >&2; exit 1; }
+[[ "$BFE_CHAT_TEST_PUBLIC_ORIGIN" =~ ^https://[a-zA-Z0-9.-]+$ ]] || { echo "Chat origin must be an HTTPS hostname without path/port" >&2; exit 1; }
+chat_host="${BFE_CHAT_TEST_PUBLIC_ORIGIN#https://}"
+[[ "$chat_host" != "$BFE_TEST_PUBLIC_HOST" ]] || { echo "Chat must use a different HTTPS virtual host to avoid Drive routing conflicts" >&2; exit 1; }
 [[ "$BFE_CHAT_TEST_DRIVE_AUTH_UDS" == /* && "$BFE_CHAT_TEST_DRIVE_AUTH_UDS" != *"'"* ]] || { echo "UDS path must be absolute and contain no quote" >&2; exit 1; }
 [[ "$BFE_TEST_VPS_SSH_TARGET" =~ ^[a-zA-Z0-9_.@-]+$ ]] || { echo "invalid SSH target" >&2; exit 1; }
 [[ "$BFE_TEST_PUBLIC_HOST" =~ ^[a-zA-Z0-9.-]+$ ]] || { echo "invalid public host" >&2; exit 1; }
@@ -41,7 +43,7 @@ remote() { ssh "${ssh_args[@]}" "$BFE_TEST_VPS_SSH_TARGET" "$@"; }
 actual="$(remote 'cat /etc/machine-id')"
 [[ "$(printf '%s' "$actual" | sha256sum | awk '{print $1}')" == "$machine_sha" ]] || { echo "wrong VPS identity" >&2; exit 1; }
 # The check is deliberately read-only, including the nginx and BFE Drive service checks.
-remote "sudo -n env CHAT_ORIGIN='$BFE_CHAT_TEST_PUBLIC_ORIGIN' CHAT_UDS='$BFE_CHAT_TEST_DRIVE_AUTH_UDS' bash -s" <<'REMOTE_CHECK'
+remote "sudo -n env CHAT_ORIGIN='$BFE_CHAT_TEST_PUBLIC_ORIGIN' CHAT_HOST='$chat_host' CHAT_UDS='$BFE_CHAT_TEST_DRIVE_AUTH_UDS' bash -s" <<'REMOTE_CHECK'
 set -euo pipefail
 systemctl is-active --quiet bfe-drive.service
 systemctl is-active --quiet nginx.service
@@ -63,7 +65,9 @@ if ss -H -ltn '( sport = :8081 )' | grep -q .; then
   ss -H -ltn '( sport = :8081 )' | grep -Fq '127.0.0.1:8081'
 fi
 # Existing nginx route is a separately managed prerequisite; never edit BFE Drive nginx.
-nginx -T 2>/dev/null | grep -Fq '127.0.0.1:8081'
+nginx_config="$(nginx -T 2>/dev/null)"
+grep -Fq '127.0.0.1:8081' <<< "$nginx_config"
+grep -Fq "$CHAT_HOST" <<< "$nginx_config"
 REMOTE_CHECK
 echo "BFE Chat test VPS preflight: PASS (shared VPS, separate service, DB, port, UDS)"
 [[ "$mode" == "--deploy" ]] || { echo "CHECK ONLY: no VPS changes"; exit 0; }
