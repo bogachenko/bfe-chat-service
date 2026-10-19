@@ -77,4 +77,91 @@
     <GATE id="DP-G02">После утверждения плана подготовить контракты модулей и функций, затем тесты и реализацию согласно GRACE.</GATE>
   </GATES>
   <APPROVAL_STATE>HUMAN_APPROVED: утверждены восемь модулей, архитектурный граф, границы ответственности, зависимости, потоки данных и последовательность работ. Разрешён этап проектирования контрактов модулей и функций.</APPROVAL_STATE>
+  <ISSUE25_DEVELOPMENT_PLAN id="DP25-001" status="READY_FOR_DEVELOPMENT_PLAN_REVIEW" approval="NOT_HUMAN_APPROVED" requirements_source="RequirementsAnalysis.xml" technology_source="Technology.xml" requirements_approval="APPROVAL25-REQUIREMENTS" technology_approval="APPROVAL25-TECHNOLOGY">
+    <SCOPE>Issue #25 semantic/architectural graph only; existing approved DP-M01..DP-M08 architecture remains unchanged for legacy scope. This candidate requires Independent QA and Project Owner approval before any contract/code change.</SCOPE>
+    <DESIGN_BOUNDARIES>Same Go service and approved PostgreSQL bfe_chat / pgx / goose / embedded Centrifuge / net/http / existing UDS and DPoP. No dependency changes or BFE Drive mutations. API endpoints and schema migration are not implemented or approved.</DESIGN_BOUNDARIES>
+    <MODULES>
+      <MODULE id="DP25-M01" refs="REQ25-SECURITY REQ25-ISOLATION REQ25-GROUP REQ25-ROLES"><NAME>Identity and Chat authorization</NAME><RESPONSIBILITY>Validate caller via existing UDS/DPoP; resolve conversation membership/role from bfe_chat at protected operation boundary; reject on auth outage. Drive ADMIN has no automatic Chat permission.</RESPONSIBILITY></MODULE>
+      <MODULE id="DP25-M02" refs="REQ25-DIRECT REQ25-GROUP REQ25-HIDE"><NAME>Conversation lifecycle</NAME><RESPONSIBILITY>Independent conversation_id UUID with kind DIRECT/GROUP; canonical unordered direct pair uniqueness; personal hidden flag for each direct participant; incoming message or explicit open restores visibility.</RESPONSIBILITY></MODULE>
+      <MODULE id="DP25-M03" refs="REQ25-MEMBERSHIP REQ25-ROLES REQ25-GROUP REQ25-HISTORY"><NAME>Membership/roles/visibility</NAME><RESPONSIBILITY>Per-conversation membership epochs represented as half-open visibility intervals in committed message order; exactly one owner for groups; only owner changes admin; admin manages members only; leaving owner must transfer first.</RESPONSIBILITY></MODULE>
+      <MODULE id="DP25-M04" refs="REQ25-SEND REQ25-HISTORY REQ25-DOC REQ25-LEGACY"><NAME>Durable messaging/history</NAME><RESPONSIBILITY>PostgreSQL conversation-scoped ordered messages, immutable author/payload/document metadata, history filtered by union of user's membership intervals, keyset pagination and immutable persisted idempotency outcome.</RESPONSIBILITY></MODULE>
+      <MODULE id="DP25-M05" refs="REQ25-REALTIME REQ25-SECURITY REQ25-MEMBERSHIP"><NAME>Realtime delivery</NAME><RESPONSIBILITY>Centrifuge channels scoped by conversation and viewer; connection identity validated at OnConnecting, subscribe/refresh checked against DB; publication gate checks current membership after commit, never relies on old subscription.</RESPONSIBILITY></MODULE>
+      <MODULE id="DP25-M06" refs="REQ25-READ REQ25-MEMBERSHIP REQ25-HISTORY"><NAME>Read states</NAME><RESPONSIBILITY>Durable per-account/conversation monotonic last-read marker; unread counts only committed visible other-authored messages after marker, excluding intervals of absence.</RESPONSIBILITY></MODULE>
+      <MODULE id="DP25-M07" refs="REQ25-LEGACY REQ25-COMPAT REQ25-DIRECT"><NAME>Legacy transition boundary</NAME><RESPONSIBILITY>Preserve source assignments/owner-stream/messages and opaque historical recipient; classify unambiguous records only after read-only inventory and approved mapping; ambiguous stays isolated; cutover owned by Release Manager.</RESPONSIBILITY></MODULE>
+      <MODULE id="DP25-M08" refs="REQ25-LIMITS REQ25-SECURITY REQ25-COMPAT"><NAME>Transport/validation</NAME><RESPONSIBILITY>Existing net/http endpoints for new conversation identities after separate API contract approval; validate UTF-8 byte sizes 16384 text, 256 name, JSON body 65536, at most 100 participants and history page 100/default 50.</RESPONSIBILITY></MODULE>
+      <MODULE id="DP25-M09" refs="REQ25-DOC REQ25-ISOLATION"><NAME>Document reference</NAME><RESPONSIBILITY>Store document id/title snapshot in chat messages only; never change Drive ACL or Drive data; opening document remains existing Drive authorization.</RESPONSIBILITY></MODULE>
+    </MODULES>
+    <SEMANTIC_GRAPH>
+      <FLOW id="DP25-F01" modules="DP25-M08 DP25-M01 DP25-M02"><ACTION>CREATE_DIRECT</ACTION><INVARIANT>Validate caller, canonical pair, uniqueness-enforced get-or-create; reject self-direct.</INVARIANT></FLOW>
+      <FLOW id="DP25-F02" modules="DP25-M08 DP25-M01 DP25-M02 DP25-M03"><ACTION>CREATE_GROUP</ACTION><INVARIANT>Group creation and initial owner-membership occur in same transaction; never commit ownerless group.</INVARIANT></FLOW>
+      <FLOW id="DP25-F03" modules="DP25-M08 DP25-M01 DP25-M03 DP25-M04 DP25-M05"><ACTION>JOIN_REMOVE</ACTION><INVARIANT>Membership change and message-visibility boundary serialized on per-conversation transaction gate; post-removal publish and subscription denied.</INVARIANT></FLOW>
+      <FLOW id="DP25-F04" modules="DP25-M08 DP25-M01 DP25-M03"><ACTION>TRANSFER_OWNER</ACTION><INVARIANT>Transfer owner role atomically to existing eligible member then allow owner leave; never zero/two current owner state at committed boundary.</INVARIANT></FLOW>
+      <FLOW id="DP25-F05" modules="DP25-M08 DP25-M01 DP25-M03 DP25-M04 DP25-M05 DP25-M09"><ACTION>SEND</ACTION><INVARIANT>Validate current actor/membership, deduplicate canonical payload under unique sender+conversation+key, allocate commit-visible message order and commit before best-effort delivery.</INVARIANT></FLOW>
+      <FLOW id="DP25-F06" modules="DP25-M08 DP25-M01 DP25-M03 DP25-M04 DP25-M06"><ACTION>HISTORY_READ</ACTION><INVARIANT>Authenticate and scope by current/previous valid membership; cursor strictly progresses over authorized committed ordered messages; never leak absent-interval messages.</INVARIANT></FLOW>
+      <FLOW id="DP25-F07" modules="DP25-M08 DP25-M01 DP25-M03 DP25-M06"><ACTION>MARK_READ</ACTION><INVARIANT>Accept only authorized visible marker, update via max(old,new) atomically, sync via committed state to all devices.</INVARIANT></FLOW>
+      <FLOW id="DP25-F08" modules="DP25-M01 DP25-M03 DP25-M05"><ACTION>WS_LIFECYCLE</ACTION><INVARIANT>Per-connection authentication and subscription validation; authorized postcommit publishing plus revocation-aware gate; reconnect repeats authentication/authorization.</INVARIANT></FLOW>
+      <FLOW id="DP25-F09" modules="DP25-M07 DP25-M02 DP25-M04 DP25-M08"><ACTION>LEGACY_CUTOVER</ACTION><INVARIANT>Inventory/classify in read-only phase, preserve all original data, staged verification and reversibility requirements, Release Manager owns deployment.</INVARIANT></FLOW>
+    </SEMANTIC_GRAPH>
+    <DATA_MODEL_CANDIDATES>
+      <ENTITY id="DP25-E01">conversation(conversation_id UUID, kind, created_at, metadata); direct unordered pair has a unique canonical identity; no owner_account_id as conversation identity.</ENTITY>
+      <ENTITY id="DP25-E02">membership(conversation_id, account_id, role, state) and immutable membership interval boundaries over conversation-local committed ordinals; exactly one owner in every committed group state.</ENTITY>
+      <ENTITY id="DP25-E03">message(conversation_id, ordinal, sender_account_id, idempotency_key, canonical payload hash/bytes, body, document_id/title, committed metadata); unique(conversation_id,sender,key); payload mismatch yields 409.</ENTITY>
+      <ENTITY id="DP25-E04">read_state(conversation_id,account_id,last_read_ordinal), nondecreasing; direct visibility state stored per user, not shared.</ENTITY>
+      <ENTITY id="DP25-E05">legacy provenance retains original owner/sender/recipient/idempotency/message IDs/document metadata without silent merge; physical layout deferred to contract/migration stage.</ENTITY>
+    </DATA_MODEL_CANDIDATES>
+    <CONCURRENCY_AND_SECURITY>
+      <INVARIANT id="DP25-I01" refs="REQ25-SEND REQ25-MEMBERSHIP">SEND, JOIN, REMOVE and ownership change have one serialized committed order per conversation. Authorization and assignment of ordinal occur under the same transactional boundary; pending sends after removal commit are rejected.</INVARIANT>
+      <INVARIANT id="DP25-I02" refs="REQ25-ROLES REQ25-GROUP">Exactly one owner exists in any committed group. Transfer is single atomic role transition, never an observable ownerless state. Last owner cannot leave without eligible successor.</INVARIANT>
+      <INVARIANT id="DP25-I03" refs="REQ25-MEMBERSHIP REQ25-HISTORY">A user sees messages only from union of prior/current membership intervals, never during absent intervals; rejoin opens a new interval without backfilling the gap.</INVARIANT>
+      <INVARIANT id="DP25-I04" refs="REQ25-REALTIME REQ25-SECURITY">Publication admission and membership removal have serialized authorization boundary. After successful removal, no new publication starts for excluded account; old WS subscriptions provide no grant. Already-delivered bytes cannot be recalled.</INVARIANT>
+      <INVARIANT id="DP25-I05" refs="REQ25-SEND">The same conversation/sender/key with identical canonical payload replays original result; different canonical payload fails 409 with no write/publish. Commit precedes realtime delivery; publication error never rolls back a message.</INVARIANT>
+      <INVARIANT id="DP25-I06" refs="REQ25-READ">Last-read marker is monotonically increasing within visible committed ordinal bounds; own messages and absent intervals do not contribute to unread; multiple devices converge to committed maximum.</INVARIANT>
+      <INVARIANT id="DP25-I07" refs="REQ25-ISOLATION REQ25-SECURITY">All new Chat membership/role decisions are based on valid caller session plus bfe_chat state, not Drive ADMIN or Drive ACL. No changes to Drive APIs, database or permissions.</INVARIANT>
+    </CONCURRENCY_AND_SECURITY>
+    <CONFLICT_RESOLUTIONS>
+      <RESOLUTION id="DP25-TC25-01" conflict="TC25-01" refs="REQ25-DIRECT REQ25-GROUP REQ25-LEGACY"><MECHANISM>Introduce conversation UUID and unordered-pair direct uniqueness separate from legacy owner_account_id; legacy streams remain separate read-only identities until classified. Transitional translation cannot silently merge.</MECHANISM><VERIFICATION>Two concurrent creates return same conversation; ambiguous legacy pair remains unchanged.</VERIFICATION></RESOLUTION>
+      <RESOLUTION id="DP25-TC25-02" conflict="TC25-02" refs="REQ25-SECURITY REQ25-ISOLATION"><MECHANISM>Explicit conversation kind/namespace separates legacy ADMIN_READ operations from new membership-only ACL; no fallback ADMIN privileges.</MECHANISM><VERIFICATION>Drive ADMIN nonmember cannot read, send or subscribe to new conversations.</VERIFICATION></RESOLUTION>
+      <RESOLUTION id="DP25-TC25-03" conflict="TC25-03" refs="REQ25-REALTIME REQ25-MEMBERSHIP"><MECHANISM>Conversation + viewer-scoped channel and revocation-aware admission gate, coordinating membership state and synchronous publishing. Subscription presence alone is not authority. Once removal completes no subsequent message event can be admitted for removed user.</MECHANISM><VERIFICATION>Race REMOVE and delayed publication; after REMOVE success all later publishes suppressed for removed viewer; stale reconnect denied.</VERIFICATION></RESOLUTION>
+      <RESOLUTION id="DP25-TC25-04" conflict="TC25-04" refs="REQ25-LEGACY REQ25-COMPAT"><MECHANISM>Snapshot/read-only inventory; store immutable source provenance and retain original tables/history; classify with approval gates; quarantine ambiguous legacy records rather than infer direct pairs; rollback retains original API/source.</MECHANISM><VERIFICATION>Source counts and per-message IDs/keys/doc metadata exactly preserved; ambiguous not merged.</VERIFICATION></RESOLUTION>
+      <RESOLUTION id="DP25-TC25-05" conflict="TC25-05" refs="REQ25-SEND REQ25-HISTORY REQ25-READ"><MECHANISM>Per-conversation PostgreSQL transaction gate serializes message commits and membership-boundary changes; allocate conversation-local monotone ordinal while holding same lock, and commit with message. Cursor uses ordinal, not global identity/created_at; no holes visible as committed checkpoints.</MECHANISM><VERIFICATION>Concurrent messages and JOIN/REMOVE yield one stable committed total order; pagination never skips late-committed lower ordinal.</VERIFICATION></RESOLUTION>
+    </CONFLICT_RESOLUTIONS>
+    <LEGACY_API_TRANSITION>
+      <GATE id="DP25-LG01">Inventory real bfe_chat data only after separate read-only approval; distribution and conflicts are UNKNOWN and must not be assumed.</GATE>
+      <GATE id="DP25-LG02">Approve deterministic mapping criteria separately. Keep ambiguous records in original legacy scope with stable access and no automatic reassignment, deletion or merge.</GATE>
+      <GATE id="DP25-LG03">Verify counts, IDs, sender/recipient, idempotency, document metadata, ordering and history for all preserved rows; freeze irreversible steps until proven.</GATE>
+      <GATE id="DP25-LG04">Require Web/Android readiness, old client compatibility audit, rollback contract preserving old data and separately approved Release Manager cutover. Do not select rollout time in this plan.</GATE>
+    </LEGACY_API_TRANSITION>
+    <TRACEABILITY>
+      <EDGE requirement="REQ25-SECURITY" technology="TD25-03" module="DP25-M01"/>
+      <EDGE requirement="REQ25-ISOLATION" technology="TD25-03" module="DP25-M01"/>
+      <EDGE requirement="REQ25-GROUP" technology="TD25-01" module="DP25-M01"/>
+      <EDGE requirement="REQ25-ROLES" technology="TD25-01" module="DP25-M01"/>
+      <EDGE requirement="REQ25-DIRECT" technology="TD25-01" module="DP25-M02"/>
+      <EDGE requirement="REQ25-GROUP" technology="TD25-01" module="DP25-M02"/>
+      <EDGE requirement="REQ25-HIDE" technology="TD25-08" module="DP25-M02"/>
+      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-02" module="DP25-M03"/>
+      <EDGE requirement="REQ25-ROLES" technology="TD25-01" module="DP25-M03"/>
+      <EDGE requirement="REQ25-GROUP" technology="TD25-01" module="DP25-M03"/>
+      <EDGE requirement="REQ25-HISTORY" technology="TD25-05" module="DP25-M03"/>
+      <EDGE requirement="REQ25-SEND" technology="TD25-05" module="DP25-M04"/>
+      <EDGE requirement="REQ25-HISTORY" technology="TD25-05" module="DP25-M04"/>
+      <EDGE requirement="REQ25-DOC" technology="TD25-09" module="DP25-M04"/>
+      <EDGE requirement="REQ25-LEGACY" technology="TD25-06" module="DP25-M04"/>
+      <EDGE requirement="REQ25-REALTIME" technology="TD25-04" module="DP25-M05"/>
+      <EDGE requirement="REQ25-SECURITY" technology="TD25-03" module="DP25-M05"/>
+      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-02" module="DP25-M05"/>
+      <EDGE requirement="REQ25-READ" technology="TD25-08" module="DP25-M06"/>
+      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-02" module="DP25-M06"/>
+      <EDGE requirement="REQ25-HISTORY" technology="TD25-05" module="DP25-M06"/>
+      <EDGE requirement="REQ25-LEGACY" technology="TD25-06" module="DP25-M07"/>
+      <EDGE requirement="REQ25-COMPAT" technology="TD25-06" module="DP25-M07"/>
+      <EDGE requirement="REQ25-DIRECT" technology="TD25-01" module="DP25-M07"/>
+      <EDGE requirement="REQ25-LIMITS" technology="TD25-07" module="DP25-M08"/>
+      <EDGE requirement="REQ25-SECURITY" technology="TD25-03" module="DP25-M08"/>
+      <EDGE requirement="REQ25-COMPAT" technology="TD25-06" module="DP25-M08"/>
+      <EDGE requirement="REQ25-DOC" technology="TD25-09" module="DP25-M09"/>
+      <EDGE requirement="REQ25-ISOLATION" technology="TD25-03" module="DP25-M09"/>
+    </TRACEABILITY>
+    <REVIEW_GATE>READY_FOR_DEVELOPMENT_PLAN_REVIEW; requires Independent QA review and explicit Project Owner approval of only this Issue #25 architecture. All existing module/function contracts are unchanged; no migration, implementation, test changes or VPS activity.</REVIEW_GATE>
+  </ISSUE25_DEVELOPMENT_PLAN>
 </DEVELOPMENT_PLAN>
