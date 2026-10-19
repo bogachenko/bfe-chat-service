@@ -86,7 +86,6 @@
       <STEP order="2">Chat Service проверяет полномочия и распознаёт повтор той же логической отправки.</STEP>
       <STEP order="3">Система не создаёт второго сообщения и предоставляет результат ранее сохранённой операции в пределах действующих прав.</STEP>
     </PROCESS>
-    <BUSINESS_PROCESS id="BP25-ISOLATION" actor="ACT25-USER"><STEP order="1">BFE Chat принимает Chat-команду на основании собственной роли и членства.</STEP><STEP order="2">BFE Chat сохраняет всю Chat-сущность исключительно в bfe_chat; проверка текущей аутентификации использует существующий BFE Drive UDS.</STEP><STEP order="3">При открытии документа внешний BFE Drive независимо проверяет исходные права на файл.</STEP><FAILURE_AND_BOUNDARY>Недействительная сессия или отсутствие членства запрещает Chat-операцию; наличие сообщения с document.id не меняет ACL.</FAILURE_AND_BOUNDARY></BUSINESS_PROCESS>
   </BUSINESS_PROCESSES>
   <BUSINESS_RULES>
     <RULE id="BR-001" refs="ENT-CONVERSATION BP-SEND">Для каждого пользователя существует не более одной общей переписки; контекст документа не создаёт новую.</RULE>
@@ -140,7 +139,6 @@
     <INVARIANT id="INV-011" refs="BR-024 BR-003">После смены назначения прежний сотрудник без действующего назначения не получает сообщения и историю.</INVARIANT>
     <INVARIANT id="INV-012" refs="BR-026 INV-004">Ни одна защищённая операция не разрешается при неподтверждённых полномочиях.</INVARIANT>
     <INVARIANT id="INV-014" refs="BR-004 BR-022 ENT-ASSIGNMENT">Chat Service никогда автоматически не определяет администратора как получателя; получатель назначается исключительно явно.</INVARIANT>
-    <INVARIANT id="INV25-ISOLATION">Вся предметная модель Chat и права на сообщения определяются только bfe_chat и Chat membership; Drive остаётся read-only для Chat, а права на документы — исключительно за Drive.</INVARIANT>
   </INVARIANTS>
   <FAILURE_SCENARIOS>
     <FAILURE id="ERR-002" refs="BP-HISTORY INV-004">Участник не уполномочен читать переписку → история ему не раскрывается.</FAILURE>
@@ -209,7 +207,6 @@
     <CRITERION id="AC-023" refs="BR-026 ERR-010">При невозможности подтвердить полномочия чтение, отправка, назначения и административный просмотр запрещены.</CRITERION>
     <CRITERION id="AC-025" refs="BR-005 AAG-002">Текущий активный сотрудник может первым отправить сообщение пользователю, создав переписку.</CRITERION>
     <CRITERION id="AC-026" refs="PERM-01 PERM-02 PERM-03 PERM-04 PERM-05 PERM-06">Чтение и отправка разрешаются только согласно матрице полномочий.</CRITERION>
-    <CRITERION id="AC25-ISOLATION" requirement="REQ25-ISOLATION">Проверка: ADMIN Drive без членства не может читать/отправлять/подписываться; Chat owner/admin не получает Drive ACL; отправка document контекста не изменяет Drive ACL; открытие документа без существующего Drive разрешения отклонено; операции Chat не изменяют никаких данных BFE Drive, а Chat state хранится только в bfe_chat.</CRITERION>
   </ACCEPTANCE_CRITERIA>
   <APPROVED_DECISIONS>
     <DECISION id="Q-04" refs="BR-004">SUPERSEDED_BY_Q-26: ранее предполагался автоматический fallback на администратора; заменено обязательным явным назначением получателя.</DECISION>
@@ -288,6 +285,8 @@
     <BUSINESS_PROCESS id="BP25-COMPAT" actor="ACT25-OPERATOR"><STEP order="1">Legacy endpoints полностью заменяются только после успешной проверки новой реализации и сохранения прежних данных.</STEP><STEP order="2">Запрещено объявлять новый API единственным до принятия совместимости и проверки сохранности; старое ADMIN assignment поведение требует отдельного переходного решения.</STEP><FAILURE_AND_BOUNDARY>Активные старые клиенты, незавершённые запросы, неуспешная верификация и откат выпуска.</FAILURE_AND_BOUNDARY></BUSINESS_PROCESS>
     <BUSINESS_PROCESS id="BP25-LEGACY" actor="ACT25-OPERATOR"><STEP order="1">Все chat_assignments/chat_conversations/chat_messages исследуются до согласования преобразования; исторические сообщения и документный контекст сохраняются.</STEP><STEP order="2">Не терять сообщения, sender/recipient, original idempotency key, документы, порядок и связь с owner; неоднозначное преобразование останавливается без потери данных.</STEP><FAILURE_AND_BOUNDARY>Разные recipients в owner stream, одна unordered pair из двух owners, исторический recipient не совпадает с текущим, административный просмотр.</FAILURE_AND_BOUNDARY></BUSINESS_PROCESS>
     <BUSINESS_PROCESS id="BP25-LIMITS" actor="ACT25-USER"><STEP order="1">Система ограничивает размер сообщения, состав групп, размер запроса и страницы истории.</STEP><STEP order="2">Недопустимые значения отклоняются без частичной записи или раскрытия данных.</STEP><FAILURE_AND_BOUNDARY>Пустые и чрезмерные значения; точные лимиты требуют отдельного утверждения.</FAILURE_AND_BOUNDARY></BUSINESS_PROCESS>
+  
+    <BUSINESS_PROCESS id="BP25-ISOLATION" actor="ACT25-USER"><STEP order="1">BFE Chat принимает Chat-команду на основании собственной роли и членства.</STEP><STEP order="2">BFE Chat сохраняет всю Chat-сущность исключительно в bfe_chat; проверка текущей аутентификации использует существующий BFE Drive UDS.</STEP><STEP order="3">При открытии документа внешний BFE Drive независимо проверяет исходные права на файл.</STEP><FAILURE_AND_BOUNDARY>Недействительная сессия или отсутствие членства запрещает Chat-операцию; наличие сообщения с document.id не меняет ACL.</FAILURE_AND_BOUNDARY></BUSINESS_PROCESS>
   </BUSINESS_PROCESSES>
   <REQUIREMENTS>
     <REQUIREMENT id="REQ25-DIRECT" process="BP25-DIRECT" actor="ACT25-USER" use_case="UC25-DIRECT" goal="GOAL25-001" approval="PENDING_REQUIREMENTS_REVIEW"><INTENT>Личные диалоги: Участник выбирает UUID другого аккаунта и создаёт или открывает личный диалог; не требуется ADMIN assignment.</INTENT><CONSTRAINT>Ровно один логический direct для неупорядоченной пары; конкурентное создание возвращает ту же переписку.</CONSTRAINT><EDGE_CASES>Самостоятельный диалог, повторное создание, конкурентные вызовы, невалидный UUID, попытка создать чат с собой (политика ожидает решения).</EDGE_CASES><ACCEPTANCE_REF ref="AC25-DIRECT"/><INVARIANT_REF ref="INV25-DIRECT"/></REQUIREMENT>
