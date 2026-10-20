@@ -1,4 +1,4 @@
-.PHONY: fmt vet lint security vulncheck dupl complexity coverage coverage-tools race integration mutation-pr mutation-full quality
+.PHONY: fmt vet lint security vulncheck dupl complexity coverage coverage-tools race integration mutation-pr mutation-full quality test-test-runtime check-test-runtime update-test-runtime provision-test-runtime
 GO ?= go
 GOFILES := $(shell find cmd internal -type f -name '*.go' ! -name '*_test.go' 2>/dev/null)
 BASE_REF ?= origin/main
@@ -37,4 +37,23 @@ mutation-pr:
 	gremlins unleash --diff "$(BASE_REF)" --exclude-files '.*_test\.go$$' --exclude-files '.*\.pb\.go$$'
 mutation-full:
 	gremlins unleash --exclude-files '.*_test\.go$$' --exclude-files '.*\.pb\.go$$'
-quality: fmt vet lint security vulncheck dupl complexity coverage race
+# Existing Chat VPS deployment workflow; target host and environment via variables.
+# Read-only verification: no VPS mutation.
+check-test-runtime:
+	bash ./deploy/scripts/update-test-runtime.sh --check
+
+# Explicit deployment approval is enforced inside the script.
+update-test-runtime:
+	bash ./deploy/scripts/update-test-runtime.sh --deploy
+
+# Initial provisioning only; separate explicit approval required.
+provision-test-runtime:
+	bash ./deploy/scripts/run-provision-test-runtime.sh
+
+test-test-runtime:
+	bash -n deploy/scripts/update-test-runtime.sh
+	bash -n deploy/scripts/provision-test-runtime.sh
+	bash -n deploy/scripts/run-provision-test-runtime.sh
+	python3 -m unittest discover -s deploy/tests -p 'test_*.py'
+
+quality: fmt vet lint security vulncheck dupl complexity coverage race test-test-runtime
