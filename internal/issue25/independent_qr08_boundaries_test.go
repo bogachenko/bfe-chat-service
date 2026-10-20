@@ -3,6 +3,7 @@ package issue25
 // Independent boundary, input validation, and opaque notification regressions.
 import (
  "bytes"
+ "context"
  "encoding/json"
  "errors"
  "strings"
@@ -45,5 +46,5 @@ func TestIndependentQR08OpaqueEnvelope(t *testing.T){
 }
 func TestIndependentQR08NilStoreFailsClosed(t *testing.T){
  s:=Store{}
- if _,err:=s.Send(nil,"","", "",Payload{});!errors.Is(err,ErrInvalid){t.Fatalf("invalid payload on nil store: %v",err)}
+ if _,err:=s.Send(context.Background(),"","", "",Payload{});!errors.Is(err,ErrInvalid){t.Fatalf("invalid payload on nil store: %v",err)}
 }
