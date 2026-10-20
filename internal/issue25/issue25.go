@@ -43,10 +43,21 @@ func (s Store) OpenDirect(ctx context.Context,a,b string)(string,error){
  if a==b||a==""||b==""{return "",ErrInvalid}
  if a>b{a,b=b,a}
  id,err:=newUUID();if err!=nil{return "",err}
- err=s.DB.QueryRowContext(ctx,`INSERT INTO issue25_conversations(id,kind,direct_a,direct_b) VALUES($1,'direct',$2,$3)
- ON CONFLICT (direct_a,direct_b) WHERE kind='direct' DO UPDATE SET direct_a=excluded.direct_a
- RETURNING id::text`,id,a,b).Scan(&id)
- return id,err
+ tx,err:=s.DB.BeginTx(ctx,nil);if err!=nil{return "",err};defer tx.Rollback()
+ err=tx.QueryRowContext(ctx,`INSERT INTO issue25_conversations(id,kind,direct_a,direct_b)
+ VALUES($1,'direct',$2,$3) ON CONFLICT (direct_a,direct_b) WHERE kind='direct'
+ DO UPDATE SET direct_a=excluded.direct_a RETURNING id::text`,id,a,b).Scan(&id)
+ if err!=nil{return "",err}
+ for _,viewer:=range []string{a,b}{
+  var activeEpoch string
+  err=tx.QueryRowContext(ctx,`SELECT epoch::text FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`,id,viewer).Scan(&activeEpoch)
+  if errors.Is(err,sql.ErrNoRows){
+   epoch,e:=newUUID();if e!=nil{return "",e}
+   _,e=tx.ExecContext(ctx,`INSERT INTO issue25_memberships(epoch,conversation_id,account_id,role,join_boundary)
+    VALUES($1,$2,$3,'member',1)`,epoch,id,viewer);if e!=nil{return "",e}
+  }else if err!=nil{return "",err}
+ }
+ if err=tx.Commit();err!=nil{return "",err};return id,nil
 }
 func active(tx *sql.Tx,ctx context.Context,conversation,user string)(string,int64,error){
  var epoch string;var join int64
