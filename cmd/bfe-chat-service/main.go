@@ -116,7 +116,7 @@ func buildHandler(db *sql.DB, c runtimeConfig) (http.Handler, *centrifuge.Node, 
 	if err != nil {
 		return nil, nil, errors.New("transport configuration rejected")
 	}
-	v2 := issue25.HTTPHandler{Store: issue25.Store{DB:db}, Auth:auth, PublicOrigin:c.origin}
+	v2 := issue25.HTTPHandler{Store: issue25.Store{DB:db}, Auth:auth, Publisher:node, PublicOrigin:c.origin}
 	combined := http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
 		if strings.HasPrefix(r.URL.Path,"/v2/conversations"){v2.ServeHTTP(w,r);return}
 		handler.ServeHTTP(w,r)
