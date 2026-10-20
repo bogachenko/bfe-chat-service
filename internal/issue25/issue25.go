@@ -119,7 +119,13 @@ func (s Store) Join(ctx context.Context,conversation,actor,target,role string)(s
  return epoch,err
 }
 func (s Store) Remove(ctx context.Context,conversation,actor,target string)error{
- return s.tx(ctx,conversation,func(tx *sql.Tx)error{
+ _,err:=s.RemoveWithEpoch(ctx,conversation,actor,target)
+ return err
+}
+// RemoveWithEpoch returns the exact epoch retired by the committed transaction.
+func (s Store) RemoveWithEpoch(ctx context.Context,conversation,actor,target string)(string,error){
+ var retired string
+ err:=s.tx(ctx,conversation,func(tx *sql.Tx)error{
   var kind string
   if e:=tx.QueryRowContext(ctx,`SELECT kind FROM issue25_conversations WHERE id=$1`,conversation).Scan(&kind);e!=nil{return e}
   if kind!="group"{return ErrInvalid}
@@ -127,10 +133,13 @@ func (s Store) Remove(ctx context.Context,conversation,actor,target string)error
   if e:=tx.QueryRowContext(ctx,`SELECT role FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`,conversation,actor).Scan(&actorRole);e!=nil{return ErrForbidden}
   if e:=tx.QueryRowContext(ctx,`SELECT role FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`,conversation,target).Scan(&targetRole);e!=nil{return ErrForbidden}
   if targetRole=="owner"|| (actor!=target && actorRole!="owner"&&!(actorRole=="admin"&&targetRole=="member")){return ErrForbidden}
+  if e:=tx.QueryRowContext(ctx,`SELECT epoch::text FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`,conversation,target).Scan(&retired);e!=nil{return e}
   var n int64;if e:=tx.QueryRowContext(ctx,`SELECT next_ordinal FROM issue25_conversations WHERE id=$1`,conversation).Scan(&n);e!=nil{return e}
   _,e:=tx.ExecContext(ctx,`UPDATE issue25_memberships SET leave_boundary=$3 WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`,conversation,target,n)
   return e
  })
+ if err!=nil{return "",err}
+ return retired,nil
 }
 // AuthorizeHistory requires a current membership; historical intervals only constrain
 // what an authorized reader can see and are not a durable credential by themselves.
