@@ -70,7 +70,7 @@ func (s Store) tx(ctx context.Context, conversation string, fn func(*sql.Tx) err
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	// Preserve the approved PostgreSQL transaction advisory gate; row locking also protects the ordinal counter.
 	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1::text, 25))`, conversation); err != nil {
 		return err
@@ -103,7 +103,7 @@ func (s Store) OpenDirect(ctx context.Context, a, b string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	err = tx.QueryRowContext(ctx, `INSERT INTO issue25_conversations(id,kind,direct_a,direct_b)
  VALUES($1,'direct',$2,$3) ON CONFLICT (direct_a,direct_b) WHERE kind='direct'
  DO UPDATE SET direct_a=excluded.direct_a RETURNING id::text`, id, a, b).Scan(&id)
@@ -258,7 +258,7 @@ func (s Store) RemoveWithEpoch(ctx context.Context, conversation, actor, target 
 		if e := tx.QueryRowContext(ctx, `SELECT role FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`, conversation, target).Scan(&targetRole); e != nil {
 			return ErrForbidden
 		}
-		if targetRole == "owner" || (actor != target && actorRole != "owner" && !(actorRole == "admin" && targetRole == "member")) {
+		if targetRole == "owner" || (actor != target && actorRole != "owner" && (actorRole != "admin" || targetRole != "member")) {
 			return ErrForbidden
 		}
 		if e := tx.QueryRowContext(ctx, `SELECT epoch::text FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`, conversation, target).Scan(&retired); e != nil {
@@ -310,7 +310,7 @@ func (s Store) ReadHistory(ctx context.Context, conversation, viewer string, aft
 		if e != nil {
 			return e
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 		for rows.Next() {
 			var m Message
 			if e = rows.Scan(&m.ID, &m.Ordinal); e != nil {
