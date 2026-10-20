@@ -238,6 +238,20 @@ func joinBoundary(ctx context.Context, tx *sql.Tx, conversation string) (int64, 
 	}
 	return boundary, nil
 }
+func authorizeJoin(ctx context.Context, tx *sql.Tx, conversation, actor, role string) error {
+	var actorRole string
+	if e := tx.QueryRowContext(ctx, `SELECT role FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`, conversation, actor).Scan(&actorRole); e != nil {
+		return ErrForbidden
+	}
+	if actorRole != "owner" && actorRole != "admin" {
+		return ErrForbidden
+	}
+	if role == "admin" && actorRole != "owner" {
+		return ErrForbidden
+	}
+	return nil
+}
+
 func (s Store) Join(ctx context.Context, conversation, actor, target, role string) (string, error) {
 	if role != "member" && role != "admin" {
 		return "", ErrInvalid
@@ -250,15 +264,8 @@ func (s Store) Join(ctx context.Context, conversation, actor, target, role strin
 		if e := groupKind(ctx, tx, conversation); e != nil {
 			return e
 		}
-		var actorRole string
-		if e := tx.QueryRowContext(ctx, `SELECT role FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`, conversation, actor).Scan(&actorRole); e != nil {
-			return ErrForbidden
-		}
-		if actorRole != "owner" && actorRole != "admin" {
-			return ErrForbidden
-		}
-		if role == "admin" && actorRole != "owner" {
-			return ErrForbidden
+		if e := authorizeJoin(ctx, tx, conversation, actor, role); e != nil {
+			return e
 		}
 		boundary, e := joinBoundary(ctx, tx, conversation)
 		if e != nil {
