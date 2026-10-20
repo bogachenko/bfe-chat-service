@@ -13,22 +13,7 @@ import (
  "strings"
 )
 
-var uuidPattern=regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}// Package issue25 implements the additive chat domain without changing legacy routes.
-package issue25
-
-import (
- "bytes"
- "context"
- "crypto/rand"
- "database/sql"
- "encoding/json"
- "errors"
- "fmt"
- "regexp"
- "strings"
-)
-
-)
+var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 func validUUID(id string)bool{return uuidPattern.MatchString(id)}
 var (
  ErrForbidden=errors.New("FORBIDDEN")
