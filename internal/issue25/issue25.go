@@ -120,9 +120,20 @@ func (s Store) Remove(ctx context.Context,conversation,actor,target string)error
   return e
  })
 }
+// AuthorizeHistory requires a current membership; historical intervals only constrain
+// what an authorized reader can see and are not a durable credential by themselves.
+func (s Store) AuthorizeHistory(ctx context.Context,conversation,viewer string) error {
+ if s.DB==nil{return ErrInvalid}
+ var ok bool
+ err:=s.DB.QueryRowContext(ctx,`SELECT EXISTS(SELECT 1 FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL)`,conversation,viewer).Scan(&ok)
+ if err!=nil{return err}
+ if !ok{return ErrForbidden}
+ return nil
+}
 func (s Store) ReadHistory(ctx context.Context,conversation,viewer string,after int64,limit int)([]Message,error){
  if limit<1||limit>100{return nil,ErrInvalid}
- // Historical membership enables interval-only reads; current session must be validated by caller.
+ if err:=s.AuthorizeHistory(ctx,conversation,viewer);err!=nil{return nil,err}
+ // Require current Chat membership, then filter all historical membership windows.
  rows,err:=s.DB.QueryContext(ctx,`SELECT m.id::text,m.ordinal FROM issue25_messages m
  WHERE m.conversation_id=$1 AND m.ordinal>$3 AND EXISTS (
  SELECT 1 FROM issue25_memberships h WHERE h.conversation_id=m.conversation_id AND h.account_id=$2
