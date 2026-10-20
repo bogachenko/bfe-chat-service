@@ -28,7 +28,7 @@ type HTTPHandler struct {
 	PublicOrigin string
 }
 
-func (h HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h HTTPHandler) ServeHTTP(w http.ResponseWriter,r *http.Request){
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if h.Auth == nil || h.Store.DB == nil {
@@ -49,252 +49,271 @@ func (h HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http25Error(w, err)
 		return
 	}
-	user := caller.AccountID
-	path := strings.TrimPrefix(r.URL.Path, "/v2/conversations")
-	if path == r.URL.Path {
-		write25(w, http.StatusNotFound, "NOT_FOUND")
-		return
-	}
-	parts := strings.Split(strings.Trim(path, "/"), "/")
-	if path == "" || path == "/" {
+	h.route25(w,r,caller.AccountID)
+}
+func (h HTTPHandler) route25(w http.ResponseWriter,r *http.Request,user string){
+ path:=strings.TrimPrefix(r.URL.Path,"/v2/conversations")
+ if path==r.URL.Path {write25(w,http.StatusNotFound,"NOT_FOUND");return}
+ parts:=strings.Split(strings.Trim(path,"/"),"/")
+ if path==""||path=="/" {h.route25_list(w,r,user);return}
+ if len(parts)==1 && parts[0]=="direct" && r.Method=="POST"{h.route25_direct(w,r,user);return}
+ if len(parts)==1 && parts[0]=="group" && r.Method=="POST"{h.route25_group(w,r,user);return}
+ if len(parts)<2||parts[0]==""{write25(w,http.StatusNotFound,"NOT_FOUND");return}
+ conversation,verb:=parts[0],parts[1]
+ if !validUUID(conversation){write25(w,400,"VALIDATION_ERROR");return}
+ handlers:=map[string]func(http.ResponseWriter,*http.Request,string,string,[]string){
+"POST messages 2": h.route25_post_messages_2,
+"GET history 2": h.route25_get_history_2,
+"GET unread 2": h.route25_get_unread_2,
+"PUT read 2": h.route25_put_read_2,
+"PUT hidden 2": h.route25_put_hidden_2,
+"POST members 2": h.route25_post_members_2,
+"DELETE members 3": h.route25_delete_members_3,
+"PUT owner 2": h.route25_put_owner_2,
+"PUT admins 3": h.route25_put_admins_3,
+ }
+ fn:=handlers[r.Method+" "+verb+" "+strconv.Itoa(len(parts))]
+ if fn==nil {write25(w,http.StatusNotFound,"NOT_FOUND");return}
+ fn(w,r,user,conversation,parts)
+}
+func (h HTTPHandler) route25_list(w http.ResponseWriter,r *http.Request,user string){
 		if r.Method != "GET" {
-			write25(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED")
-			return
-		}
-		conversations, err := h.Store.ListConversations(r.Context(), user)
-		if err != nil {
-			http25Error(w, err)
-			return
-		}
-		write25JSON(w, conversations)
+		write25(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED")
 		return
 	}
-	if len(parts) == 1 && parts[0] == "direct" && r.Method == "POST" {
+	conversations, err := h.Store.ListConversations(r.Context(), user)
+	if err != nil {
+		http25Error(w, err)
+		return
+	}
+	write25JSON(w, conversations)
+	return
+
+}
+func (h HTTPHandler) route25_direct(w http.ResponseWriter,r *http.Request,user string){
 		var req struct {
-			PeerID string `json:"peerId"`
-		}
-		if !decode25(w, r, &req) {
-			return
-		}
-		if !validUUID(req.PeerID) {
-			write25(w, 400, "VALIDATION_ERROR")
-			return
-		}
-		id, err := h.Store.OpenDirect(r.Context(), user, req.PeerID)
-		if err != nil {
-			http25Error(w, err)
-			return
-		}
-		// Explicitly opening a direct chat restores the caller's own visibility.
-		if err = h.Store.HideDirect(r.Context(), id, user, false); err != nil {
-			http25Error(w, err)
-			return
-		}
-		write25JSON(w, map[string]string{"conversationId": id})
+		PeerID string `json:"peerId"`
+	}
+	if !decode25(w, r, &req) {
 		return
 	}
-	if len(parts) == 1 && parts[0] == "group" && r.Method == "POST" {
-		var req struct {
-			Name    string   `json:"name"`
-			Members []string `json:"members"`
-		}
-		if !decode25(w, r, &req) {
-			return
-		}
-		for _, member := range req.Members {
-			if !validUUID(member) {
-				write25(w, 400, "VALIDATION_ERROR")
-				return
-			}
-		}
-		id, err := h.Store.CreateGroup(r.Context(), user, req.Name, req.Members)
-		if err != nil {
-			http25Error(w, err)
-			return
-		}
-		write25JSON(w, map[string]string{"conversationId": id})
-		return
-	}
-	if len(parts) < 2 || parts[0] == "" {
-		write25(w, http.StatusNotFound, "NOT_FOUND")
-		return
-	}
-	conversation, verb := parts[0], parts[1]
-	if !validUUID(conversation) {
+	if !validUUID(req.PeerID) {
 		write25(w, 400, "VALIDATION_ERROR")
 		return
 	}
-	switch {
-	case len(parts) == 2 && verb == "messages" && r.Method == "POST":
-		var req struct {
-			IdempotencyKey string `json:"idempotencyKey"`
-			Text           string `json:"text"`
-			Document       *struct {
-				ID    string `json:"id"`
-				Title string `json:"title"`
-			} `json:"document"`
-		}
-		if !decode25(w, r, &req) {
-			return
-		}
-		if !validUUID(req.IdempotencyKey) {
-			write25(w, 400, "VALIDATION_ERROR")
-			return
-		}
-		p := Payload{Text: req.Text}
-		if req.Document != nil {
-			p.DocumentID = &req.Document.ID
-			p.DocumentTitle = &req.Document.Title
-		}
-		result, err := h.Store.Send(r.Context(), conversation, user, req.IdempotencyKey, p)
-		if err != nil {
-			http25Error(w, err)
-			return
-		}
-		// Message persistence is authoritative; notification failure never undoes it.
-		_ = h.Store.NotifyCommitted(r.Context(), h.Publisher, conversation, result)
-		write25JSON(w, result)
-		return
-	case len(parts) == 2 && verb == "history" && r.Method == "GET":
-		after := int64(0)
-		limit := 50
-		if v := r.Header.Get("X-After-Ordinal"); v != "" {
-			x, e := strconv.ParseInt(v, 10, 64)
-			if e != nil || x < 0 {
-				write25(w, 400, "VALIDATION_ERROR")
-				return
-			}
-			after = x
-		}
-		if v := r.Header.Get("X-Limit"); v != "" {
-			x, e := strconv.Atoi(v)
-			if e != nil {
-				write25(w, 400, "VALIDATION_ERROR")
-				return
-			}
-			limit = x
-		}
-		result, err := h.Store.ReadHistoryDetailed(r.Context(), conversation, user, after, limit)
-		if err != nil {
-			http25Error(w, err)
-			return
-		}
-		write25JSON(w, result)
-		return
-	case len(parts) == 2 && verb == "unread" && r.Method == "GET":
-		n, err := h.Store.Unread(r.Context(), conversation, user)
-		if err != nil {
-			http25Error(w, err)
-			return
-		}
-		write25JSON(w, map[string]int64{"unread": n})
-		return
-	case len(parts) == 2 && verb == "read" && r.Method == "PUT":
-		var req struct {
-			Ordinal int64 `json:"ordinal"`
-		}
-		if !decode25(w, r, &req) {
-			return
-		}
-		n, err := h.Store.MarkRead(r.Context(), conversation, user, req.Ordinal)
-		if err != nil {
-			http25Error(w, err)
-			return
-		}
-		write25JSON(w, map[string]int64{"lastReadOrdinal": n})
-		return
-	case len(parts) == 2 && verb == "hidden" && r.Method == "PUT":
-		var req struct {
-			Hidden bool `json:"hidden"`
-		}
-		if !decode25(w, r, &req) {
-			return
-		}
-		err := h.Store.HideDirect(r.Context(), conversation, user, req.Hidden)
-		if err != nil {
-			http25Error(w, err)
-			return
-		}
-		write25JSON(w, map[string]bool{"hidden": req.Hidden})
-		return
-	case len(parts) == 2 && verb == "members" && r.Method == "POST":
-		var req struct {
-			AccountID string `json:"accountId"`
-			Role      string `json:"role"`
-		}
-		if !decode25(w, r, &req) {
-			return
-		}
-		if req.Role == "" {
-			req.Role = "member"
-		}
-		if !validUUID(req.AccountID) {
-			write25(w, 400, "VALIDATION_ERROR")
-			return
-		}
-		epoch, err := h.Store.Join(r.Context(), conversation, user, req.AccountID, req.Role)
-		if err != nil {
-			http25Error(w, err)
-			return
-		}
-		write25JSON(w, map[string]string{"epoch": epoch})
-		return
-	case len(parts) == 3 && verb == "members" && r.Method == "DELETE":
-		target := parts[2]
-		if !validUUID(target) {
-			write25(w, 400, "VALIDATION_ERROR")
-			return
-		}
-		// The retired epoch must originate from the same transaction as REMOVE.
-		retiredEpoch, err := h.Store.RemoveWithEpoch(r.Context(), conversation, user, target)
-		if err != nil {
-			http25Error(w, err)
-			return
-		}
-		if retiredEpoch != "" && h.Revoker != nil {
-			// ponytail: best-effort revocation is safe because PostgreSQL is the access gate.
-			_ = h.Revoker.Unsubscribe(target, "chat:e:"+retiredEpoch)
-		}
-		write25JSON(w, map[string]bool{"removed": true})
-		return
-	case len(parts) == 2 && verb == "owner" && r.Method == "PUT":
-		var req struct {
-			AccountID string `json:"accountId"`
-		}
-		if !decode25(w, r, &req) {
-			return
-		}
-		if !validUUID(req.AccountID) {
-			write25(w, 400, "VALIDATION_ERROR")
-			return
-		}
-		err := h.Store.TransferOwner(r.Context(), conversation, user, req.AccountID)
-		if err != nil {
-			http25Error(w, err)
-			return
-		}
-		write25JSON(w, map[string]string{"ownerId": req.AccountID})
-		return
-	case len(parts) == 3 && verb == "admins" && r.Method == "PUT":
-		var req struct {
-			Admin bool `json:"admin"`
-		}
-		if !decode25(w, r, &req) {
-			return
-		}
-		if !validUUID(parts[2]) {
-			write25(w, 400, "VALIDATION_ERROR")
-			return
-		}
-		err := h.Store.ChangeAdmin(r.Context(), conversation, user, parts[2], req.Admin)
-		if err != nil {
-			http25Error(w, err)
-			return
-		}
-		write25JSON(w, map[string]bool{"admin": req.Admin})
+	id, err := h.Store.OpenDirect(r.Context(), user, req.PeerID)
+	if err != nil {
+		http25Error(w, err)
 		return
 	}
-	write25(w, http.StatusNotFound, "NOT_FOUND")
+	// Explicitly opening a direct chat restores the caller's own visibility.
+	if err = h.Store.HideDirect(r.Context(), id, user, false); err != nil {
+		http25Error(w, err)
+		return
+	}
+	write25JSON(w, map[string]string{"conversationId": id})
+	return
+
+}
+func (h HTTPHandler) route25_group(w http.ResponseWriter,r *http.Request,user string){
+		var req struct {
+		Name    string   `json:"name"`
+		Members []string `json:"members"`
+	}
+	if !decode25(w, r, &req) {
+		return
+	}
+	for _, member := range req.Members {
+		if !validUUID(member) {
+			write25(w, 400, "VALIDATION_ERROR")
+			return
+		}
+	}
+	id, err := h.Store.CreateGroup(r.Context(), user, req.Name, req.Members)
+	if err != nil {
+		http25Error(w, err)
+		return
+	}
+	write25JSON(w, map[string]string{"conversationId": id})
+	return
+
+}
+func (h HTTPHandler) route25_post_messages_2(w http.ResponseWriter,r *http.Request,user,conversation string,parts []string){
+
+	var req struct {
+		IdempotencyKey string `json:"idempotencyKey"`
+		Text           string `json:"text"`
+		Document       *struct {
+			ID    string `json:"id"`
+			Title string `json:"title"`
+		} `json:"document"`
+	}
+	if !decode25(w, r, &req) {
+		return
+	}
+	if !validUUID(req.IdempotencyKey) {
+		write25(w, 400, "VALIDATION_ERROR")
+		return
+	}
+	p := Payload{Text: req.Text}
+	if req.Document != nil {
+		p.DocumentID = &req.Document.ID
+		p.DocumentTitle = &req.Document.Title
+	}
+	result, err := h.Store.Send(r.Context(), conversation, user, req.IdempotencyKey, p)
+	if err != nil {
+		http25Error(w, err)
+		return
+	}
+	// Message persistence is authoritative; notification failure never undoes it.
+	_ = h.Store.NotifyCommitted(r.Context(), h.Publisher, conversation, result)
+	write25JSON(w, result)
+}
+func (h HTTPHandler) route25_get_history_2(w http.ResponseWriter,r *http.Request,user,conversation string,parts []string){
+
+	after := int64(0)
+	limit := 50
+	if v := r.Header.Get("X-After-Ordinal"); v != "" {
+		x, e := strconv.ParseInt(v, 10, 64)
+		if e != nil || x < 0 {
+			write25(w, 400, "VALIDATION_ERROR")
+			return
+		}
+		after = x
+	}
+	if v := r.Header.Get("X-Limit"); v != "" {
+		x, e := strconv.Atoi(v)
+		if e != nil {
+			write25(w, 400, "VALIDATION_ERROR")
+			return
+		}
+		limit = x
+	}
+	result, err := h.Store.ReadHistoryDetailed(r.Context(), conversation, user, after, limit)
+	if err != nil {
+		http25Error(w, err)
+		return
+	}
+	write25JSON(w, result)
+}
+func (h HTTPHandler) route25_get_unread_2(w http.ResponseWriter,r *http.Request,user,conversation string,parts []string){
+
+	n, err := h.Store.Unread(r.Context(), conversation, user)
+	if err != nil {
+		http25Error(w, err)
+		return
+	}
+	write25JSON(w, map[string]int64{"unread": n})
+}
+func (h HTTPHandler) route25_put_read_2(w http.ResponseWriter,r *http.Request,user,conversation string,parts []string){
+
+	var req struct {
+		Ordinal int64 `json:"ordinal"`
+	}
+	if !decode25(w, r, &req) {
+		return
+	}
+	n, err := h.Store.MarkRead(r.Context(), conversation, user, req.Ordinal)
+	if err != nil {
+		http25Error(w, err)
+		return
+	}
+	write25JSON(w, map[string]int64{"lastReadOrdinal": n})
+}
+func (h HTTPHandler) route25_put_hidden_2(w http.ResponseWriter,r *http.Request,user,conversation string,parts []string){
+
+	var req struct {
+		Hidden bool `json:"hidden"`
+	}
+	if !decode25(w, r, &req) {
+		return
+	}
+	err := h.Store.HideDirect(r.Context(), conversation, user, req.Hidden)
+	if err != nil {
+		http25Error(w, err)
+		return
+	}
+	write25JSON(w, map[string]bool{"hidden": req.Hidden})
+}
+func (h HTTPHandler) route25_post_members_2(w http.ResponseWriter,r *http.Request,user,conversation string,parts []string){
+
+	var req struct {
+		AccountID string `json:"accountId"`
+		Role      string `json:"role"`
+	}
+	if !decode25(w, r, &req) {
+		return
+	}
+	if req.Role == "" {
+		req.Role = "member"
+	}
+	if !validUUID(req.AccountID) {
+		write25(w, 400, "VALIDATION_ERROR")
+		return
+	}
+	epoch, err := h.Store.Join(r.Context(), conversation, user, req.AccountID, req.Role)
+	if err != nil {
+		http25Error(w, err)
+		return
+	}
+	write25JSON(w, map[string]string{"epoch": epoch})
+}
+func (h HTTPHandler) route25_delete_members_3(w http.ResponseWriter,r *http.Request,user,conversation string,parts []string){
+
+	target := parts[2]
+	if !validUUID(target) {
+		write25(w, 400, "VALIDATION_ERROR")
+		return
+	}
+	// The retired epoch must originate from the same transaction as REMOVE.
+	retiredEpoch, err := h.Store.RemoveWithEpoch(r.Context(), conversation, user, target)
+	if err != nil {
+		http25Error(w, err)
+		return
+	}
+	if retiredEpoch != "" && h.Revoker != nil {
+		// ponytail: best-effort revocation is safe because PostgreSQL is the access gate.
+		_ = h.Revoker.Unsubscribe(target, "chat:e:"+retiredEpoch)
+	}
+	write25JSON(w, map[string]bool{"removed": true})
+}
+func (h HTTPHandler) route25_put_owner_2(w http.ResponseWriter,r *http.Request,user,conversation string,parts []string){
+
+	var req struct {
+		AccountID string `json:"accountId"`
+	}
+	if !decode25(w, r, &req) {
+		return
+	}
+	if !validUUID(req.AccountID) {
+		write25(w, 400, "VALIDATION_ERROR")
+		return
+	}
+	err := h.Store.TransferOwner(r.Context(), conversation, user, req.AccountID)
+	if err != nil {
+		http25Error(w, err)
+		return
+	}
+	write25JSON(w, map[string]string{"ownerId": req.AccountID})
+}
+func (h HTTPHandler) route25_put_admins_3(w http.ResponseWriter,r *http.Request,user,conversation string,parts []string){
+
+	var req struct {
+		Admin bool `json:"admin"`
+	}
+	if !decode25(w, r, &req) {
+		return
+	}
+	if !validUUID(parts[2]) {
+		write25(w, 400, "VALIDATION_ERROR")
+		return
+	}
+	err := h.Store.ChangeAdmin(r.Context(), conversation, user, parts[2], req.Admin)
+	if err != nil {
+		http25Error(w, err)
+		return
+	}
+	write25JSON(w, map[string]bool{"admin": req.Admin})
 }
 func decode25(w http.ResponseWriter, r *http.Request, d any) bool {
 	if r.Body == nil {
