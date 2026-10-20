@@ -35,7 +35,7 @@ func (s Store) ReadHistoryDetailed(ctx context.Context, conversation, viewer str
 		if e != nil {
 			return e
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 		for rows.Next() {
 			var item HistoryItem
 			var id, title sql.NullString
