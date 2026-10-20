@@ -73,6 +73,10 @@ func qaVerifyHTTPMessageLifecycle(t *testing.T, call func(string,string,string,s
  qaRejectf(t, (status!=200), "read=%d %s",status,raw)
  status,raw=call(member,"GET",route+"/unread","",nil)
  func() { e:=json.Unmarshal(raw,&unread); qaRejectf(t, (e!=nil||status!=200||unread.Unread!=0), "after read=%d %v",unread.Unread,e) }()
- status,raw=call(owner,http.MethodPut,route+"/hidden",`{"hidden":true}`,nil)
- qaRejectf(t, (status!=400), "group hide must fail validation: %d %s",status,raw)
+ qaVerifyHTTPGroupHideRejected(t, call, owner, route)
+}
+
+func qaVerifyHTTPGroupHideRejected(t *testing.T, call func(string,string,string,string,map[string]string)(int,[]byte), owner, route string) {
+ status,raw:=call(owner,http.MethodPut,route+"/hidden",`{"hidden":true}`,nil)
+ qaRejectf(t, status!=400, "group hide must fail validation: %d %s",status,raw)
 }
