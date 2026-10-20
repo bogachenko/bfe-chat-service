@@ -13,7 +13,7 @@ func (s Store) NotificationRecipients(ctx context.Context, conversation string) 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	result := []struct{ Viewer, Epoch string }{}
 	for rows.Next() {
 		var r struct{ Viewer, Epoch string }
