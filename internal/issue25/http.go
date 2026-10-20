@@ -62,18 +62,14 @@ func (h HTTPHandler) route25(w http.ResponseWriter, r *http.Request, user string
 		h.route25_list(w, r, user)
 		return
 	}
-	if len(parts) == 1 && parts[0] == "direct" && r.Method == "POST" {
-		h.route25_direct(w, r, user)
-		return
-	}
-	if len(parts) == 1 && parts[0] == "group" && r.Method == "POST" {
-		h.route25_group(w, r, user)
-		return
-	}
-	if len(parts) < 2 || parts[0] == "" {
-		write25(w, http.StatusNotFound, "NOT_FOUND")
-		return
-	}
+	if len(parts)==1 {
+        h.route25_single(w,r,user,parts[0])
+        return
+    }
+    if parts[0]=="" {
+        write25(w,http.StatusNotFound,"NOT_FOUND")
+        return
+    }
 	conversation, verb := parts[0], parts[1]
 	if !validUUID(conversation) {
 		write25(w, 400, "VALIDATION_ERROR")
@@ -96,6 +92,11 @@ func (h HTTPHandler) route25(w http.ResponseWriter, r *http.Request, user string
 		return
 	}
 	fn(w, r, user, conversation, parts)
+}
+func (h HTTPHandler) route25_single(w http.ResponseWriter,r *http.Request,user,kind string){
+    if kind=="direct" && r.Method=="POST"{h.route25_direct(w,r,user);return}
+    if kind=="group" && r.Method=="POST"{h.route25_group(w,r,user);return}
+    write25(w,http.StatusNotFound,"NOT_FOUND")
 }
 func (h HTTPHandler) route25_list(w http.ResponseWriter, r *http.Request, user string) {
 	if r.Method != "GET" {
