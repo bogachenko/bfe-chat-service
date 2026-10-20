@@ -10,12 +10,15 @@ import (
  "strings"
 
  "github.com/bogachenko/bfe-chat-service/internal/authentication"
+ "github.com/centrifugal/centrifuge"
 )
 
 type CallerValidator interface{
  ValidateCaller(context.Context,string,string,authentication.RequestBinding)(authentication.Caller,error)
 }
+type SubscriptionRevoker interface {Unsubscribe(string,string,...centrifuge.UnsubscribeOption) error}
 type HTTPHandler struct{
+ Revoker SubscriptionRevoker
  Publisher Publisher
  Store Store
  Auth CallerValidator
@@ -93,8 +96,16 @@ func (h HTTPHandler) ServeHTTP(w http.ResponseWriter,r *http.Request){
   if err!=nil{http25Error(w,err);return}
   write25JSON(w,map[string]string{"epoch":epoch});return
  case len(parts)==3&&verb=="members"&&r.Method=="DELETE":
-  err:=h.Store.Remove(r.Context(),conversation,user,parts[2])
+  target:=parts[2]
+  // Capture only the epoch to revoke. PostgreSQL membership retirement is
+  // authoritative; Centrifuge unsubscribe is a best-effort transport action.
+  var retiredEpoch string
+  _=h.Store.DB.QueryRowContext(r.Context(),`SELECT epoch::text FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`,conversation,target).Scan(&retiredEpoch)
+  err:=h.Store.Remove(r.Context(),conversation,user,target)
   if err!=nil{http25Error(w,err);return}
+  if retiredEpoch!=""&&h.Revoker!=nil {
+   _=h.Revoker.Unsubscribe(target,"chat:e:"+retiredEpoch)
+  }
   write25JSON(w,map[string]bool{"removed":true});return
  case len(parts)==2&&verb=="owner"&&r.Method=="PUT":
   var req struct{AccountID string `json:"accountId"`}
