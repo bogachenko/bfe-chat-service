@@ -23,7 +23,7 @@ func (s Store) CreateGroup(ctx context.Context, owner, name string, members []st
 	if err != nil {
 		return "", err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	_, err = tx.ExecContext(ctx, `INSERT INTO issue25_conversations(id,kind,name) VALUES($1,'group',$2)`, id, name)
 	if err != nil {
 		return "", err
