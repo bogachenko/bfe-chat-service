@@ -2,6 +2,7 @@ package issue25
 
 import (
  "context"
+ "bytes"
  "encoding/json"
  "errors"
  "io"
@@ -61,6 +62,7 @@ func (h HTTPHandler) ServeHTTP(w http.ResponseWriter,r *http.Request){
  }
  if len(parts)<2||parts[0]==""{write25(w,http.StatusNotFound,"NOT_FOUND");return}
  conversation,verb:=parts[0],parts[1]
+ if !validUUID(conversation){write25(w,400,"VALIDATION_ERROR");return}
  switch {
  case len(parts)==2&&verb=="messages"&&r.Method=="POST":
   var req struct{IdempotencyKey string `json:"idempotencyKey"`;Text string `json:"text"`;Document *struct{ID string `json:"id"`;Title string `json:"title"`} `json:"document"`}
@@ -103,6 +105,7 @@ func (h HTTPHandler) ServeHTTP(w http.ResponseWriter,r *http.Request){
   write25JSON(w,map[string]string{"epoch":epoch});return
  case len(parts)==3&&verb=="members"&&r.Method=="DELETE":
   target:=parts[2]
+  if !validUUID(target){write25(w,400,"VALIDATION_ERROR");return}
   // The retired epoch must originate from the same transaction as REMOVE.
   retiredEpoch,err:=h.Store.RemoveWithEpoch(r.Context(),conversation,user,target)
   if err!=nil{http25Error(w,err);return}
@@ -127,12 +130,15 @@ func (h HTTPHandler) ServeHTTP(w http.ResponseWriter,r *http.Request){
  write25(w,http.StatusNotFound,"NOT_FOUND")
 }
 func decode25(w http.ResponseWriter,r *http.Request,d any)bool{
+ if r.Body==nil{write25(w,400,"VALIDATION_ERROR");return false}
  defer r.Body.Close()
- var value any
  raw,err:=io.ReadAll(io.LimitReader(r.Body,65537))
- if err!=nil||len(raw)>65536||len(raw)==0 {write25(w,400,"VALIDATION_ERROR");return false}
- if err=json.Unmarshal(raw,&value);err!=nil{write25(w,400,"VALIDATION_ERROR");return false}
- if err=json.Unmarshal(raw,d);err!=nil{write25(w,400,"VALIDATION_ERROR");return false}
+ if err!=nil||len(raw)>65536||len(raw)==0{write25(w,400,"VALIDATION_ERROR");return false}
+ decoder:=json.NewDecoder(bytes.NewReader(raw))
+ decoder.DisallowUnknownFields()
+ if err=decoder.Decode(d);err!=nil{write25(w,400,"VALIDATION_ERROR");return false}
+ var trailing any
+ if err=decoder.Decode(&trailing);err!=io.EOF{write25(w,400,"VALIDATION_ERROR");return false}
  return true
 }
 func http25Error(w http.ResponseWriter,e error){
