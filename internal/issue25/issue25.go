@@ -9,9 +9,27 @@ import (
  "encoding/json"
  "errors"
  "fmt"
+ "regexp"
  "strings"
 )
 
+var uuidPattern=regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}// Package issue25 implements the additive chat domain without changing legacy routes.
+package issue25
+
+import (
+ "bytes"
+ "context"
+ "crypto/rand"
+ "database/sql"
+ "encoding/json"
+ "errors"
+ "fmt"
+ "regexp"
+ "strings"
+)
+
+)
+func validUUID(id string)bool{return uuidPattern.MatchString(id)}
 var (
  ErrForbidden=errors.New("FORBIDDEN")
  ErrConflict=errors.New("CONFLICT")
@@ -41,7 +59,9 @@ func (s Store) tx(ctx context.Context,conversation string,fn func(*sql.Tx)error)
  return tx.Commit()
 }
 func (s Store) OpenDirect(ctx context.Context,a,b string)(string,error){
- if a==b||a==""||b==""{return "",ErrInvalid}
+ if !validUUID(a)||!validUUID(b){return "",ErrInvalid}
+ a,b=strings.ToLower(a),strings.ToLower(b)
+ if a==b{return "",ErrInvalid}
  if a>b{a,b=b,a}
  id,err:=newUUID();if err!=nil{return "",err}
  tx,err:=s.DB.BeginTx(ctx,nil);if err!=nil{return "",err};defer tx.Rollback()
