@@ -1,4 +1,4 @@
-.PHONY: fmt vet lint security vulncheck dupl complexity coverage coverage-tools race integration mutation-pr mutation-full quality
+.PHONY: c4 fmt vet lint security vulncheck dupl complexity coverage coverage-tools race integration mutation-pr mutation-full quality
 GO ?= go
 GOFILES := $(shell find cmd internal -type f -name '*.go' ! -name '*_test.go' 2>/dev/null)
 BASE_REF ?= origin/main
@@ -38,3 +38,12 @@ mutation-pr:
 mutation-full:
 	gremlins unleash --exclude-files '.*_test\.go$$' --exclude-files '.*\.pb\.go$$'
 quality: fmt vet lint security vulncheck dupl complexity coverage race
+
+# Open C4 architecture diagrams in Structurizr Local.
+c4:
+	docker volume create bfe-structurizr-data >/dev/null
+	docker run --rm -it \
+		-p 127.0.0.1:8080:8080 \
+		-v bfe-structurizr-data:/usr/local/structurizr \
+		-v "$(CURDIR)/docs/architecture/c4/workspace.dsl:/usr/local/structurizr/workspace.dsl:ro" \
+		structurizr/structurizr local
