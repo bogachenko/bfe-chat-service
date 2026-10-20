@@ -19,6 +19,7 @@ import (
 	"github.com/bogachenko/bfe-chat-service/internal/authentication"
 	"github.com/bogachenko/bfe-chat-service/internal/authorization"
 	"github.com/bogachenko/bfe-chat-service/internal/conversations"
+	"github.com/bogachenko/bfe-chat-service/internal/issue25"
 	"github.com/bogachenko/bfe-chat-service/internal/realtime"
 	"github.com/bogachenko/bfe-chat-service/internal/storage"
 	"github.com/bogachenko/bfe-chat-service/internal/transport"
@@ -110,12 +111,20 @@ func buildHandler(db *sql.DB, c runtimeConfig) (http.Handler, *centrifuge.Node, 
 	permissions := authorization.Authorizer{Assignments: store}
 	messages := conversations.Service{Auth: auth, Permissions: permissions, Store: store}
 	assignmentsSvc := assignments.Service{Auth: auth, Store: store}
-	realtimeSvc := realtime.Service{Auth: auth, Permissions: permissions, Assignments: store, Publisher: node}
+	realtimeSvc := realtime.Service{Auth: auth, Permissions: permissions, Assignments: store, Publisher: node, Epochs: issue25.Store{DB: db}}
 	handler, err := transport.NewHandler(messages, assignmentsSvc, realtimeSvc, node, "wss://"+strings.TrimPrefix(strings.TrimSuffix(c.origin, "/"), "https://")+"/ws", c.origin)
 	if err != nil {
 		return nil, nil, errors.New("transport configuration rejected")
 	}
-	return handler, node, nil
+	v2 := issue25.HTTPHandler{Store: issue25.Store{DB: db}, Auth: auth, Publisher: node, Revoker: node, PublicOrigin: c.origin}
+	combined := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/v2/conversations") {
+			v2.ServeHTTP(w, r)
+			return
+		}
+		handler.ServeHTTP(w, r)
+	})
+	return combined, node, nil
 }
 func run(ctx context.Context, args []string) error {
 	c, err := parseRuntimeConfig(args)

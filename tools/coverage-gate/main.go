@@ -25,6 +25,7 @@ var production = []string{
 	"internal/chat",
 	"internal/conversations",
 	"internal/documentcontext",
+	"internal/issue25",
 	"internal/realtime",
 	"internal/storage",
 	"internal/transport",

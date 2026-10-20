@@ -1,0 +1,40 @@
+name: Issue 25 Go + PostgreSQL 18 validation
+on:
+  push:
+    branches: [feat/issue-25-requirements-analysis]
+  workflow_dispatch:
+jobs:
+  go-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: bfe
+          POSTGRES_PASSWORD: test_only_password
+          POSTGRES_DB: bfe_chat
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bfe -d bfe_chat"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      BFE_CHAT_TEST_DATABASE_URL: postgres://bfe:test_only_password@localhost:5432/bfe_chat?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Go version
+        run: go version
+      - name: Build
+        run: go build ./...
+      - name: Goose migrations on isolated PostgreSQL 18
+        run: |
+          go run github.com/pressly/goose/v3/cmd/goose@v3.28.0 -dir internal/storage/migrations postgres "$BFE_CHAT_TEST_DATABASE_URL" up
+          psql "$BFE_CHAT_TEST_DATABASE_URL" -c "SELECT version();"
+          psql "$BFE_CHAT_TEST_DATABASE_URL" -c "\\dt issue25_*"
+      - name: Test
+        run: go test ./...

@@ -83,4 +83,117 @@
   </REVIEW_FINDINGS>
   <GATE>Mental Scenarios / Check Criteria HUMAN_APPROVED. MS-F01, MS-F02, MS-F03 остаются обязательными открытыми техническими проверками. Перед реализацией командный центр отдельно обсуждает и утверждает требования к проекту. До отдельного разрешения Production Implementation и Automated Tests запрещены.</GATE>
   <APPROVAL_STATE>HUMAN_APPROVED: утверждены MS-01..MS-12 и CCHECK-01..CCHECK-12. MS-F01..MS-F03 не закрыты и обязательны к последующей технической проверке. Следующий переход заблокирован до отдельного обсуждения и утверждения командным центром требований к проекту; реализация и автоматизированные тесты не начинались.</APPROVAL_STATE>
+  <ISSUE25_MENTAL_APPROVAL_RECORD id="APPROVAL25-MENTAL-SCENARIOS" authority="PROJECT_OWNER" approval="HUMAN_APPROVED" approved_commit="df5e21ed571545bcedc0bc1bd6b96cab5034332e" approved_scope="ISSUE25_MENTAL_SCENARIOS"><BOUNDARY>Project Owner approves only Issue #25 MS25-01..MS25-15 and CCHECK25-01..CCHECK25-15 as present in the named immutable commit. Historical MS-01..MS-12 keep their existing approval. This approval does NOT authorize production implementation, new migrations, automated tests, VPS, BFE Drive changes, deployment or legacy API cutover.</BOUNDARY></ISSUE25_MENTAL_APPROVAL_RECORD>
+  <ISSUE25_MENTAL_SCENARIOS id="MS25-PACKAGE" status="HUMAN_APPROVED" approval="HUMAN_APPROVED" approved_upstream_commit="117bda7c2175c59ebaade269ffd0e3d19b2ed42e">
+    <SCOPE>Hypothetical Issue 25 mental simulations only. Preserve the approved MS-01..MS-12 and historical open findings; no code, tests, migration, infrastructure action or deployment.</SCOPE>
+    <SCENARIOS>
+      <SCENARIO id="MS25-01" category="DIRECT HIDE" refs="REQ25-DIRECT REQ25-HIDE DP25-M02 MC25-02 FC25-03 FC25-05">
+        <INITIAL>Users A=00000000-0000-4000-8000-000000000001, B=...0002; no direct rows, authenticated; directPair rows=0, messages=0.</INITIAL>
+        <STEPS>1 A OpenDirect(B); 2 B OpenDirect(A); 3 A OpenDirect(A); 4 A HideDirect(true); 5 B Send key=...0101 body=hello; 6 A OpenDirect(B).</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Pause both CREATE after canonical pair calculation before UNIQUE insert; resume A then B; repeat reversed. Pause Hide before B inbound commit.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>Both creates return identical conversation UUID D1; directPair rows=1; self-direct rejected VALIDATION_ERROR; A hidden=true then false after B message; B hidden=false; messages=1.</EXPECTED>
+        <CHECK id="CCHECK25-01">DB direct count=1; both IDs=D1; error VALIDATION_ERROR; A visible after inbound; no duplicate; PASS iff all.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-02" category="GROUP ROLES" refs="REQ25-GROUP REQ25-ROLES DP25-M02 DP25-M03 MC25-02 MC25-03 FC25-04 FC25-08 FC25-09">
+        <INITIAL>Group G1 with O=...0001 owner,D=...0002 admin,M=...0003 member, N=...0004 member; active epochs E1; members=4.</INITIAL>
+        <STEPS>1 M GrantAdmin(N); 2 D AddMember(X=...0005); 3 D GrantAdmin(M); 4 O GrantAdmin(M); 5 O TransferOwner(N); 6 O LeaveGroup.</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Pause grant and transfer under common conversation gate; run transfer first and role change first with reauthorization.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>M grant denied FORBIDDEN; D add succeeds members=5; D grant denied FORBIDDEN; O grant succeeds admin M; transfer succeeds owner=N and O member; O may leave afterwards; exactly ownerCount=1.</EXPECTED>
+        <CHECK id="CCHECK25-02">ownerCount=1 after every commit; no forbidden mutation; memberCount after O leave=4; role changes serialized.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-03" category="MEMBERSHIP HISTORY" refs="REQ25-MEMBERSHIP REQ25-HISTORY DP25-M03 DP25-M04 MC25-03 MC25-04 FC25-06 FC25-07 FC25-10 FC25-14">
+        <INITIAL>SYNTHETIC FIXTURE ONLY (not actual bfe_chat): group G1, owner O=00000000-0000-4000-8000-000000000001, viewer V=00000000-0000-4000-8000-000000000003, active O membership; conversation committed ordinal counter=9, no messages with ordinal &gt;=10, V currently absent and no E1/E2 records. Every listed SEND uses O, a fresh idempotencyKey and a nonempty body 'm-&lt;ordinal&gt;'.</INITIAL>
+        <STEPS>1 JOIN(V) commits epoch E1 with joinBoundary=10 while counter remains 9; 2 O commits exactly ten messages M10..M19, assigning ordinal 10,11,12,13,14,15,16,17,18,19 in order (counter=19); 3 REMOVE(V) commits E1 leaveBoundary=20 and retires E1; 4 O commits ten messages M20..M29 assigning 20,21,22,23,24,25,26,27,28,29 while V absent (counter=29); 5 REJOIN(V) commits fresh epoch E2 with joinBoundary=30, without allocating message ordinal; 6 O commits M30 and M31 assigning ordinals 30 and 31 (counter=31); 7 V invokes ReadHistory(G1,cursor=START,limit=50) with valid current session.</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Barrier H1: after O SEND M19 obtains conversation gate, before its COMMIT; REMOVE(V) waits, then release H1 -&gt; M19 COMMIT -&gt; REMOVE COMMIT with leaveBoundary=20. Barrier H2: after O SEND M29 obtains gate, before its COMMIT; REJOIN(V) waits, release H2 -&gt; M29 COMMIT -&gt; REJOIN COMMIT with joinBoundary=30. All other SEND commits are sequential; neither JOIN nor REMOVE consumes a message ordinal.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>O SEND commits exactly 22 new messages: M10..M19 (10), M20..M29 (10), M30..M31 (2); committed counter=31; membership rows for V: E1 [10,20), closed and E2 [30,infinity), active, E1 != E2. ReadHistory(V) returns exactly [10,11,12,13,14,15,16,17,18,19,30,31] in ascending ordinal order, total=12, and never returns any of [20,21,22,23,24,25,26,27,28,29].</EXPECTED>
+        <CHECK id="CCHECK25-03">PASS iff count(messages ordinal 10..31)=22, each ordinal unique and committed; counter=31; V intervals exactly E1=[10,20), E2=[30,infinity) with distinct epoch IDs; ReadHistory status SUCCESS and 12 exact ordinals [10,11,12,13,14,15,16,17,18,19,30,31]; intersection with absent range 20..29 empty. FAIL on any missing/extra message, incorrect boundary, reused epoch, leak or cursor omission.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-04" category="SEND REMOVE" refs="REQ25-SEND REQ25-MEMBERSHIP REQ25-REALTIME DP25-M03 DP25-M04 DP25-M05 MC25-03 MC25-04 MC25-05 FC25-07 FC25-11 FC25-13 FC25-16">
+        <INITIAL>SYNTHETIC FIXTURE ONLY (not actual bfe_chat): group G1, owner O=00000000-0000-4000-8000-000000000001, member S=00000000-0000-4000-8000-000000000002 with active epoch E1 and joinBoundary=10; committed conversation ordinal counter=39, existing committed messages have ordinals 10..39, no message at 40; O and S have valid sessions. Each ordering starts from an independent reset to this exact fixture (S active and message count=30).</INITIAL>
+        <STEPS>ORDER A (SEND -&gt; REMOVE): 1 S starts SEND(G1,key=00000000-0000-4000-8000-000000000140,body='S-40'), acquires conversation gate and passes in-transaction membership check; 2 S allocates ordinal=40 and COMMITs (counter=40); 3 O invokes REMOVE(S), acquires gate after S releases it and COMMITs E1 leaveBoundary=41; 4 S attempts SEND(G1,key=00000000-0000-4000-8000-000000000141,body='S-after-remove') -&gt; FORBIDDEN, no write; 5 query durable messages and ReadHistory(S) under historical membership access policy. ORDER B (REMOVE -&gt; SEND): 6 reset to original fixture (counter=39, S active E1, 30 messages); 7 O invokes REMOVE(S), obtains gate and COMMITs E1 leaveBoundary=40 (counter remains 39); 8 S attempts SEND(G1,key=00000000-0000-4000-8000-000000000142,body='S-denied') -&gt; FORBIDDEN (counter remains 39); 9 O invokes SEND(G1,key=00000000-0000-4000-8000-000000000143,body='O-40'), obtains gate, commits ordinal=40 (counter=40); 10 S attempts ReadHistory for ordinal 40 -&gt; FORBIDDEN or history-filtered empty response per the approved history-authorization contract.</STEPS>
+        <CONCURRENT_INTERLEAVINGS>ORDER A: barrier A1 holds S inside conversation gate after membership verification and ordinal allocation=40 but before SEND COMMIT; launch O REMOVE(S) and assert it cannot acquire gate; release A1 -&gt; SEND COMMIT releases gate; barrier A2 holds O REMOVE after acquiring gate and before COMMIT leaveBoundary=41; release A2 -&gt; REMOVE COMMIT, then S post-removal SEND denied. ORDER B: after fixture reset, barrier B1 holds O REMOVE inside gate before COMMIT leaveBoundary=40; launch S SEND and assert it waits on gate; release B1 -&gt; REMOVE COMMIT releases gate; S acquires gate/rechecks inactive membership -&gt; FORBIDDEN without ordinal change. Barrier B2 holds O SEND after allocating ordinal40 before COMMIT; release B2 -&gt; O SEND COMMIT. At every barrier record transaction state and ordinal counter.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>ORDER A: S message 'S-40' committed once at ordinal40, durable messages=31, counter=40, S epoch E1 closes [10,41); S post-removal SEND returns FORBIDDEN and adds zero rows; S retains visibility of its ordinal40 historical message under approved historical interval rules (subject to required authorization). ORDER B: REMOVE closes E1 [10,40) before any new message, counter stays39; S SEND returns FORBIDDEN with S new writes=0, no idempotency record and no increment; O message 'O-40' commits once at ordinal40, total messages=31, counter=40; S cannot read O message40 because it is outside E1.</EXPECTED>
+        <CHECK id="CCHECK25-04">ORDER A PASS iff message40 sender=S, body='S-40', count(ordinal40)=1, counter=40, leaveBoundary=41, S post-remove writes=0 and FORBIDDEN; history visibility of ordinal40 conforms to [10,41). ORDER B PASS iff leaveBoundary=40, rejected S SEND=FORBIDDEN, S writes=0, counter after rejection=39, final message40 sender=O and count=1, O writes=1, final counter=40, S history excludes ordinal40; all barriers show gate mutual exclusion. FAIL on any other commit order, post-removal write, interval leak or rollback residue.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-05" category="OWNER TRANSFER" refs="REQ25-ROLES REQ25-GROUP DP25-M03 MC25-03 FC25-07 FC25-08 FC25-09">
+        <INITIAL>Group G1 O owner,N member,D admin, M member; 4 active users; ownerCount=1.</INITIAL>
+        <STEPS>1 O TransferOwner(N); 2 O Leave; 3 D GrantAdmin(M); 4 N RemoveMember(O) when O already left; repeat with O Leave before transfer.</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Pause TRANSFER and LEAVE at lock admission, schedule each first; race D role mutation with owner transition.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>Transfer commits N sole owner and O member; O Leave success; premature Leave rejects OWNER_TRANSFER_REQUIRED; D cannot promote M FORBIDDEN; removal of already-left O yields MEMBER_NOT_FOUND or contract equivalent.</EXPECTED>
+        <CHECK id="CCHECK25-05">At each commit ownerCount=1; before-transfer failed leave changes0 rows; after O leave activeMembers=3.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-06" category="IDEMPOTENCY" refs="REQ25-SEND REQ25-DOC DP25-M04 DP25-M09 MC25-04 MC25-09 FC25-12 FC25-13 FC25-26">
+        <INITIAL>Group G1; sender S=...0002; key K=10000000-0000-4000-8000-000000000006; no messages, counter=50.</INITIAL>
+        <STEPS>1 SEND K body='abc' document=(doc-7,Title7); 2 concurrent same K byte-for-byte; 3 K body='abd' same doc; 4 K body='abc' docTitle='Changed'.</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Both identical SEND pause after key lookup before insert under same conversation gate; run each as first committer.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>First and identical replay return same messageId M51 ordinal51 replay flag appropriate; one persisted row; altered body/title reject CONFLICT_409 (HTTP409), no additional publish.</EXPECTED>
+        <CHECK id="CCHECK25-06">Persisted count=1, ordinal=51, unique key count=1; conflict writes0; identical operation does not allocate second ordinal.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-07" category="CURSOR ORDER" refs="REQ25-HISTORY REQ25-SEND DP25-M04 MC25-04 FC25-11 FC25-13 FC25-14">
+        <INITIAL>Conversation C1 counter=70, committed messages ordinal 69,70, participants valid; history limit=1.</INITIAL>
+        <STEPS>1 T1 SEND obtains gate assigns71 then ROLLBACK; 2 T2 SEND assigns71 COMMIT; 3 page after cursor70 returns71; 4 T3 SEND assigns72 COMMIT; 5 page after cursor71 returns72; 6 request page after72.</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Pause T1 after ordinal counter update and before rollback; T2 waits on gate; release after rollback; cursor read after each commit.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>Post rollback counter70; T2 committed ordinal71, T3=72; pages precisely [71],[72],[] and nextCursor advances 71,72; no duplicates/skips.</EXPECTED>
+        <CHECK id="CCHECK25-07">DB ordinals [69,70,71,72], count4; no committed hole at71; cursor stable, next empty.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-08" category="BOUND ATTEMPT" refs="REQ25-REALTIME REQ25-MEMBERSHIP REQ25-SECURITY DP25-M03 DP25-M05 MC25-03 MC25-05 FC25-07 FC25-13 FC25-16 FC25-17 FC25-18">
+        <INITIAL>Group C1; viewer V member epoch E1 starts10; committed M1 id=msg-19 ordinal19; no M2; attempt A id=att-A with status absent.</INITIAL>
+        <STEPS>1 REGISTER A binds (C1,V,E1,M1,19,token-A,channel-E1); 2 REMOVE V commits leaveBoundary20; 3 O SEND commits M2 id=msg-20 ordinal20; 4 CLAIM A; 5 LATE_PUBLISH(A); 6 attempt mutation to M2.</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Pause at A durable REGISTER commit; REMOVE commit boundary20; M2 commit20; worker resumes after REMOVE; duplicate workers race CLAIM.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>A immutable fields all remain M1/19/V/E1; one Node.Publish(A) at most; binding to M2 fails CONFLICT or immutable-storage rejection; M2 invisible to V; notification exactly version+wakeToken.</EXPECTED>
+        <CHECK id="CCHECK25-08">DB A.messageId=M1,ordinal=19,epoch=E1; M2.ordinal=20&gt;=leaveBoundary; mutation writes0; no protected envelope fields.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-09" category="SINGLE CLAIM" refs="REQ25-REALTIME REQ25-SEND DP25-M04 DP25-M05 MC25-04 MC25-05 FC25-13 FC25-16 FC25-17">
+        <INITIAL>Conversation C1 committed M1 ordinal19; A REGISTERED attemptId=att-09 viewer V E1, publishCalls=0.</INITIAL>
+        <STEPS>1 W1 and W2 simultaneously CAS REGISTERED-&gt;CLAIMED; 2 winning worker invokes Node.Publish; 3 loser sees ALREADY_CLAIMED; 4 redeliver attempt twice.</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Barrier both workers before atomic compare-and-set; commit W1 first then repeat W2 first.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>Exactly one successful CLAIM and one Node.Publish call total; state CLAIMED or resulting terminal outcome; immutable attempt fields unchanged.</EXPECTED>
+        <CHECK id="CCHECK25-09">CAS success count1; publishCalls1; replays0; duplicate attempt row0.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-10" category="UNKNOWN CRASH" refs="REQ25-REALTIME REQ25-HISTORY REQ25-SEND DP25-M04 DP25-M05 MC25-04 MC25-05 FC25-13 FC25-14 FC25-16 FC25-18">
+        <INITIAL>Committed message M1 ordinal19; A REGISTERED; durable messages=1 and publishCalls=0.</INITIAL>
+        <STEPS>1 Case1: crash before CAS CLAIM; restart and CLAIM then publish once; 2 Case2: crash immediately after CLAIM before Node.Publish, no retry; 3 Case3: simulate timeout while Publish in flight, record UNKNOWN; 4 Case4: crash after successful broker return before persisting SUCCESS, do not retry; 5 Case5: reject before invocation with proven local error FAILED; 6 reconnect and read committed M1.</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Stop process at four exact points: before CAS, after CAS, while Node.Publish in progress, after broker success before status persistence.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>Case1 total Publish=1 on recovery; case2=0 and message remains; case3 UNKNOWN with &lt;=1 publish invocation; case4 &lt;=1; case5 0; all preserve M1 and authorized history.</EXPECTED>
+        <CHECK id="CCHECK25-10">DB messageCount1 each; claimed attempts not retried; UNKNOWN not converted to FAILED; no protected notification.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-11" category="REVOCATION WS" refs="REQ25-REALTIME REQ25-SECURITY REQ25-ISOLATION DP25-M01 DP25-M05 MC25-01 MC25-05 FC25-01 FC25-02 FC25-15 FC25-17 FC25-18">
+        <INITIAL>Conversation C1 V active E1 channel opaque-1, X Drive ADMIN nonmember, committed M1 ordinal19.</INITIAL>
+        <STEPS>1 authorize V subscribe E1; 2 REMOVE V leaveBoundary20; 3 old subscribe/reconnect E1; 4 server revoke E1; 5 late pre-remove wake-up; 6 REJOIN E2, new subscribe; 7 V fetch ordinal20 from gap; 8 X subscribe.</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Pause old publication after registration; REMOVE commit; reconnect before server unsubscribe; Publish then returns.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>Old reconnect denied STALE_EPOCH/FORBIDDEN, X denied FORBIDDEN, E2 != E1; late wake contains only version/token; history gap denied; no sensitive channel ID.</EXPECTED>
+        <CHECK id="CCHECK25-11">Old channel subscribe success0 after REMOVE; new E2 subscribe success1; protected data0.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-12" category="READ DEVICES" refs="REQ25-READ REQ25-HISTORY REQ25-MEMBERSHIP DP25-M03 DP25-M06 MC25-03 MC25-06 FC25-10 FC25-19 FC25-20">
+        <INITIAL>C1 member V two devices, lastRead=20; visible own message21, foreign22,23, invisible absence24,25; rejoin at26, foreign26; current member.</INITIAL>
+        <STEPS>1 device1 MarkRead(22); 2 device2 MarkRead(20); 3 CountUnread; 4 MarkRead(23); 5 CountUnread; 6 device2 stale MarkRead(21); 7 CountUnread.</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Pause concurrent marker updates before atomic MAX; execute reverse orders.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>After first pair marker22 and unread foreign23+26=2; after marker23 unread26=1; stale update preserves23; own21 and gap24/25 never counted.</EXPECTED>
+        <CHECK id="CCHECK25-12">Markers [22,23,23], unread [2,1,1]; no own/gap counts.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-13" category="DRIVE AUTH" refs="REQ25-SECURITY REQ25-ISOLATION REQ25-DOC DP25-M01 DP25-M09 MC25-01 MC25-09 FC25-01 FC25-02 FC25-26 FC25-27">
+        <INITIAL>Users V valid session member, X Drive ADMIN but Chat nonmember, Y expired access, Z invalid DPoP; document doc-7 exists but Drive ACL denies X.</INITIAL>
+        <STEPS>1 X READ/SEND/SUBSCRIBE C1; 2 Z POST with invalid proof; 3 Y connect expired; 4 disable UDS then V READ; 5 X open doc link through Drive.</STEPS>
+        <CONCURRENT_INTERLEAVINGS>One UDS unavailable during session validation; WS reconnect after membership removal.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>X operations FORBIDDEN; Z PROOF_INVALID; Y AUTH_INVALID; UDS outage AUTH_UNAVAILABLE fail closed; Drive ACL independently denies document, no ACL mutation.</EXPECTED>
+        <CHECK id="CCHECK25-13">No unauthorized rows, publishes or protected responses; all 5 rejection categories consistent with contracts.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-14" category="LEGACY CUTOVER" refs="REQ25-LEGACY REQ25-COMPAT REQ25-DIRECT DP25-M07 MC25-07 FC25-21 FC25-22 FC25-23">
+        <INITIAL>Synthetic legacy only: source rows L1=(owner A,sender A,recipient B,key k1,doc d1), L2=(owner B,sender B,recipient A,key k2), ambiguous directional mapping; old API active; real DB UNKNOWN.</INITIAL>
+        <STEPS>1 create read-only snapshot two rows; 2 ClassifyLegacy -&gt; AMBIGUOUS; 3 verify IDs and document metadata; 4 EvaluateCutover with clientsNotReady; 5 evaluate without Release Manager approval.</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Pause attempted mapping before persistence; try cutover while one client obsolete.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>No source edits, merges or deletes; 2 source rows preserved exact; ambiguous2, mapped0; cutover CUTOVER_NOT_AUTHORIZED; rollback retains legacy API.</EXPECTED>
+        <CHECK id="CCHECK25-14">Source count2 and provenance checksum unchanged, no new conversation auto-generated; deployment actions0.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-15" category="LIMITS" refs="REQ25-LIMITS REQ25-DOC REQ25-GROUP DP25-M02 DP25-M08 DP25-M09 MC25-02 MC25-08 MC25-09 FC25-04 FC25-12 FC25-24 FC25-25 FC25-26">
+        <INITIAL>Authenticated S, group with owner and 99 members (total100); JSON and body UTF-8 fixtures; message text built from ASCII 'a'.</INITIAL>
+        <STEPS>1 JSON request with exactly 65536 bytes then 65537; 2 message UTF-8 text exactly 16384 bytes then 16385; 3 group name UTF-8 exactly 256 then 257 bytes; 4 group total members exactly 100 then 101; 5 history limit exactly 100 then 101; 6 document reference with id+title then id only; 7 compare message/member/role row counts and errors after each independent test fixture reset.</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Run rejected request concurrently with valid atomic transaction and count committed rows.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>Each equal boundary accepted when other constraints valid; +1 yields VALIDATION_ERROR (HTTP status per mapped contract), rejected mutation writes0; one-field document INVALID_DOCUMENT; doc ACL unaffected.</EXPECTED>
+        <CHECK id="CCHECK25-15">Counters increment only on accepted calls; membership cap100; body size, page limit and doc pairs validated separately.</CHECK>
+      </SCENARIO>
+    </SCENARIOS>
+    <OPEN_CONSTRAINTS>Physical shape and integrity of real legacy bfe_chat data remain UNKNOWN, not inspected. Centrifuge timeout outcome UNKNOWN, not guaranteed cancellation. All checks are future QA criteria, not executed tests.</OPEN_CONSTRAINTS>
+    <GATE>READY_FOR_MENTAL_SCENARIOS_REVIEW. No Human Approval of this new section; implementation and automated testing remain separately gated.</GATE>
+  </ISSUE25_MENTAL_SCENARIOS>
 </MENTAL_SCENARIOS>
