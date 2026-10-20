@@ -97,7 +97,7 @@
         <REQUIRES>Calls M01 for identity, M03 for creation/initial membership, M04 for unread/new inbound visibility, M08 for transport. DB atomic group bootstrap.</REQUIRES>
         <TRANSACTION_AND_AUTH_BOUNDARY>Direct canonical uniqueness in DB; hidden direct reappears on incoming message or explicit open, not on hidden user's own outgoing.</TRANSACTION_AND_AUTH_BOUNDARY>
       </MODULE_CONTRACT>
-      <MODULE_CONTRACT id="MC25-03" module_ref="DP25-M03" refs="REQ25-ROLES REQ25-MEMBERSHIP REQ25-GROUP REQ25-SECURITY" technology_refs="TD25-01 TD25-02" approval="PENDING_REVIEW">
+      <MODULE_CONTRACT id="MC25-03" module_ref="DP25-M03" refs="REQ25-ROLES REQ25-MEMBERSHIP REQ25-GROUP REQ25-SECURITY" technology_refs="TD25-01 TD25-02 TD25-03" approval="PENDING_REVIEW">
         <INTENT>Membership and roles</INTENT>
         <PROVIDES>AddMember; RemoveMember; LeaveGroup; TransferOwner; GrantAdmin; RevokeAdmin; ResolveMembership(epoch)</PROVIDES>
         <INPUT_OUTPUT>MembershipSnapshot(accountId,role,epoch,active); boundaries in committed conversation ordinal</INPUT_OUTPUT>
@@ -107,7 +107,7 @@
         <REQUIRES>Owns authoritative membership state and serial gate shared with M04 send and M05 admission. Does not validate target UUID activity through Drive.</REQUIRES>
         <TRANSACTION_AND_AUTH_BOUNDARY>The gate serializes membership update, message ordinal assignment and publish admission; absence intervals remain inaccessible on rejoin.</TRANSACTION_AND_AUTH_BOUNDARY>
       </MODULE_CONTRACT>
-      <MODULE_CONTRACT id="MC25-04" module_ref="DP25-M04" refs="REQ25-SEND REQ25-HISTORY REQ25-LEGACY REQ25-DOC" technology_refs="TD25-05 TD25-02" approval="PENDING_REVIEW">
+      <MODULE_CONTRACT id="MC25-04" module_ref="DP25-M04" refs="REQ25-SEND REQ25-HISTORY REQ25-LEGACY REQ25-DOC" technology_refs="TD25-05 TD25-02 TD25-06 TD25-09" approval="PENDING_REVIEW">
         <INTENT>Messages and history</INTENT>
         <PROVIDES>Send(conversationId,key,body,document); ReadHistory(conversationId,cursor,limit)</PROVIDES>
         <INPUT_OUTPUT>MessageId, conversationOrdinal, replay flag; ordered filtered messages and nextCursor</INPUT_OUTPUT>
@@ -127,7 +127,7 @@
         <REQUIRES>M01 authenticates; M03 owns epochs/gate; M04 owns durable messages. Centrifuge Publish does not imply device delivery. No recoverable WS message-history payload.</REQUIRES>
         <TRANSACTION_AND_AUTH_BOUNDARY>Rejoin always new epoch/channel; existing subscription grants no durable rights; publisher failure does not rollback or duplicate committed message.</TRANSACTION_AND_AUTH_BOUNDARY>
       </MODULE_CONTRACT>
-      <MODULE_CONTRACT id="MC25-06" module_ref="DP25-M06" refs="REQ25-READ REQ25-MEMBERSHIP REQ25-HISTORY" technology_refs="TD25-08" approval="PENDING_REVIEW">
+      <MODULE_CONTRACT id="MC25-06" module_ref="DP25-M06" refs="REQ25-READ REQ25-MEMBERSHIP REQ25-HISTORY" technology_refs="TD25-08 TD25-05" approval="PENDING_REVIEW">
         <INTENT>Unread/read-state</INTENT>
         <PROVIDES>MarkRead(conversationId,visibleOrdinal); GetUnreadCounts(conversations)</PROVIDES>
         <INPUT_OUTPUT>Monotone per-user lastReadOrdinal, count excluding own and invisible messages</INPUT_OUTPUT>
@@ -147,7 +147,7 @@
         <REQUIRES>M02 manages new identities; M04 preserves original messages; M08 owns API presentation. Not a migration executor.</REQUIRES>
         <TRANSACTION_AND_AUTH_BOUNDARY>No VPS or bfe_chat SQL executed at module-contract stage; reversal must retain old source.</TRANSACTION_AND_AUTH_BOUNDARY>
       </MODULE_CONTRACT>
-      <MODULE_CONTRACT id="MC25-08" module_ref="DP25-M08" refs="REQ25-LIMITS REQ25-SECURITY REQ25-COMPAT" technology_refs="TD25-07 TD25-03" approval="PENDING_REVIEW">
+      <MODULE_CONTRACT id="MC25-08" module_ref="DP25-M08" refs="REQ25-LIMITS REQ25-SECURITY REQ25-COMPAT" technology_refs="TD25-07 TD25-03 TD25-06" approval="PENDING_REVIEW">
         <INTENT>HTTP boundary and limits</INTENT>
         <PROVIDES>DecodeRequest; RouteConversationOperation; SerializeResponse; RejectInvalid</PROVIDES>
         <INPUT_OUTPUT>Validated request to modules, HTTP status/typed error</INPUT_OUTPUT>
@@ -181,27 +181,27 @@
       <EDGE requirement="REQ25-ROLES" technology="TD25-03" architecture="DP25-M01" contract="MC25-01"/>
       <EDGE requirement="REQ25-DIRECT" technology="TD25-01" architecture="DP25-M02" contract="MC25-02"/>
       <EDGE requirement="REQ25-GROUP" technology="TD25-01" architecture="DP25-M02" contract="MC25-02"/>
-      <EDGE requirement="REQ25-HIDE" technology="TD25-01" architecture="DP25-M02" contract="MC25-02"/>
+      <EDGE requirement="REQ25-HIDE" technology="TD25-08" architecture="DP25-M02" contract="MC25-02"/>
       <EDGE requirement="REQ25-ROLES" technology="TD25-01" architecture="DP25-M03" contract="MC25-03"/>
       <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-01" architecture="DP25-M03" contract="MC25-03"/>
       <EDGE requirement="REQ25-GROUP" technology="TD25-01" architecture="DP25-M03" contract="MC25-03"/>
-      <EDGE requirement="REQ25-SECURITY" technology="TD25-01" architecture="DP25-M03" contract="MC25-03"/>
+      <EDGE requirement="REQ25-SECURITY" technology="TD25-03" architecture="DP25-M03" contract="MC25-03"/>
       <EDGE requirement="REQ25-SEND" technology="TD25-05" architecture="DP25-M04" contract="MC25-04"/>
       <EDGE requirement="REQ25-HISTORY" technology="TD25-05" architecture="DP25-M04" contract="MC25-04"/>
-      <EDGE requirement="REQ25-LEGACY" technology="TD25-05" architecture="DP25-M04" contract="MC25-04"/>
-      <EDGE requirement="REQ25-DOC" technology="TD25-05" architecture="DP25-M04" contract="MC25-04"/>
+      <EDGE requirement="REQ25-LEGACY" technology="TD25-06" architecture="DP25-M04" contract="MC25-04"/>
+      <EDGE requirement="REQ25-DOC" technology="TD25-09" architecture="DP25-M04" contract="MC25-04"/>
       <EDGE requirement="REQ25-REALTIME" technology="TD25-04" architecture="DP25-M05" contract="MC25-05"/>
       <EDGE requirement="REQ25-SECURITY" technology="TD25-04" architecture="DP25-M05" contract="MC25-05"/>
       <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-04" architecture="DP25-M05" contract="MC25-05"/>
       <EDGE requirement="REQ25-READ" technology="TD25-08" architecture="DP25-M06" contract="MC25-06"/>
       <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-08" architecture="DP25-M06" contract="MC25-06"/>
-      <EDGE requirement="REQ25-HISTORY" technology="TD25-08" architecture="DP25-M06" contract="MC25-06"/>
+      <EDGE requirement="REQ25-HISTORY" technology="TD25-05" architecture="DP25-M06" contract="MC25-06"/>
       <EDGE requirement="REQ25-LEGACY" technology="TD25-06" architecture="DP25-M07" contract="MC25-07"/>
       <EDGE requirement="REQ25-COMPAT" technology="TD25-06" architecture="DP25-M07" contract="MC25-07"/>
       <EDGE requirement="REQ25-DIRECT" technology="TD25-06" architecture="DP25-M07" contract="MC25-07"/>
       <EDGE requirement="REQ25-LIMITS" technology="TD25-07" architecture="DP25-M08" contract="MC25-08"/>
-      <EDGE requirement="REQ25-SECURITY" technology="TD25-07" architecture="DP25-M08" contract="MC25-08"/>
-      <EDGE requirement="REQ25-COMPAT" technology="TD25-07" architecture="DP25-M08" contract="MC25-08"/>
+      <EDGE requirement="REQ25-SECURITY" technology="TD25-03" architecture="DP25-M08" contract="MC25-08"/>
+      <EDGE requirement="REQ25-COMPAT" technology="TD25-06" architecture="DP25-M08" contract="MC25-08"/>
       <EDGE requirement="REQ25-DOC" technology="TD25-09" architecture="DP25-M09" contract="MC25-09"/>
       <EDGE requirement="REQ25-ISOLATION" technology="TD25-09" architecture="DP25-M09" contract="MC25-09"/>
     </TRACEABILITY>
