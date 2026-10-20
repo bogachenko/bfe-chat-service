@@ -33,7 +33,7 @@ func newUUID()(string,error){var b [16]byte;if _,err:=rand.Read(b[:]);err!=nil{r
 func (s Store) tx(ctx context.Context,conversation string,fn func(*sql.Tx)error)error{
  if s.DB==nil{return ErrInvalid}
  tx,err:=s.DB.BeginTx(ctx,nil);if err!=nil{return err};defer tx.Rollback()
- // Lock by conversation row, not a hash collision-prone advisory key.
+ // Preserve the approved PostgreSQL transaction advisory gate; row locking also protects the ordinal counter.\n if _,err=tx.ExecContext(ctx,`SELECT pg_advisory_xact_lock(hashtextextended($1::text, 25))`,conversation);err!=nil{return err}
  var id string
  if err=tx.QueryRowContext(ctx,`SELECT id::text FROM issue25_conversations WHERE id=$1::uuid FOR UPDATE`,conversation).Scan(&id);err!=nil{return err}
  if err=fn(tx);err!=nil{return err}
