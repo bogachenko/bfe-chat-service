@@ -1,0 +1,29 @@
+name: PR26 one-time gofmt
+on:
+  push:
+    branches: [feat/issue-25-requirements-analysis]
+permissions:
+  contents: write
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/issue-25-requirements-analysis
+          persist-credentials: true
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Apply native gofmt to confirmed QR-01 paths
+        run: |
+          gofmt -w cmd/bfe-chat-service/main.go internal/issue25/http.go internal/issue25/lifecycle.go internal/issue25/list.go internal/issue25/notify.go internal/issue25/history.go internal/issue25/issue25.go internal/issue25/realtime.go internal/issue25/subscription.go internal/realtime/realtime.go
+          git diff --check
+          git add -- cmd/bfe-chat-service/main.go internal/issue25/http.go internal/issue25/lifecycle.go internal/issue25/list.go internal/issue25/notify.go internal/issue25/history.go internal/issue25/issue25.go internal/issue25/realtime.go internal/issue25/subscription.go internal/realtime/realtime.go
+          if ! git diff --cached --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'style(issue25): apply gofmt to QR-01 reported Go files'
+            git push origin HEAD:refs/heads/feat/issue-25-requirements-analysis
+          fi
