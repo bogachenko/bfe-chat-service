@@ -83,4 +83,116 @@
   </REVIEW_FINDINGS>
   <GATE>Mental Scenarios / Check Criteria HUMAN_APPROVED. MS-F01, MS-F02, MS-F03 остаются обязательными открытыми техническими проверками. Перед реализацией командный центр отдельно обсуждает и утверждает требования к проекту. До отдельного разрешения Production Implementation и Automated Tests запрещены.</GATE>
   <APPROVAL_STATE>HUMAN_APPROVED: утверждены MS-01..MS-12 и CCHECK-01..CCHECK-12. MS-F01..MS-F03 не закрыты и обязательны к последующей технической проверке. Следующий переход заблокирован до отдельного обсуждения и утверждения командным центром требований к проекту; реализация и автоматизированные тесты не начинались.</APPROVAL_STATE>
+  <ISSUE25_MENTAL_SCENARIOS id="MS25-PACKAGE" status="READY_FOR_MENTAL_SCENARIOS_REVIEW" approval="NOT_HUMAN_APPROVED" approved_upstream_commit="117bda7c2175c59ebaade269ffd0e3d19b2ed42e">
+    <SCOPE>Hypothetical Issue 25 mental simulations only. Preserve the approved MS-01..MS-12 and historical open findings; no code, tests, migration, infrastructure action or deployment.</SCOPE>
+    <SCENARIOS>
+      <SCENARIO id="MS25-01" category="DIRECT HIDE" refs="REQ25-DIRECT REQ25-HIDE DP25-M02 MC25-02 FC25-03 FC25-05">
+        <INITIAL>Authenticated users, committed baseline conversation and durable PostgreSQL state configured as required by the sequence; actions not yet performed.</INITIAL>
+        <STEPS>Concurrent A/B open direct, self-direct, A hides, B sends</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Execute both orderings at the shared PostgreSQL transaction gate and at commit; where relevant switch at attempt registration, claim, REMOVE boundary, Publish timeout and reconnect.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>Same canonical conversation; no self-direct; hidden flag personal and incoming restores visibility</EXPECTED>
+        <CHECK id="CCHECK25-01">Verify observable state and expected result: Same canonical conversation; no self-direct; hidden flag personal and incoming restores visibility. Protected data not exposed by failed authorization or notification.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-02" category="GROUP ROLES" refs="REQ25-GROUP REQ25-ROLES DP25-M02 DP25-M03 MC25-02 MC25-03 FC25-04 FC25-08 FC25-09">
+        <INITIAL>Authenticated users, committed baseline conversation and durable PostgreSQL state configured as required by the sequence; actions not yet performed.</INITIAL>
+        <STEPS>Create group with O owner D admin M member; concurrent transfer, promote and member actions</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Execute both orderings at the shared PostgreSQL transaction gate and at commit; where relevant switch at attempt registration, claim, REMOVE boundary, Publish timeout and reconnect.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>Exactly one owner at committed state; only owner changes admin and admin manages members</EXPECTED>
+        <CHECK id="CCHECK25-02">Verify observable state and expected result: Exactly one owner at committed state; only owner changes admin and admin manages members. Protected data not exposed by failed authorization or notification.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-03" category="MEMBERSHIP HISTORY" refs="REQ25-MEMBERSHIP REQ25-HISTORY DP25-M03 DP25-M04 MC25-03 MC25-04 FC25-06 FC25-07 FC25-10 FC25-14">
+        <INITIAL>Authenticated users, committed baseline conversation and durable PostgreSQL state configured as required by the sequence; actions not yet performed.</INITIAL>
+        <STEPS>V joins E1, receives M1, REMOVE, M2, REJOIN E2, M3, fetch history</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Execute both orderings at the shared PostgreSQL transaction gate and at commit; where relevant switch at attempt registration, claim, REMOVE boundary, Publish timeout and reconnect.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>Read M1 and M3, never M2 in absent interval, E1 and E2 distinct</EXPECTED>
+        <CHECK id="CCHECK25-03">Verify observable state and expected result: Read M1 and M3, never M2 in absent interval, E1 and E2 distinct. Protected data not exposed by failed authorization or notification.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-04" category="SEND REMOVE" refs="REQ25-SEND REQ25-MEMBERSHIP REQ25-REALTIME DP25-M03 DP25-M04 DP25-M05 MC25-03 MC25-04 MC25-05 FC25-07 FC25-11 FC25-13 FC25-16">
+        <INITIAL>Authenticated users, committed baseline conversation and durable PostgreSQL state configured as required by the sequence; actions not yet performed.</INITIAL>
+        <STEPS>Concurrent SEND and REMOVE, switch before conversation gate, authorization and commit</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Execute both orderings at the shared PostgreSQL transaction gate and at commit; where relevant switch at attempt registration, claim, REMOVE boundary, Publish timeout and reconnect.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>Total commit order defines message ordinal and leave boundary; no post-boundary message visible</EXPECTED>
+        <CHECK id="CCHECK25-04">Verify observable state and expected result: Total commit order defines message ordinal and leave boundary; no post-boundary message visible. Protected data not exposed by failed authorization or notification.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-05" category="OWNER TRANSFER" refs="REQ25-ROLES REQ25-GROUP DP25-M03 MC25-03 FC25-07 FC25-08 FC25-09">
+        <INITIAL>Authenticated users, committed baseline conversation and durable PostgreSQL state configured as required by the sequence; actions not yet performed.</INITIAL>
+        <STEPS>TRANSFER_OWNER races LEAVE and admin role edits</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Execute both orderings at the shared PostgreSQL transaction gate and at commit; where relevant switch at attempt registration, claim, REMOVE boundary, Publish timeout and reconnect.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>No zero or two owner committed; failed transfer leaves original owner</EXPECTED>
+        <CHECK id="CCHECK25-05">Verify observable state and expected result: No zero or two owner committed; failed transfer leaves original owner. Protected data not exposed by failed authorization or notification.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-06" category="IDEMPOTENCY" refs="REQ25-SEND REQ25-DOC DP25-M04 DP25-M09 MC25-04 MC25-09 FC25-12 FC25-13 FC25-26">
+        <INITIAL>Authenticated users, committed baseline conversation and durable PostgreSQL state configured as required by the sequence; actions not yet performed.</INITIAL>
+        <STEPS>Concurrent identical K replay then K with changed canonical body or document title</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Execute both orderings at the shared PostgreSQL transaction gate and at commit; where relevant switch at attempt registration, claim, REMOVE boundary, Publish timeout and reconnect.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>Identical replay returns original; changed payload returns 409 without write</EXPECTED>
+        <CHECK id="CCHECK25-06">Verify observable state and expected result: Identical replay returns original; changed payload returns 409 without write. Protected data not exposed by failed authorization or notification.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-07" category="CURSOR ORDER" refs="REQ25-HISTORY REQ25-SEND DP25-M04 MC25-04 FC25-11 FC25-13 FC25-14">
+        <INITIAL>Authenticated users, committed baseline conversation and durable PostgreSQL state configured as required by the sequence; actions not yet performed.</INITIAL>
+        <STEPS>Two sends interleave ordinal allocation, rollback, commit and keyset cursor read</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Execute both orderings at the shared PostgreSQL transaction gate and at commit; where relevant switch at attempt registration, claim, REMOVE boundary, Publish timeout and reconnect.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>No late committed lower ordinal behind cursor; committed total order persists</EXPECTED>
+        <CHECK id="CCHECK25-07">Verify observable state and expected result: No late committed lower ordinal behind cursor; committed total order persists. Protected data not exposed by failed authorization or notification.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-08" category="BOUND ATTEMPT" refs="REQ25-REALTIME REQ25-MEMBERSHIP REQ25-SECURITY DP25-M03 DP25-M05 MC25-03 MC25-05 FC25-07 FC25-13 FC25-16 FC25-17 FC25-18">
+        <INITIAL>Authenticated users, committed baseline conversation and durable PostgreSQL state configured as required by the sequence; actions not yet performed.</INITIAL>
+        <STEPS>REGISTER(A,M1) then REMOVE(B) then COMMIT(M2) then LATE_PUBLISH(A)</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Execute both orderings at the shared PostgreSQL transaction gate and at commit; where relevant switch at attempt registration, claim, REMOVE boundary, Publish timeout and reconnect.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>A immutable binding remains M1 with ordinal below leaveBoundary; cannot rebind to M2</EXPECTED>
+        <CHECK id="CCHECK25-08">Verify observable state and expected result: A immutable binding remains M1 with ordinal below leaveBoundary; cannot rebind to M2. Protected data not exposed by failed authorization or notification.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-09" category="SINGLE CLAIM" refs="REQ25-REALTIME REQ25-SEND DP25-M04 DP25-M05 MC25-04 MC25-05 FC25-13 FC25-16 FC25-17">
+        <INITIAL>Authenticated users, committed baseline conversation and durable PostgreSQL state configured as required by the sequence; actions not yet performed.</INITIAL>
+        <STEPS>Two workers race CAS REGISTERED to CLAIMED for A; redelivery after claim</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Execute both orderings at the shared PostgreSQL transaction gate and at commit; where relevant switch at attempt registration, claim, REMOVE boundary, Publish timeout and reconnect.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>At most one Node.Publish invocation for A; replay does not mutate immutable binding</EXPECTED>
+        <CHECK id="CCHECK25-09">Verify observable state and expected result: At most one Node.Publish invocation for A; replay does not mutate immutable binding. Protected data not exposed by failed authorization or notification.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-10" category="UNKNOWN CRASH" refs="REQ25-REALTIME REQ25-HISTORY REQ25-SEND DP25-M04 DP25-M05 MC25-04 MC25-05 FC25-13 FC25-14 FC25-16 FC25-18">
+        <INITIAL>Authenticated users, committed baseline conversation and durable PostgreSQL state configured as required by the sequence; actions not yet performed.</INITIAL>
+        <STEPS>Publish times out or crashes before/during/after broker invocation; worker restarts</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Execute both orderings at the shared PostgreSQL transaction gate and at commit; where relevant switch at attempt registration, claim, REMOVE boundary, Publish timeout and reconnect.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>UNKNOWN not non-admission; no retry CLAIMED; committed message recovered by authorized history</EXPECTED>
+        <CHECK id="CCHECK25-10">Verify observable state and expected result: UNKNOWN not non-admission; no retry CLAIMED; committed message recovered by authorized history. Protected data not exposed by failed authorization or notification.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-11" category="REVOCATION WS" refs="REQ25-REALTIME REQ25-SECURITY REQ25-ISOLATION DP25-M01 DP25-M05 MC25-01 MC25-05 FC25-01 FC25-02 FC25-15 FC25-17 FC25-18">
+        <INITIAL>Authenticated users, committed baseline conversation and durable PostgreSQL state configured as required by the sequence; actions not yet performed.</INITIAL>
+        <STEPS>REMOVE active WS subscriber; old publish completes late; reconnect and rejoin new epoch</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Execute both orderings at the shared PostgreSQL transaction gate and at commit; where relevant switch at attempt registration, claim, REMOVE boundary, Publish timeout and reconnect.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>Old epoch denied; late envelope contains no sensitive data; new epoch cannot reuse old channel</EXPECTED>
+        <CHECK id="CCHECK25-11">Verify observable state and expected result: Old epoch denied; late envelope contains no sensitive data; new epoch cannot reuse old channel. Protected data not exposed by failed authorization or notification.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-12" category="READ DEVICES" refs="REQ25-READ REQ25-HISTORY REQ25-MEMBERSHIP DP25-M03 DP25-M06 MC25-03 MC25-06 FC25-10 FC25-19 FC25-20">
+        <INITIAL>Authenticated users, committed baseline conversation and durable PostgreSQL state configured as required by the sequence; actions not yet performed.</INITIAL>
+        <STEPS>Two devices concurrently mark read at 22 and 20; own message and absent interval</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Execute both orderings at the shared PostgreSQL transaction gate and at commit; where relevant switch at attempt registration, claim, REMOVE boundary, Publish timeout and reconnect.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>Marker max 22, unread only visible foreign messages, both devices converge</EXPECTED>
+        <CHECK id="CCHECK25-12">Verify observable state and expected result: Marker max 22, unread only visible foreign messages, both devices converge. Protected data not exposed by failed authorization or notification.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-13" category="DRIVE AUTH" refs="REQ25-SECURITY REQ25-ISOLATION REQ25-DOC DP25-M01 DP25-M09 MC25-01 MC25-09 FC25-01 FC25-02 FC25-26 FC25-27">
+        <INITIAL>Authenticated users, committed baseline conversation and durable PostgreSQL state configured as required by the sequence; actions not yet performed.</INITIAL>
+        <STEPS>Drive ADMIN not member, bad DPoP and UDS outage attempt history, WS and doc access</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Execute both orderings at the shared PostgreSQL transaction gate and at commit; where relevant switch at attempt registration, claim, REMOVE boundary, Publish timeout and reconnect.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>Fail closed, Chat membership enforced, document metadata never grants Drive ACL</EXPECTED>
+        <CHECK id="CCHECK25-13">Verify observable state and expected result: Fail closed, Chat membership enforced, document metadata never grants Drive ACL. Protected data not exposed by failed authorization or notification.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-14" category="LEGACY CUTOVER" refs="REQ25-LEGACY REQ25-COMPAT REQ25-DIRECT DP25-M07 MC25-07 FC25-21 FC25-22 FC25-23">
+        <INITIAL>Authenticated users, committed baseline conversation and durable PostgreSQL state configured as required by the sequence; actions not yet performed.</INITIAL>
+        <STEPS>Legacy data shape unknown; ambiguous owner streams, old client; unapproved mapping/cutover attempted</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Execute both orderings at the shared PostgreSQL transaction gate and at commit; where relevant switch at attempt registration, claim, REMOVE boundary, Publish timeout and reconnect.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>No auto merge/delete/reassign, provenance retained, release requires verified migration clients and Release Manager</EXPECTED>
+        <CHECK id="CCHECK25-14">Verify observable state and expected result: No auto merge/delete/reassign, provenance retained, release requires verified migration clients and Release Manager. Protected data not exposed by failed authorization or notification.</CHECK>
+      </SCENARIO>
+      <SCENARIO id="MS25-15" category="LIMITS" refs="REQ25-LIMITS REQ25-DOC REQ25-GROUP DP25-M02 DP25-M08 DP25-M09 MC25-02 MC25-08 MC25-09 FC25-04 FC25-12 FC25-24 FC25-25 FC25-26">
+        <INITIAL>Authenticated users, committed baseline conversation and durable PostgreSQL state configured as required by the sequence; actions not yet performed.</INITIAL>
+        <STEPS>HTTP body 65537 bytes, message 16385 bytes, group name 257 bytes, &gt;100 members, bad document pair</STEPS>
+        <CONCURRENT_INTERLEAVINGS>Execute both orderings at the shared PostgreSQL transaction gate and at commit; where relevant switch at attempt registration, claim, REMOVE boundary, Publish timeout and reconnect.</CONCURRENT_INTERLEAVINGS>
+        <EXPECTED>Reject before write with typed error; exact valid bounds work; no Drive ACL change</EXPECTED>
+        <CHECK id="CCHECK25-15">Verify observable state and expected result: Reject before write with typed error; exact valid bounds work; no Drive ACL change. Protected data not exposed by failed authorization or notification.</CHECK>
+      </SCENARIO>
+    </SCENARIOS>
+    <OPEN_CONSTRAINTS>Physical shape and integrity of real legacy bfe_chat data remain UNKNOWN, not inspected. Centrifuge timeout outcome UNKNOWN, not guaranteed cancellation. All checks are future QA criteria, not executed tests.</OPEN_CONSTRAINTS>
+    <GATE>READY_FOR_MENTAL_SCENARIOS_REVIEW. No Human Approval of this new section; implementation and automated testing remain separately gated.</GATE>
+  </ISSUE25_MENTAL_SCENARIOS>
 </MENTAL_SCENARIOS>
