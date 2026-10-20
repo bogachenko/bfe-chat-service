@@ -78,7 +78,17 @@ func (s Store) Send(ctx context.Context,conversation,sender,key string,p Payload
   id,e:=newUUID();if e!=nil{return e}
   _,e=tx.ExecContext(ctx,`INSERT INTO issue25_messages(id,conversation_id,ordinal,sender_id,idempotency_key,body,document_id,document_title,canonical_payload)
  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,id,conversation,ordinal,sender,key,p.Text,p.DocumentID,p.DocumentTitle,raw)
-  if e==nil{result=Message{ID:id,Ordinal:ordinal}};return e
+  if e!=nil{return e}
+  // A new incoming direct message reopens only the other viewer's hidden dialog.
+  var kind string
+  if e=tx.QueryRowContext(ctx,`SELECT kind FROM issue25_conversations WHERE id=$1`,conversation).Scan(&kind);e!=nil{return e}
+  if kind=="direct"{
+   _,e=tx.ExecContext(ctx,`UPDATE issue25_user_state SET hidden=false
+    WHERE conversation_id=$1 AND account_id<>$2 AND hidden=true`,conversation,sender)
+   if e!=nil{return e}
+  }
+  result=Message{ID:id,Ordinal:ordinal}
+  return nil
  })
  return result,err
 }
