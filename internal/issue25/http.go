@@ -39,6 +39,8 @@ func (h HTTPHandler) ServeHTTP(w http.ResponseWriter,r *http.Request){
   if !decode25(w,r,&req){return}
   id,err:=h.Store.OpenDirect(r.Context(),user,req.PeerID)
   if err!=nil{http25Error(w,err);return}
+  // Explicitly opening a direct chat restores the caller's own visibility.
+  if err=h.Store.HideDirect(r.Context(),id,user,false);err!=nil{http25Error(w,err);return}
   write25JSON(w,map[string]string{"conversationId":id});return
  }
  if len(parts)==1&&parts[0]=="group"&&r.Method=="POST"{
