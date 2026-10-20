@@ -49,7 +49,12 @@ type Publisher interface {
 	Publish(string, []byte, ...centrifuge.PublishOption) (centrifuge.PublishResult, error)
 }
 
+type EpochAuthorizer interface {
+	AuthorizeEpochChannel(context.Context,string,string) error
+}
+
 type Service struct {
+	Epochs      EpochAuthorizer
 	Auth        *authentication.Validator
 	Permissions Policy
 	Assignments LockedAssignments
@@ -66,6 +71,14 @@ func (s Service) Bind(node *centrifuge.Node, publicWebSocketURL string) error {
 	node.OnConnect(func(client *centrifuge.Client) {
 		client.OnSubscribe(func(event centrifuge.SubscribeEvent, cb centrifuge.SubscribeCallback) {
 			viewer := chat.AccountID(client.UserID())
+			if strings.HasPrefix(event.Channel, "chat:e:") {
+				if s.Epochs==nil || s.Epochs.AuthorizeEpochChannel(client.Context(),event.Channel,string(viewer))!=nil {
+					cb(centrifuge.SubscribeReply{}, centrifuge.ErrorPermissionDenied)
+					return
+				}
+				cb(centrifuge.SubscribeReply{}, nil)
+				return
+			}
 			owner, ok := channelOwner(event.Channel, viewer)
 			if !ok || s.Permissions.AuthorizeOperation(client.Context(), authentication.Caller{AccountID: string(viewer)}, owner, authorization.Subscribe) != nil {
 				cb(centrifuge.SubscribeReply{}, centrifuge.ErrorPermissionDenied)
