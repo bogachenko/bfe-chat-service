@@ -15,6 +15,7 @@ http {
    server_name chat.test.example;
    location /ws { proxy_pass http://127.0.0.1:8081; }
    location /v1/ { proxy_pass http://127.0.0.1:8081; }
+   location /v2/ { proxy_pass http://127.0.0.1:8081; }
  }
 }
 """
@@ -28,6 +29,10 @@ class NginxTests(unittest.TestCase):
     def test_split_vhost_rejected(self):
         bad = GOOD.replace("location /v1/ { proxy_pass http://127.0.0.1:8081; }", "")
         bad += "server { listen 443 ssl; server_name drive.test.example; location /v1/ { proxy_pass http://127.0.0.1:8081; } }"
+        self.assertFalse(mod.nginx_ok(bad, "chat.test.example"))
+
+    def test_missing_v2_rejected(self):
+        bad = GOOD.replace("   location /v2/ { proxy_pass http://127.0.0.1:8081; }\\n", "")
         self.assertFalse(mod.nginx_ok(bad, "chat.test.example"))
 
     def test_plain_http_rejected(self):
