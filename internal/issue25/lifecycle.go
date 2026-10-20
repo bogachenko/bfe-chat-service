@@ -7,6 +7,23 @@ import (
 	"strings"
 )
 
+func insertGroupMembers(ctx context.Context,tx *sql.Tx,id,owner string,members []string) error {
+	seen := map[string]bool{owner: true}
+	for _, member := range members {
+		if member == "" || seen[member] {
+			return ErrInvalid
+		}
+		seen[member] = true
+		e, er := newUUID()
+		if er != nil {
+			return er
+		}
+		if _, er = tx.ExecContext(ctx, `INSERT INTO issue25_memberships(epoch,conversation_id,account_id,role,join_boundary) VALUES($1,$2,$3,'member',1)`, e, id, member); er != nil {
+			return er
+		}
+	}
+	return nil
+}
 func (s Store) CreateGroup(ctx context.Context, owner, name string, members []string) (string, error) {
 	if owner == "" || len(strings.TrimSpace(name)) == 0 || len(name) > 256 || len(members)+1 > 100 {
 		return "", ErrInvalid
@@ -32,20 +49,7 @@ func (s Store) CreateGroup(ctx context.Context, owner, name string, members []st
 	if err != nil {
 		return "", err
 	}
-	seen := map[string]bool{owner: true}
-	for _, member := range members {
-		if member == "" || seen[member] {
-			return "", ErrInvalid
-		}
-		seen[member] = true
-		e, er := newUUID()
-		if er != nil {
-			return "", er
-		}
-		if _, er = tx.ExecContext(ctx, `INSERT INTO issue25_memberships(epoch,conversation_id,account_id,role,join_boundary) VALUES($1,$2,$3,'member',1)`, e, id, member); er != nil {
-			return "", er
-		}
-	}
+	if err = insertGroupMembers(ctx,tx,id,owner,members);err != nil {return "",err}
 	if err = tx.Commit(); err != nil {
 		return "", err
 	}
