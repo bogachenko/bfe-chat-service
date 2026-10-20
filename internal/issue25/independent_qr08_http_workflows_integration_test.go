@@ -69,5 +69,5 @@ func TestIndependentQR08HTTPConversationWorkflow(t *testing.T) {
  status,raw=call(member,"GET",route+"/unread","",nil)
  if e:=json.Unmarshal(raw,&unread);e!=nil||status!=200||unread.Unread!=0{t.Fatalf("after read=%d %v",unread.Unread,e)}
  status,raw=call(owner,http.MethodPut,route+"/hidden",`{"hidden":true}`,nil)
- if status!=403{t.Fatalf("group hide must be forbidden: %d %s",status,raw)}
+ if status!=400{t.Fatalf("group hide must fail validation: %d %s",status,raw)}
 }
