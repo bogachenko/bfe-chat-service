@@ -260,7 +260,7 @@ func (s Store) Join(ctx context.Context, conversation, actor, target, role strin
 		if e != nil {
 			return e
 		}
-		_, e := tx.ExecContext(ctx, `INSERT INTO issue25_memberships(epoch,conversation_id,account_id,role,join_boundary) VALUES($1,$2,$3,$4,$5)`, epoch, conversation, target, role, boundary)
+		_, e = tx.ExecContext(ctx, `INSERT INTO issue25_memberships(epoch,conversation_id,account_id,role,join_boundary) VALUES($1,$2,$3,$4,$5)`, epoch, conversation, target, role, boundary)
 		return e
 	})
 	return epoch, err
