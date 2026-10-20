@@ -115,7 +115,6 @@ func (h HTTPHandler) route25_list(w http.ResponseWriter, r *http.Request, user s
 		return
 	}
 	write25JSON(w, conversations)
-	return
 
 }
 func (h HTTPHandler) route25_direct(w http.ResponseWriter, r *http.Request, user string) {
@@ -140,7 +139,6 @@ func (h HTTPHandler) route25_direct(w http.ResponseWriter, r *http.Request, user
 		return
 	}
 	write25JSON(w, map[string]string{"conversationId": id})
-	return
 
 }
 func (h HTTPHandler) route25_group(w http.ResponseWriter, r *http.Request, user string) {
@@ -163,7 +161,6 @@ func (h HTTPHandler) route25_group(w http.ResponseWriter, r *http.Request, user 
 		return
 	}
 	write25JSON(w, map[string]string{"conversationId": id})
-	return
 
 }
 func (h HTTPHandler) route25_post_messages_2(w http.ResponseWriter, r *http.Request, user, conversation string, parts []string) {
