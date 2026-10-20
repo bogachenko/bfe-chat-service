@@ -253,20 +253,24 @@ func (s Store) Remove(ctx context.Context, conversation, actor, target string) e
 }
 
 // RemoveWithEpoch returns the exact epoch retired by the committed transaction.
+func authorizeRemoval(ctx context.Context,tx *sql.Tx,conversation,actor,target string) error {
+		var actorRole, targetRole string
+	if e := tx.QueryRowContext(ctx, `SELECT role FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`, conversation, actor).Scan(&actorRole); e != nil {
+		return ErrForbidden
+	}
+	if e := tx.QueryRowContext(ctx, `SELECT role FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`, conversation, target).Scan(&targetRole); e != nil {
+		return ErrForbidden
+	}
+	if targetRole == "owner" || (actor != target && actorRole != "owner" && (actorRole != "admin" || targetRole != "member")) {
+		return ErrForbidden
+	}
+	return nil
+}
 func (s Store) RemoveWithEpoch(ctx context.Context, conversation, actor, target string) (string, error) {
 	var retired string
 	err := s.tx(ctx, conversation, func(tx *sql.Tx) error {
 		if e := groupKind(ctx, tx, conversation); e != nil { return e }
-		var actorRole, targetRole string
-		if e := tx.QueryRowContext(ctx, `SELECT role FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`, conversation, actor).Scan(&actorRole); e != nil {
-			return ErrForbidden
-		}
-		if e := tx.QueryRowContext(ctx, `SELECT role FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`, conversation, target).Scan(&targetRole); e != nil {
-			return ErrForbidden
-		}
-		if targetRole == "owner" || (actor != target && actorRole != "owner" && (actorRole != "admin" || targetRole != "member")) {
-			return ErrForbidden
-		}
+		if e := authorizeRemoval(ctx,tx,conversation,actor,target); e != nil {return e}
 		if e := tx.QueryRowContext(ctx, `SELECT epoch::text FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`, conversation, target).Scan(&retired); e != nil {
 			return e
 		}
