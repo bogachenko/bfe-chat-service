@@ -76,13 +76,15 @@ func (s Store) MarkRead(ctx context.Context,conversation,viewer string,ordinal i
  return result,err
 }
 func (s Store) Unread(ctx context.Context,conversation,viewer string)(int64,error){
- if err:=s.AuthorizeHistory(ctx,conversation,viewer);err!=nil{return 0,err}
  var count int64
- err:=s.DB.QueryRowContext(ctx,`SELECT count(*) FROM issue25_messages m WHERE m.conversation_id=$1 AND m.sender_id<>$2
- AND m.ordinal>coalesce((SELECT last_read_ordinal FROM issue25_user_state WHERE conversation_id=$1 AND account_id=$2),0)
- AND EXISTS(SELECT 1 FROM issue25_memberships h WHERE h.conversation_id=m.conversation_id
- AND h.account_id=$2 AND m.ordinal>=h.join_boundary
- AND (h.leave_boundary IS NULL OR m.ordinal<h.leave_boundary))`,conversation,viewer).Scan(&count)
+ err:=s.tx(ctx,conversation,func(tx *sql.Tx)error{
+  if _,_,e:=active(tx,ctx,conversation,viewer);e!=nil{return e}
+  return tx.QueryRowContext(ctx,`SELECT count(*) FROM issue25_messages m WHERE m.conversation_id=$1 AND m.sender_id<>$2
+  AND m.ordinal>coalesce((SELECT last_read_ordinal FROM issue25_user_state WHERE conversation_id=$1 AND account_id=$2),0)
+  AND EXISTS(SELECT 1 FROM issue25_memberships h WHERE h.conversation_id=m.conversation_id
+  AND h.account_id=$2 AND m.ordinal>=h.join_boundary
+  AND (h.leave_boundary IS NULL OR m.ordinal<h.leave_boundary))`,conversation,viewer).Scan(&count)
+ })
  return count,err
 }
 func (s Store) ClaimAndGet(ctx context.Context,id string)(Attempt,bool,error){
