@@ -22,7 +22,7 @@ func (s Store) ListConversations(ctx context.Context, user string) ([]Conversati
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	result := []ConversationItem{}
 	for rows.Next() {
 		var x ConversationItem
