@@ -165,13 +165,13 @@ func (s Store) Send(ctx context.Context, conversation, sender, key string, p Pay
 		if replayed {
 			return nil
 		}
-		return writeCommittedMessage(ctx,tx,conversation,sender,key,p,raw,&result)
+		return writeCommittedMessage(ctx, tx, conversation, sender, key, p, raw, &result)
 	})
 	return result, err
 }
-func writeCommittedMessage(ctx context.Context,tx *sql.Tx,conversation,sender,key string,p Payload,raw []byte,result *Message) error {
- var ordinal int64
- var e error
+func writeCommittedMessage(ctx context.Context, tx *sql.Tx, conversation, sender, key string, p Payload, raw []byte, result *Message) error {
+	var ordinal int64
+	var e error
 	if e = tx.QueryRowContext(ctx, `UPDATE issue25_conversations SET next_ordinal=next_ordinal+1 WHERE id=$1 RETURNING next_ordinal-1`, conversation).Scan(&ordinal); e != nil {
 		return e
 	}
