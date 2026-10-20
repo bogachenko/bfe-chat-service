@@ -170,7 +170,8 @@ func (s Store) Send(ctx context.Context, conversation, sender, key string, p Pay
 	return result, err
 }
 func writeCommittedMessage(ctx context.Context,tx *sql.Tx,conversation,sender,key string,p Payload,raw []byte,result *Message) error {
-		var ordinal int64
+ var ordinal int64
+ var e error
 	if e = tx.QueryRowContext(ctx, `UPDATE issue25_conversations SET next_ordinal=next_ordinal+1 WHERE id=$1 RETURNING next_ordinal-1`, conversation).Scan(&ordinal); e != nil {
 		return e
 	}
