@@ -67,7 +67,8 @@ func TestPGImmutableAttemptAndSingleClaim(t *testing.T){
  m1,err:=s.Send(ctx,group,owner,fixtureID(t),Payload{Text:"M1"});if err!=nil{t.Fatal(err)}
  epoch:= "";err=db.QueryRowContext(ctx,`SELECT epoch::text FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`,group,viewer).Scan(&epoch)
  if err!=nil{t.Fatal(err)}
- id,channel,token:=fixtureID(t),fixtureID(t),fixtureID(t)
+ id,token:=fixtureID(t),fixtureID(t)
+ channel:="chat:e:"+epoch
  a:=Attempt{ID:id,Conversation:group,Viewer:viewer,Epoch:epoch,MessageID:m1.ID,Ordinal:m1.Ordinal,Channel:channel,WakeToken:token}
  if err=s.RegisterAttempt(ctx,a);err!=nil{t.Fatalf("register M1: %v",err)}
  if err=s.Remove(ctx,group,owner,viewer);err!=nil{t.Fatal(err)}
