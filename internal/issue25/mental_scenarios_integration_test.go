@@ -28,7 +28,7 @@ func TestPGMS2503MembershipHistory(t *testing.T){
  if len(items)!=len(want){t.Fatalf("visible count=%d, expected12",len(items))}
  for i,ord:=range want{if items[i].Ordinal!=ord{t.Fatalf("at %d ordinal=%d expected %d",i,items[i].Ordinal,ord)}}
  rows,err:=db.QueryContext(ctx,`SELECT epoch::text,join_boundary,leave_boundary FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 ORDER BY join_boundary`,group,viewer)
- if err!=nil{t.Fatal(err)};defer rows.Close()
+ if err!=nil{t.Fatal(err)};defer func() { if err := rows.Close(); err != nil { t.Errorf("close membership rows: %v", err) } }()
  var epoch string;var join int64;var leave *int64
  if !rows.Next(){t.Fatal("missing E1")}
  if err=rows.Scan(&epoch,&join,&leave);err!=nil{t.Fatal(err)}
