@@ -109,7 +109,7 @@
       </SCENARIO>
       <SCENARIO id="MS25-04" category="SEND REMOVE" refs="REQ25-SEND REQ25-MEMBERSHIP REQ25-REALTIME DP25-M03 DP25-M04 DP25-M05 MC25-03 MC25-04 MC25-05 FC25-07 FC25-11 FC25-13 FC25-16">
         <INITIAL>Group G1 owner O=...0001, S=...0002 member, V=...0003 member; counter=39; V epoch E1 currently active.</INITIAL>
-        <STEPS>A1 S SEND body=m40 key=...0140 acquires gate; A2 COMMIT ordinal40; A3 REMOVE V acquires gate and COMMIT leaveBoundary41. B1 REMOVE S acquires gate COMMIT leaveBoundary40; B2 S SEND body=deny key=...0141; B3 O SEND ordinal40.</STEPS>
+        <STEPS>1 Run order A: S SEND acquires gate; 2 SEND commits ordinal40; 3 REMOVE V commits leaveBoundary41; 4 reset synthetic fixture; 5 run order B: REMOVE S commits leaveBoundary40; 6 S SEND is rejected FORBIDDEN; 7 O SEND commits ordinal40; 8 assert all counters and visibility.</STEPS>
         <CONCURRENT_INTERLEAVINGS>Use barriers after acquiring gate and before each COMMIT; A: SEND then REMOVE. B: REMOVE then SEND; concurrent O send follows.</CONCURRENT_INTERLEAVINGS>
         <EXPECTED>A: message40 persisted, V may read 40, V interval ends at41. B: S SEND FORBIDDEN and zero S writes; O message40 persisted, removed S cannot read 40.</EXPECTED>
         <CHECK id="CCHECK25-04">A counts +1 message, boundary41; B S writes0, O writes1, boundary40; no leak; lock order deterministic.</CHECK>
@@ -151,7 +151,7 @@
       </SCENARIO>
       <SCENARIO id="MS25-10" category="UNKNOWN CRASH" refs="REQ25-REALTIME REQ25-HISTORY REQ25-SEND DP25-M04 DP25-M05 MC25-04 MC25-05 FC25-13 FC25-14 FC25-16 FC25-18">
         <INITIAL>Committed message M1 ordinal19; A REGISTERED; durable messages=1 and publishCalls=0.</INITIAL>
-        <STEPS>Case1 crash before CLAIM: new worker claims once and publishes; Case2 crash after CLAIM before Publish: no retry; Case3 timeout during Publish: UNKNOWN; Case4 crash after broker return before recording success: no replay; Case5 confirmed pre-call validation failure: FAILED.</STEPS>
+        <STEPS>1 Case1: crash before CAS CLAIM; restart and CLAIM then publish once; 2 Case2: crash immediately after CLAIM before Node.Publish, no retry; 3 Case3: simulate timeout while Publish in flight, record UNKNOWN; 4 Case4: crash after successful broker return before persisting SUCCESS, do not retry; 5 Case5: reject before invocation with proven local error FAILED; 6 reconnect and read committed M1.</STEPS>
         <CONCURRENT_INTERLEAVINGS>Stop process at four exact points: before CAS, after CAS, while Node.Publish in progress, after broker success before status persistence.</CONCURRENT_INTERLEAVINGS>
         <EXPECTED>Case1 total Publish=1 on recovery; case2=0 and message remains; case3 UNKNOWN with &lt;=1 publish invocation; case4 &lt;=1; case5 0; all preserve M1 and authorized history.</EXPECTED>
         <CHECK id="CCHECK25-10">DB messageCount1 each; claimed attempts not retried; UNKNOWN not converted to FAILED; no protected notification.</CHECK>
@@ -186,7 +186,7 @@
       </SCENARIO>
       <SCENARIO id="MS25-15" category="LIMITS" refs="REQ25-LIMITS REQ25-DOC REQ25-GROUP DP25-M02 DP25-M08 DP25-M09 MC25-02 MC25-08 MC25-09 FC25-04 FC25-12 FC25-24 FC25-25 FC25-26">
         <INITIAL>Authenticated S, group with owner and 99 members (total100); JSON and body UTF-8 fixtures; message text built from ASCII 'a'.</INITIAL>
-        <STEPS>For each limit test equal and +1: JSON 65536/65537 bytes, text 16384/16385 UTF8 bytes, name 256/257 UTF8 bytes, members 100/101, history limit 100/101; document both id+title or only id.</STEPS>
+        <STEPS>1 JSON request with exactly 65536 bytes then 65537; 2 message UTF-8 text exactly 16384 bytes then 16385; 3 group name UTF-8 exactly 256 then 257 bytes; 4 group total members exactly 100 then 101; 5 history limit exactly 100 then 101; 6 document reference with id+title then id only; 7 compare message/member/role row counts and errors after each independent test fixture reset.</STEPS>
         <CONCURRENT_INTERLEAVINGS>Run rejected request concurrently with valid atomic transaction and count committed rows.</CONCURRENT_INTERLEAVINGS>
         <EXPECTED>Each equal boundary accepted when other constraints valid; +1 yields VALIDATION_ERROR (HTTP status per mapped contract), rejected mutation writes0; one-field document INVALID_DOCUMENT; doc ACL unaffected.</EXPECTED>
         <CHECK id="CCHECK25-15">Counters increment only on accepted calls; membership cap100; body size, page limit and doc pairs validated separately.</CHECK>
