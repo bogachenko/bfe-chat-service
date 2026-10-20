@@ -97,6 +97,9 @@ func (s Store) Join(ctx context.Context,conversation,actor,target,role string)(s
  if role!="member"&&role!="admin"{return "",ErrInvalid}
  epoch,err:=newUUID();if err!=nil{return "",err}
  err=s.tx(ctx,conversation,func(tx *sql.Tx)error{
+  var kind string
+  if e:=tx.QueryRowContext(ctx,`SELECT kind FROM issue25_conversations WHERE id=$1`,conversation).Scan(&kind);e!=nil{return e}
+  if kind!="group"{return ErrInvalid}
   var actorRole string
   if e:=tx.QueryRowContext(ctx,`SELECT role FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`,conversation,actor).Scan(&actorRole);e!=nil{return ErrForbidden}
   if actorRole!="owner"&&actorRole!="admin"{return ErrForbidden};if role=="admin"&&actorRole!="owner"{return ErrForbidden}
@@ -112,6 +115,9 @@ func (s Store) Join(ctx context.Context,conversation,actor,target,role string)(s
 }
 func (s Store) Remove(ctx context.Context,conversation,actor,target string)error{
  return s.tx(ctx,conversation,func(tx *sql.Tx)error{
+  var kind string
+  if e:=tx.QueryRowContext(ctx,`SELECT kind FROM issue25_conversations WHERE id=$1`,conversation).Scan(&kind);e!=nil{return e}
+  if kind!="group"{return ErrInvalid}
   var actorRole,targetRole string
   if e:=tx.QueryRowContext(ctx,`SELECT role FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`,conversation,actor).Scan(&actorRole);e!=nil{return ErrForbidden}
   if e:=tx.QueryRowContext(ctx,`SELECT role FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`,conversation,target).Scan(&targetRole);e!=nil{return ErrForbidden}
