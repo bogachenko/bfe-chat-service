@@ -110,27 +110,33 @@ func (s Store) OpenDirect(ctx context.Context, a, b string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if err = ensureDirectMembers(ctx, tx, id, a, b); err != nil {
+		return "", err
+	}
+	if err = tx.Commit(); err != nil {
+		return "", err
+	}
+	return id, nil
+}
+func ensureDirectMembers(ctx context.Context, tx *sql.Tx, id, a, b string) error {
 	for _, viewer := range []string{a, b} {
 		var activeEpoch string
 		err = tx.QueryRowContext(ctx, `SELECT epoch::text FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`, id, viewer).Scan(&activeEpoch)
 		if errors.Is(err, sql.ErrNoRows) {
 			epoch, e := newUUID()
 			if e != nil {
-				return "", e
+				return e
 			}
 			_, e = tx.ExecContext(ctx, `INSERT INTO issue25_memberships(epoch,conversation_id,account_id,role,join_boundary)
     VALUES($1,$2,$3,'member',1)`, epoch, id, viewer)
 			if e != nil {
-				return "", e
+				return e
 			}
 		} else if err != nil {
-			return "", err
+			return err
 		}
 	}
-	if err = tx.Commit(); err != nil {
-		return "", err
-	}
-	return id, nil
+	return nil
 }
 func active(tx *sql.Tx, ctx context.Context, conversation, user string) (string, int64, error) {
 	var epoch string
@@ -151,18 +157,9 @@ func (s Store) Send(ctx context.Context, conversation, sender, key string, p Pay
 		if _, _, e := active(tx, ctx, conversation, sender); e != nil {
 			return e
 		}
-		var previous []byte
-		e := tx.QueryRowContext(ctx, `SELECT id::text,ordinal,canonical_payload FROM issue25_messages WHERE conversation_id=$1 AND sender_id=$2 AND idempotency_key=$3`, conversation, sender, key).Scan(&result.ID, &result.Ordinal, &previous)
-		if e == nil {
-			if !bytes.Equal(previous, raw) {
-				return ErrConflict
-			}
-			result.Replayed = true
-			return nil
-		}
-		if !errors.Is(e, sql.ErrNoRows) {
-			return e
-		}
+		replayed, e := checkSendReplay(ctx, tx, conversation, sender, key, raw, &result)
+		if e != nil { return e }
+		if replayed { return nil }
 		var ordinal int64
 		if e = tx.QueryRowContext(ctx, `UPDATE issue25_conversations SET next_ordinal=next_ordinal+1 WHERE id=$1 RETURNING next_ordinal-1`, conversation).Scan(&ordinal); e != nil {
 			return e
@@ -192,6 +189,21 @@ func (s Store) Send(ctx context.Context, conversation, sender, key string, p Pay
 		return nil
 	})
 	return result, err
+}
+func checkSendReplay(ctx context.Context, tx *sql.Tx, conversation, sender, key string, raw []byte, result *Message) (bool, error) {
+		var previous []byte
+		e := tx.QueryRowContext(ctx, `SELECT id::text,ordinal,canonical_payload FROM issue25_messages WHERE conversation_id=$1 AND sender_id=$2 AND idempotency_key=$3`, conversation, sender, key).Scan(&result.ID, &result.Ordinal, &previous)
+		if e == nil {
+			if !bytes.Equal(previous, raw) {
+				return true, ErrConflict
+			}
+			result.Replayed = true
+			return true, nil
+		}
+		if !errors.Is(e, sql.ErrNoRows) {
+			return false, e
+		}
+	return false, nil
 }
 func (s Store) Join(ctx context.Context, conversation, actor, target, role string) (string, error) {
 	if role != "member" && role != "admin" {
