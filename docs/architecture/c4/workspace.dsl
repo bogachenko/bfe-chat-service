@@ -3,7 +3,7 @@ workspace "BFE Chat Service" "C4 views of approved GRACE architecture and merged
     model {
         user = person "BFE user" "Uses conversations and messages."
         employee = person "BFE employee" "Communicates with authorized participants."
-        admin = person "BFE administrator" "Manages authorized conversation operations."
+        admin = person "BFE administrator" "Legacy assignments and administrative history access (ACT-ADMIN)."\n        groupOwner = person "Group owner" "Creates groups, transfers ownership and manages group roles (ACT25-OWNER)."\n        groupMember = person "Group member" "Participates during membership intervals (ACT25-MEMBER)."
 
         drive = softwareSystem "BFE Drive / Internal Auth" "Provides session identity and DPoP verification via UDS; owns documents and document ACL." {
             tags "External"
@@ -45,22 +45,22 @@ workspace "BFE Chat Service" "C4 views of approved GRACE architecture and merged
             app -> database "Queries and transactional writes" "pgx / SQL"
         }
 
-        user -> clients "Uses"
+        user -> chat "Create direct conversations, send and read messages (REQ25-DIRECT, REQ25-SEND, REQ25-HISTORY)"\n        groupOwner -> chat "Create groups; manage owner and membership (REQ25-GROUP, REQ25-ROLES)"\n        groupMember -> chat "Participate in groups and read permitted history (REQ25-MEMBERSHIP, REQ25-HISTORY)"\n        employee -> chat "Reply under current legacy assignment (BP-SEND, BP-HISTORY)"\n        admin -> chat "Manage legacy assignments and administrative read (BP-ASSIGN, BP-ADMIN-READ)"\n        user -> clients "Uses"
         employee -> clients "Uses"
         admin -> clients "Uses"
         clients -> chat.ingress "Chat API and realtime" "HTTPS / WSS, DPoP"
         clients -> drive "Open or download documents under Drive ACL" "HTTPS"
     }
     views {
-        systemContext chat "c1-system-context" {
+        systemContext chat "requirements-c1-context" {\n            description "GRACE Stage 1 — RequirementsAnalysis.xml: actors ACT-USER, ACT-EMPLOYEE, ACT-ADMIN, ACT25-OWNER, ACT25-MEMBER; use cases REQ25-DIRECT/GROUP/ROLES/SEND/HISTORY. Shows logical user interactions, not new network entrypoints."
             include *
             autolayout lr
         }
-        container chat "c2-containers" {
+        container chat "technology-development-c2-containers" {\n            description "GRACE Stages 2–3 — Technology.xml and DevelopmentPlan.xml: approved runtime boundaries and deployed Chat components."
             include *
             autolayout lr
         }
-        component chat.app "c3-chat-components" {
+        component chat.app "contracts-c3-components" {\n            description "GRACE Stage 4 — Contracts.xml: module contracts MC-01..MC-08 and MC25-01..MC25-09 represented as logical Go components."
             include *
             autolayout lr
         }
