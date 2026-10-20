@@ -31,31 +31,31 @@ func TestHTTPv2DirectAndIdempotency(t *testing.T){
  }
  directBody:=fmt.Sprintf(`{"peerId":"%s"}`,bob)
  w:=request("POST","/v2/conversations/direct",directBody)
- qaRequiref(t, !(w.Code!=200), "direct status=%d body=%s",w.Code,w.Body.String())
+ qaRejectf(t, (w.Code!=200), "direct status=%d body=%s",w.Code,w.Body.String())
  var d struct{ConversationID string `json:"conversationId"`}
- func() { err:=json.Unmarshal(w.Body.Bytes(),&d); qaRequiref(t, !(err!=nil||d.ConversationID==""), "direct response: %v %s",err,w.Body.String()) }()
+ func() { err:=json.Unmarshal(w.Body.Bytes(),&d); qaRejectf(t, (err!=nil||d.ConversationID==""), "direct response: %v %s",err,w.Body.String()) }()
  w=request("POST","/v2/conversations/direct",directBody)
  var replay struct{ConversationID string `json:"conversationId"`}
  _=json.Unmarshal(w.Body.Bytes(),&replay)
- qaRequiref(t, !(w.Code!=200||replay.ConversationID!=d.ConversationID), "duplicate direct: %d %s",w.Code,w.Body.String())
+ qaRejectf(t, (w.Code!=200||replay.ConversationID!=d.ConversationID), "duplicate direct: %d %s",w.Code,w.Body.String())
  key:=fixtureID(t)
  msgPath:="/v2/conversations/"+d.ConversationID+"/messages"
  body:=fmt.Sprintf(`{"idempotencyKey":"%s","text":"abc"}`,key)
  w=request("POST",msgPath,body)
- qaRequiref(t, !(w.Code!=200), "send=%d %s",w.Code,w.Body.String())
+ qaRejectf(t, (w.Code!=200), "send=%d %s",w.Code,w.Body.String())
  w=request("POST",msgPath,body)
- qaRequiref(t, !(w.Code!=200), "replay=%d %s",w.Code,w.Body.String())
+ qaRejectf(t, (w.Code!=200), "replay=%d %s",w.Code,w.Body.String())
  w=request("POST",msgPath,fmt.Sprintf(`{"idempotencyKey":"%s","text":"changed"}`,key))
- qaRequiref(t, !(w.Code!=409), "conflict=%d %s",w.Code,w.Body.String())
+ qaRejectf(t, (w.Code!=409), "conflict=%d %s",w.Code,w.Body.String())
  w=request("POST",msgPath,strings.Repeat("a",65537))
- qaRequiref(t, !(w.Code!=400), "oversize=%d %s",w.Code,w.Body.String())
+ qaRejectf(t, (w.Code!=400), "oversize=%d %s",w.Code,w.Body.String())
  w=request("GET","/v2/conversations/"+d.ConversationID+"/history","")
- qaRequiref(t, !(w.Code!=200), "history=%d %s",w.Code,w.Body.String())
+ qaRejectf(t, (w.Code!=200), "history=%d %s",w.Code,w.Body.String())
 }
 func TestHTTPv2AuthRequired(t *testing.T){
  h:=HTTPHandler{}
  w:=httptest.NewRecorder()
  r:=httptest.NewRequest(http.MethodPost,"/v2/conversations/direct",strings.NewReader("{}"))
  h.ServeHTTP(w,r)
- qaRequiref(t, !(w.Code!=503), "missing dependency status=%d",w.Code)
+ qaRejectf(t, (w.Code!=503), "missing dependency status=%d",w.Code)
 }

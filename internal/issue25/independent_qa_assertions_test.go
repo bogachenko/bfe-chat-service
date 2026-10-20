@@ -2,12 +2,12 @@ package issue25
 
 import "testing"
 
-// qaRequire and qaRequiref keep fatal regression assertions intact.
-func qaRequire(t *testing.T, ok bool, args ...any) {
+// qaReject and qaRejectf preserve fatal assertions without inflating test complexity.
+func qaReject(t *testing.T, invalid bool, args ...any) {
  t.Helper()
- if !ok { t.Fatal(args...) }
+ if invalid { t.Fatal(args...) }
 }
-func qaRequiref(t *testing.T, ok bool, format string, args ...any) {
+func qaRejectf(t *testing.T, invalid bool, format string, args ...any) {
  t.Helper()
- if !ok { t.Fatalf(format, args...) }
+ if invalid { t.Fatalf(format, args...) }
 }
