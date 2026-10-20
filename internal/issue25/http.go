@@ -301,7 +301,7 @@ func decode25(w http.ResponseWriter, r *http.Request, d any) bool {
 		write25(w, 400, "VALIDATION_ERROR")
 		return false
 	}
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(r.Body, 65537))
 	if err != nil || len(raw) > 65536 || len(raw) == 0 {
 		write25(w, 400, "VALIDATION_ERROR")
