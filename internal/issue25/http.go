@@ -16,6 +16,7 @@ type CallerValidator interface{
  ValidateCaller(context.Context,string,string,authentication.RequestBinding)(authentication.Caller,error)
 }
 type HTTPHandler struct{
+ Publisher Publisher
  Store Store
  Auth CallerValidator
  PublicOrigin string
@@ -57,6 +58,8 @@ func (h HTTPHandler) ServeHTTP(w http.ResponseWriter,r *http.Request){
   if req.Document!=nil{p.DocumentID=&req.Document.ID;p.DocumentTitle=&req.Document.Title}
   result,err:=h.Store.Send(r.Context(),conversation,user,req.IdempotencyKey,p)
   if err!=nil{http25Error(w,err);return}
+  // Message persistence is authoritative; notification failure never undoes it.
+  _=h.Store.NotifyCommitted(r.Context(),h.Publisher,conversation,result)
   write25JSON(w,result);return
  case len(parts)==2&&verb=="history"&&r.Method=="GET":
   after:=int64(0);limit:=50
