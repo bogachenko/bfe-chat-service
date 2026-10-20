@@ -50,7 +50,7 @@ type Publisher interface {
 }
 
 type EpochAuthorizer interface {
-	AuthorizeEpochChannel(context.Context,string,string) error
+	AuthorizeEpochChannel(context.Context, string, string) error
 }
 
 type Service struct {
@@ -72,7 +72,7 @@ func (s Service) Bind(node *centrifuge.Node, publicWebSocketURL string) error {
 		client.OnSubscribe(func(event centrifuge.SubscribeEvent, cb centrifuge.SubscribeCallback) {
 			viewer := chat.AccountID(client.UserID())
 			if strings.HasPrefix(event.Channel, "chat:e:") {
-				if s.Epochs==nil || s.Epochs.AuthorizeEpochChannel(client.Context(),event.Channel,string(viewer))!=nil {
+				if s.Epochs == nil || s.Epochs.AuthorizeEpochChannel(client.Context(), event.Channel, string(viewer)) != nil {
 					cb(centrifuge.SubscribeReply{}, centrifuge.ErrorPermissionDenied)
 					return
 				}
