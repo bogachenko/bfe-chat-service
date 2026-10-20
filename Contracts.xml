@@ -246,7 +246,7 @@
         <FAILURES>Errors enumerated in SIGNATURE must be typed; failures deny access and do not commit partial new domain state. A publish timeout does not undo a separately committed message.</FAILURES>
         <BOUNDARIES>All privileged operations require verified Caller from MC25-01 and membership/role from bfe_chat; shared conversation gate required when mutating ordinals, roles, epochs or admitting publication. No modifications to BFE Drive.</BOUNDARIES>
       </FUNCTION_CONTRACT>
-      <FUNCTION_CONTRACT id="FC25-04" owner="CC25-02" module_ref="MC25-02" architecture_ref="DP25-M02" requirement_refs="REQ25-GROUP REQ25-ROLES REQ25-LIMITS" status="PENDING_INDEPENDENT_REVIEW">
+      <FUNCTION_CONTRACT id="FC25-04" owner="CC25-02" module_ref="MC25-02" architecture_ref="DP25-M02" requirement_refs="REQ25-GROUP" status="PENDING_INDEPENDENT_REVIEW">
         <NAME>CreateGroup</NAME>
         <SIGNATURE>CreateGroup(Caller, nameUTF8, initialParticipantUUIDs) -&gt; Conversation{conversationId,ownerId} | VALIDATION_ERROR/CONFLICT</SIGNATURE>
         <PRECONDITIONS>Validate name &lt;=256 UTF-8 bytes and group total &lt;=100 including caller, unique UUIDs; bootstrap owner+membership atomically.</PRECONDITIONS>
@@ -270,7 +270,7 @@
         <FAILURES>Errors enumerated in SIGNATURE must be typed; failures deny access and do not commit partial new domain state. A publish timeout does not undo a separately committed message.</FAILURES>
         <BOUNDARIES>All privileged operations require verified Caller from MC25-01 and membership/role from bfe_chat; shared conversation gate required when mutating ordinals, roles, epochs or admitting publication. No modifications to BFE Drive.</BOUNDARIES>
       </FUNCTION_CONTRACT>
-      <FUNCTION_CONTRACT id="FC25-07" owner="CC25-03" module_ref="MC25-03" architecture_ref="DP25-M03" requirement_refs="REQ25-MEMBERSHIP REQ25-ROLES REQ25-REALTIME" status="PENDING_INDEPENDENT_REVIEW">
+      <FUNCTION_CONTRACT id="FC25-07" owner="CC25-03" module_ref="MC25-03" architecture_ref="DP25-M03" requirement_refs="REQ25-MEMBERSHIP REQ25-ROLES" status="PENDING_INDEPENDENT_REVIEW">
         <NAME>CommitRemoveMember</NAME>
         <SIGNATURE>CommitRemoveMember(ActorCaller, conversationId, targetUUID) -&gt; Revocation{retiredEpoch,leaveBoundary} | FORBIDDEN/OWNER_TRANSFER_REQUIRED</SIGNATURE>
         <PRECONDITIONS>Only owner may remove admin; admin may remove ordinary member; self-leave ordinary member allowed; owner exit requires prior transfer.</PRECONDITIONS>
@@ -294,7 +294,7 @@
         <FAILURES>Errors enumerated in SIGNATURE must be typed; failures deny access and do not commit partial new domain state. A publish timeout does not undo a separately committed message.</FAILURES>
         <BOUNDARIES>All privileged operations require verified Caller from MC25-01 and membership/role from bfe_chat; shared conversation gate required when mutating ordinals, roles, epochs or admitting publication. No modifications to BFE Drive.</BOUNDARIES>
       </FUNCTION_CONTRACT>
-      <FUNCTION_CONTRACT id="FC25-10" owner="CC25-03" module_ref="MC25-03" architecture_ref="DP25-M03" requirement_refs="REQ25-MEMBERSHIP REQ25-HISTORY" status="PENDING_INDEPENDENT_REVIEW">
+      <FUNCTION_CONTRACT id="FC25-10" owner="CC25-03" module_ref="MC25-03" architecture_ref="DP25-M03" requirement_refs="REQ25-MEMBERSHIP" status="PENDING_INDEPENDENT_REVIEW">
         <NAME>ResolveVisibleIntervals</NAME>
         <SIGNATURE>ResolveVisibleIntervals(Caller, conversationId, targetMessageOrdinal) -&gt; VisibilityWindows{orderedHalfOpenIntervals,activeEpoch} | FORBIDDEN</SIGNATURE>
         <PRECONDITIONS>Return only own authorized historical periods; latest join does not reopen absent gap.</PRECONDITIONS>
@@ -302,7 +302,7 @@
         <FAILURES>Errors enumerated in SIGNATURE must be typed; failures deny access and do not commit partial new domain state. A publish timeout does not undo a separately committed message.</FAILURES>
         <BOUNDARIES>All privileged operations require verified Caller from MC25-01 and membership/role from bfe_chat; shared conversation gate required when mutating ordinals, roles, epochs or admitting publication. No modifications to BFE Drive.</BOUNDARIES>
       </FUNCTION_CONTRACT>
-      <FUNCTION_CONTRACT id="FC25-11" owner="CC25-03" module_ref="MC25-03" architecture_ref="DP25-M03" requirement_refs="REQ25-SEND REQ25-MEMBERSHIP REQ25-REALTIME" status="PENDING_INDEPENDENT_REVIEW">
+      <FUNCTION_CONTRACT id="FC25-11" owner="CC25-03" module_ref="MC25-03" architecture_ref="DP25-M03" requirement_refs="REQ25-MEMBERSHIP" status="PENDING_INDEPENDENT_REVIEW">
         <NAME>AcquireConversationGate</NAME>
         <SIGNATURE>AcquireConversationGate(context, tx, conversationUUID) -&gt; GuardedTransaction | STORAGE_UNAVAILABLE/TIMEOUT</SIGNATURE>
         <PRECONDITIONS>Transaction active and validated; deterministic stable lock key per conversation, same key used by sends, membership and publish admission. Do not rely only on hash uniqueness for security.</PRECONDITIONS>
@@ -310,7 +310,7 @@
         <FAILURES>Errors enumerated in SIGNATURE must be typed; failures deny access and do not commit partial new domain state. A publish timeout does not undo a separately committed message.</FAILURES>
         <BOUNDARIES>All privileged operations require verified Caller from MC25-01 and membership/role from bfe_chat; shared conversation gate required when mutating ordinals, roles, epochs or admitting publication. No modifications to BFE Drive.</BOUNDARIES>
       </FUNCTION_CONTRACT>
-      <FUNCTION_CONTRACT id="FC25-12" owner="CC25-04" module_ref="MC25-04" architecture_ref="DP25-M04" requirement_refs="REQ25-SEND REQ25-DOC REQ25-LIMITS" status="PENDING_INDEPENDENT_REVIEW">
+      <FUNCTION_CONTRACT id="FC25-12" owner="CC25-04" module_ref="MC25-04" architecture_ref="DP25-M04" requirement_refs="REQ25-SEND REQ25-DOC" status="PENDING_INDEPENDENT_REVIEW">
         <NAME>CanonicalizeMessagePayload</NAME>
         <SIGNATURE>CanonicalizeMessagePayload(bodyUTF8, optionalDocumentId, optionalDocumentTitle) -&gt; CanonicalPayload{bytes,digest} | VALIDATION_ERROR</SIGNATURE>
         <PRECONDITIONS>Text &lt;=16384 UTF-8 bytes; exactly one optional document pair; stable serialization encodes field presence, lengths and byte values; digest collisions never substitute for full equality.</PRECONDITIONS>
@@ -318,7 +318,7 @@
         <FAILURES>Errors enumerated in SIGNATURE must be typed; failures deny access and do not commit partial new domain state. A publish timeout does not undo a separately committed message.</FAILURES>
         <BOUNDARIES>All privileged operations require verified Caller from MC25-01 and membership/role from bfe_chat; shared conversation gate required when mutating ordinals, roles, epochs or admitting publication. No modifications to BFE Drive.</BOUNDARIES>
       </FUNCTION_CONTRACT>
-      <FUNCTION_CONTRACT id="FC25-13" owner="CC25-04" module_ref="MC25-04" architecture_ref="DP25-M04" requirement_refs="REQ25-SEND REQ25-HISTORY REQ25-SECURITY" status="PENDING_INDEPENDENT_REVIEW">
+      <FUNCTION_CONTRACT id="FC25-13" owner="CC25-04" module_ref="MC25-04" architecture_ref="DP25-M04" requirement_refs="REQ25-SEND REQ25-HISTORY" status="PENDING_INDEPENDENT_REVIEW">
         <NAME>CommitSendMessage</NAME>
         <SIGNATURE>CommitSendMessage(Caller, conversationId, idempotencyUUID, CanonicalPayload) -&gt; Message{ordinal,id,replayed} | CONFLICT_409/FORBIDDEN</SIGNATURE>
         <PRECONDITIONS>Authenticate caller, acquire gate, read current membership epoch and stored idempotency record. Equal canonical bytes return original result; differing bytes 409.</PRECONDITIONS>
@@ -326,7 +326,7 @@
         <FAILURES>Errors enumerated in SIGNATURE must be typed; failures deny access and do not commit partial new domain state. A publish timeout does not undo a separately committed message.</FAILURES>
         <BOUNDARIES>All privileged operations require verified Caller from MC25-01 and membership/role from bfe_chat; shared conversation gate required when mutating ordinals, roles, epochs or admitting publication. No modifications to BFE Drive.</BOUNDARIES>
       </FUNCTION_CONTRACT>
-      <FUNCTION_CONTRACT id="FC25-14" owner="CC25-04" module_ref="MC25-04" architecture_ref="DP25-M04" requirement_refs="REQ25-HISTORY REQ25-MEMBERSHIP REQ25-LIMITS" status="PENDING_INDEPENDENT_REVIEW">
+      <FUNCTION_CONTRACT id="FC25-14" owner="CC25-04" module_ref="MC25-04" architecture_ref="DP25-M04" requirement_refs="REQ25-HISTORY" status="PENDING_INDEPENDENT_REVIEW">
         <NAME>ReadAuthorizedHistory</NAME>
         <SIGNATURE>ReadAuthorizedHistory(Caller, conversationId, exclusiveCursor, limit) -&gt; HistoryPage{messages,nextCursor} | FORBIDDEN/CURSOR_INVALID</SIGNATURE>
         <PRECONDITIONS>Valid caller, membership history eligible for read; cursor identifies stable conversation ordinal plus binding; max limit 100, default 50.</PRECONDITIONS>
@@ -350,7 +350,7 @@
         <FAILURES>Errors enumerated in SIGNATURE must be typed; failures deny access and do not commit partial new domain state. A publish timeout does not undo a separately committed message.</FAILURES>
         <BOUNDARIES>All privileged operations require verified Caller from MC25-01 and membership/role from bfe_chat; shared conversation gate required when mutating ordinals, roles, epochs or admitting publication. No modifications to BFE Drive.</BOUNDARIES>
       </FUNCTION_CONTRACT>
-      <FUNCTION_CONTRACT id="FC25-17" owner="CC25-05" module_ref="MC25-05" architecture_ref="DP25-M05" requirement_refs="REQ25-REALTIME REQ25-ISOLATION" status="PENDING_INDEPENDENT_REVIEW">
+      <FUNCTION_CONTRACT id="FC25-17" owner="CC25-05" module_ref="MC25-05" architecture_ref="DP25-M05" requirement_refs="REQ25-REALTIME" status="PENDING_INDEPENDENT_REVIEW">
         <NAME>BuildNotificationEnvelope</NAME>
         <SIGNATURE>BuildNotificationEnvelope(conversationId, viewerEpoch, opaqueWakeToken) -&gt; Notification{version,opaqueWakeToken} | VALIDATION_ERROR</SIGNATURE>
         <PRECONDITIONS>Opaque token is random and cannot encode message ID, ordinal, author, body, document metadata, conversation display title or confidential state.</PRECONDITIONS>
@@ -390,7 +390,7 @@
         <FAILURES>Errors enumerated in SIGNATURE must be typed; failures deny access and do not commit partial new domain state. A publish timeout does not undo a separately committed message.</FAILURES>
         <BOUNDARIES>All privileged operations require verified Caller from MC25-01 and membership/role from bfe_chat; shared conversation gate required when mutating ordinals, roles, epochs or admitting publication. No modifications to BFE Drive.</BOUNDARIES>
       </FUNCTION_CONTRACT>
-      <FUNCTION_CONTRACT id="FC25-22" owner="CC25-07" module_ref="MC25-07" architecture_ref="DP25-M07" requirement_refs="REQ25-LEGACY REQ25-COMPAT REQ25-DOC" status="PENDING_INDEPENDENT_REVIEW">
+      <FUNCTION_CONTRACT id="FC25-22" owner="CC25-07" module_ref="MC25-07" architecture_ref="DP25-M07" requirement_refs="REQ25-LEGACY REQ25-COMPAT" status="PENDING_INDEPENDENT_REVIEW">
         <NAME>VerifyLegacyPreservation</NAME>
         <SIGNATURE>VerifyLegacyPreservation(BaselineCountsAndChecksums, candidateMapping) -&gt; VerificationReport | VERIFICATION_FAILED</SIGNATURE>
         <PRECONDITIONS>Baseline must include original message ID, owner, sender, recipient, key, body, document ID/title; original remains available.</PRECONDITIONS>
@@ -414,7 +414,7 @@
         <FAILURES>Errors enumerated in SIGNATURE must be typed; failures deny access and do not commit partial new domain state. A publish timeout does not undo a separately committed message.</FAILURES>
         <BOUNDARIES>All privileged operations require verified Caller from MC25-01 and membership/role from bfe_chat; shared conversation gate required when mutating ordinals, roles, epochs or admitting publication. No modifications to BFE Drive.</BOUNDARIES>
       </FUNCTION_CONTRACT>
-      <FUNCTION_CONTRACT id="FC25-25" owner="CC25-08" module_ref="MC25-08" architecture_ref="DP25-M08" requirement_refs="REQ25-SECURITY REQ25-SEND REQ25-COMPAT" status="PENDING_INDEPENDENT_REVIEW">
+      <FUNCTION_CONTRACT id="FC25-25" owner="CC25-08" module_ref="MC25-08" architecture_ref="DP25-M08" requirement_refs="REQ25-SECURITY REQ25-COMPAT" status="PENDING_INDEPENDENT_REVIEW">
         <NAME>MapChatErrorToHTTP</NAME>
         <SIGNATURE>MapChatErrorToHTTP(DomainError) -&gt; HTTPResponse{status,publicCode}</SIGNATURE>
         <PRECONDITIONS>CONFLICT_409 maps 409; forbidden 403, auth-invalid 401, unavailable session check fails closed; avoid exposing conversation existence.</PRECONDITIONS>
@@ -465,62 +465,49 @@
       <EDGE requirement="REQ25-ISOLATION" technology="TD25-03" architecture="DP25-M01" module="MC25-01" function="FC25-02"/>
       <EDGE requirement="REQ25-DIRECT" technology="TD25-01" architecture="DP25-M02" module="MC25-02" function="FC25-03"/>
       <EDGE requirement="REQ25-GROUP" technology="TD25-01" architecture="DP25-M02" module="MC25-02" function="FC25-04"/>
-      <EDGE requirement="REQ25-ROLES" technology="TD25-03" architecture="DP25-M02" module="MC25-02" function="FC25-04"/>
-      <EDGE requirement="REQ25-LIMITS" technology="TD25-07" architecture="DP25-M02" module="MC25-02" function="FC25-04"/>
       <EDGE requirement="REQ25-HIDE" technology="TD25-08" architecture="DP25-M02" module="MC25-02" function="FC25-05"/>
-      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-02" architecture="DP25-M03" module="MC25-03" function="FC25-06"/>
-      <EDGE requirement="REQ25-ROLES" technology="TD25-03" architecture="DP25-M03" module="MC25-03" function="FC25-06"/>
+      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-01" architecture="DP25-M03" module="MC25-03" function="FC25-06"/>
+      <EDGE requirement="REQ25-ROLES" technology="TD25-01" architecture="DP25-M03" module="MC25-03" function="FC25-06"/>
       <EDGE requirement="REQ25-GROUP" technology="TD25-01" architecture="DP25-M03" module="MC25-03" function="FC25-06"/>
       <EDGE requirement="REQ25-SECURITY" technology="TD25-03" architecture="DP25-M03" module="MC25-03" function="FC25-06"/>
-      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-02" architecture="DP25-M03" module="MC25-03" function="FC25-07"/>
-      <EDGE requirement="REQ25-ROLES" technology="TD25-03" architecture="DP25-M03" module="MC25-03" function="FC25-07"/>
-      <EDGE requirement="REQ25-REALTIME" technology="TD25-04" architecture="DP25-M03" module="MC25-03" function="FC25-07"/>
-      <EDGE requirement="REQ25-ROLES" technology="TD25-03" architecture="DP25-M03" module="MC25-03" function="FC25-08"/>
+      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-01" architecture="DP25-M03" module="MC25-03" function="FC25-07"/>
+      <EDGE requirement="REQ25-ROLES" technology="TD25-01" architecture="DP25-M03" module="MC25-03" function="FC25-07"/>
+      <EDGE requirement="REQ25-ROLES" technology="TD25-01" architecture="DP25-M03" module="MC25-03" function="FC25-08"/>
       <EDGE requirement="REQ25-GROUP" technology="TD25-01" architecture="DP25-M03" module="MC25-03" function="FC25-08"/>
-      <EDGE requirement="REQ25-ROLES" technology="TD25-03" architecture="DP25-M03" module="MC25-03" function="FC25-09"/>
-      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-02" architecture="DP25-M03" module="MC25-03" function="FC25-09"/>
-      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-02" architecture="DP25-M03" module="MC25-03" function="FC25-10"/>
-      <EDGE requirement="REQ25-HISTORY" technology="TD25-05" architecture="DP25-M03" module="MC25-03" function="FC25-10"/>
-      <EDGE requirement="REQ25-SEND" technology="TD25-05" architecture="DP25-M03" module="MC25-03" function="FC25-11"/>
-      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-02" architecture="DP25-M03" module="MC25-03" function="FC25-11"/>
-      <EDGE requirement="REQ25-REALTIME" technology="TD25-04" architecture="DP25-M03" module="MC25-03" function="FC25-11"/>
+      <EDGE requirement="REQ25-ROLES" technology="TD25-01" architecture="DP25-M03" module="MC25-03" function="FC25-09"/>
+      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-01" architecture="DP25-M03" module="MC25-03" function="FC25-09"/>
+      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-01" architecture="DP25-M03" module="MC25-03" function="FC25-10"/>
+      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-01" architecture="DP25-M03" module="MC25-03" function="FC25-11"/>
       <EDGE requirement="REQ25-SEND" technology="TD25-05" architecture="DP25-M04" module="MC25-04" function="FC25-12"/>
       <EDGE requirement="REQ25-DOC" technology="TD25-09" architecture="DP25-M04" module="MC25-04" function="FC25-12"/>
-      <EDGE requirement="REQ25-LIMITS" technology="TD25-07" architecture="DP25-M04" module="MC25-04" function="FC25-12"/>
       <EDGE requirement="REQ25-SEND" technology="TD25-05" architecture="DP25-M04" module="MC25-04" function="FC25-13"/>
       <EDGE requirement="REQ25-HISTORY" technology="TD25-05" architecture="DP25-M04" module="MC25-04" function="FC25-13"/>
-      <EDGE requirement="REQ25-SECURITY" technology="TD25-03" architecture="DP25-M04" module="MC25-04" function="FC25-13"/>
       <EDGE requirement="REQ25-HISTORY" technology="TD25-05" architecture="DP25-M04" module="MC25-04" function="FC25-14"/>
-      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-02" architecture="DP25-M04" module="MC25-04" function="FC25-14"/>
-      <EDGE requirement="REQ25-LIMITS" technology="TD25-07" architecture="DP25-M04" module="MC25-04" function="FC25-14"/>
       <EDGE requirement="REQ25-REALTIME" technology="TD25-04" architecture="DP25-M05" module="MC25-05" function="FC25-15"/>
-      <EDGE requirement="REQ25-SECURITY" technology="TD25-03" architecture="DP25-M05" module="MC25-05" function="FC25-15"/>
+      <EDGE requirement="REQ25-SECURITY" technology="TD25-04" architecture="DP25-M05" module="MC25-05" function="FC25-15"/>
       <EDGE requirement="REQ25-REALTIME" technology="TD25-04" architecture="DP25-M05" module="MC25-05" function="FC25-16"/>
-      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-02" architecture="DP25-M05" module="MC25-05" function="FC25-16"/>
-      <EDGE requirement="REQ25-SECURITY" technology="TD25-03" architecture="DP25-M05" module="MC25-05" function="FC25-16"/>
+      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-04" architecture="DP25-M05" module="MC25-05" function="FC25-16"/>
+      <EDGE requirement="REQ25-SECURITY" technology="TD25-04" architecture="DP25-M05" module="MC25-05" function="FC25-16"/>
       <EDGE requirement="REQ25-REALTIME" technology="TD25-04" architecture="DP25-M05" module="MC25-05" function="FC25-17"/>
-      <EDGE requirement="REQ25-ISOLATION" technology="TD25-03" architecture="DP25-M05" module="MC25-05" function="FC25-17"/>
       <EDGE requirement="REQ25-REALTIME" technology="TD25-04" architecture="DP25-M05" module="MC25-05" function="FC25-18"/>
-      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-02" architecture="DP25-M05" module="MC25-05" function="FC25-18"/>
+      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-04" architecture="DP25-M05" module="MC25-05" function="FC25-18"/>
       <EDGE requirement="REQ25-READ" technology="TD25-08" architecture="DP25-M06" module="MC25-06" function="FC25-19"/>
-      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-02" architecture="DP25-M06" module="MC25-06" function="FC25-19"/>
+      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-08" architecture="DP25-M06" module="MC25-06" function="FC25-19"/>
       <EDGE requirement="REQ25-READ" technology="TD25-08" architecture="DP25-M06" module="MC25-06" function="FC25-20"/>
       <EDGE requirement="REQ25-HISTORY" technology="TD25-05" architecture="DP25-M06" module="MC25-06" function="FC25-20"/>
       <EDGE requirement="REQ25-LEGACY" technology="TD25-06" architecture="DP25-M07" module="MC25-07" function="FC25-21"/>
-      <EDGE requirement="REQ25-DIRECT" technology="TD25-01" architecture="DP25-M07" module="MC25-07" function="FC25-21"/>
+      <EDGE requirement="REQ25-DIRECT" technology="TD25-06" architecture="DP25-M07" module="MC25-07" function="FC25-21"/>
       <EDGE requirement="REQ25-LEGACY" technology="TD25-06" architecture="DP25-M07" module="MC25-07" function="FC25-22"/>
       <EDGE requirement="REQ25-COMPAT" technology="TD25-06" architecture="DP25-M07" module="MC25-07" function="FC25-22"/>
-      <EDGE requirement="REQ25-DOC" technology="TD25-09" architecture="DP25-M07" module="MC25-07" function="FC25-22"/>
       <EDGE requirement="REQ25-COMPAT" technology="TD25-06" architecture="DP25-M07" module="MC25-07" function="FC25-23"/>
       <EDGE requirement="REQ25-LIMITS" technology="TD25-07" architecture="DP25-M08" module="MC25-08" function="FC25-24"/>
       <EDGE requirement="REQ25-SECURITY" technology="TD25-03" architecture="DP25-M08" module="MC25-08" function="FC25-24"/>
       <EDGE requirement="REQ25-SECURITY" technology="TD25-03" architecture="DP25-M08" module="MC25-08" function="FC25-25"/>
-      <EDGE requirement="REQ25-SEND" technology="TD25-05" architecture="DP25-M08" module="MC25-08" function="FC25-25"/>
       <EDGE requirement="REQ25-COMPAT" technology="TD25-06" architecture="DP25-M08" module="MC25-08" function="FC25-25"/>
       <EDGE requirement="REQ25-DOC" technology="TD25-09" architecture="DP25-M09" module="MC25-09" function="FC25-26"/>
-      <EDGE requirement="REQ25-ISOLATION" technology="TD25-03" architecture="DP25-M09" module="MC25-09" function="FC25-26"/>
+      <EDGE requirement="REQ25-ISOLATION" technology="TD25-09" architecture="DP25-M09" module="MC25-09" function="FC25-26"/>
       <EDGE requirement="REQ25-DOC" technology="TD25-09" architecture="DP25-M09" module="MC25-09" function="FC25-27"/>
-      <EDGE requirement="REQ25-ISOLATION" technology="TD25-03" architecture="DP25-M09" module="MC25-09" function="FC25-27"/>
+      <EDGE requirement="REQ25-ISOLATION" technology="TD25-09" architecture="DP25-M09" module="MC25-09" function="FC25-27"/>
     </TRACEABILITY>
     <GATE>READY_FOR_CLASS_FUNCTION_CONTRACTS_REVIEW only. Independent QA and a separate Project Owner approval are required before MentalScenarios or any implementation. Existing legacy approved contracts remain unchanged.</GATE>
   </ISSUE25_FUNCTION_CONTRACTS>
