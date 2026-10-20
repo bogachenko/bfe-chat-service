@@ -48,3 +48,24 @@ func TestPGMS2515RequestLimitsAndAtomicity(t *testing.T){
  if got:=call("/v2/conversations/group",fmt.Sprintf(`{"name":"%s"}`,strings.Repeat("a",256)));got!=200{t.Fatalf("256 name status=%d",got)}
  if got:=call("/v2/conversations/group",fmt.Sprintf(`{"name":"%s"}`,strings.Repeat("a",257)));got!=400{t.Fatalf("257 name status=%d",got)}
 }
+
+func TestPGMS2515DomainLimitEdges(t *testing.T){
+ db:=integrationDB(t);ctx:=context.Background();s:=Store{DB:db}
+ owner:=fixtureID(t)
+ members:=make([]string,99)
+ for i:=range members{members[i]=fixtureID(t)}
+ group,err:=s.CreateGroup(ctx,owner,"exactly hundred",members)
+ if err!=nil{t.Fatalf("100 members rejected: %v",err)}
+ if _,err=s.CreateGroup(ctx,owner,"too many",append(members,fixtureID(t)));err!=ErrInvalid{t.Fatalf("101 members should reject VALIDATION_ERROR: %v",err)}
+ validBody:=strings.Repeat("a",16384)
+ if _,err=s.Send(ctx,group,owner,fixtureID(t),Payload{Text:validBody});err!=nil{t.Fatalf("16384-byte body rejected: %v",err)}
+ if _,err=s.Send(ctx,group,owner,fixtureID(t),Payload{Text:validBody+"a"});err!=ErrInvalid{t.Fatalf("16385-byte body: %v",err)}
+ documentID,documentTitle:="file-7","Title 7"
+ if _,err=s.Send(ctx,group,owner,fixtureID(t),Payload{DocumentID:&documentID,DocumentTitle:&documentTitle});err!=nil{t.Fatalf("document-only message: %v",err)}
+ if _,err=s.Send(ctx,group,owner,fixtureID(t),Payload{DocumentID:&documentID});err!=ErrInvalid{t.Fatalf("half document pair: %v",err)}
+ if _,err=s.ReadHistoryDetailed(ctx,group,owner,0,100);err!=nil{t.Fatalf("history limit100: %v",err)}
+ if _,err=s.ReadHistoryDetailed(ctx,group,owner,0,101);err!=ErrInvalid{t.Fatalf("history limit101: %v",err)}
+ var count int
+ if err=db.QueryRowContext(ctx,`SELECT count(*) FROM issue25_messages WHERE conversation_id=$1`,group).Scan(&count);err!=nil{t.Fatal(err)}
+ if count!=2{t.Fatalf("invalid requests wrote %d messages (expected2)",count)}
+}
