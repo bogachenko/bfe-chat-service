@@ -1,0 +1,61 @@
+package issue25
+
+import (
+ "context"
+ "encoding/json"
+ "fmt"
+ "net/http"
+ "net/http/httptest"
+ "strings"
+ "testing"
+
+ "github.com/bogachenko/bfe-chat-service/internal/authentication"
+)
+
+type fakeCaller struct{ id string }
+func (f fakeCaller) ValidateCaller(_ context.Context,token,proof string,_ authentication.RequestBinding)(authentication.Caller,error){
+ if token!="test-token"||proof!="test-proof"{return authentication.Caller{},authentication.ErrProofInvalid}
+ return authentication.Caller{AccountID:f.id},nil
+}
+func TestHTTPv2DirectAndIdempotency(t *testing.T){
+ db:=integrationDB(t)
+ alice,bob:=fixtureID(t),fixtureID(t)
+ h:=HTTPHandler{Store:Store{DB:db},Auth:fakeCaller{id:alice},PublicOrigin:"https://example.invalid"}
+ request:=func(method,path,body string)*httptest.ResponseRecorder{
+  t.Helper()
+  r:=httptest.NewRequest(method,path,strings.NewReader(body))
+  r.Header.Set("Authorization","Bearer test-token");r.Header.Set("DPoP","test-proof")
+  w:=httptest.NewRecorder()
+  h.ServeHTTP(w,r)
+  return w
+ }
+ directBody:=fmt.Sprintf(`{"peerId":"%s"}`,bob)
+ w:=request("POST","/v2/conversations/direct",directBody)
+ if w.Code!=200{t.Fatalf("direct status=%d body=%s",w.Code,w.Body.String())}
+ var d struct{ConversationID string `json:"conversationId"`}
+ if err:=json.Unmarshal(w.Body.Bytes(),&d);err!=nil||d.ConversationID==""{t.Fatalf("direct response: %v %s",err,w.Body.String())}
+ w=request("POST","/v2/conversations/direct",directBody)
+ var replay struct{ConversationID string `json:"conversationId"`}
+ _=json.Unmarshal(w.Body.Bytes(),&replay)
+ if w.Code!=200||replay.ConversationID!=d.ConversationID{t.Fatalf("duplicate direct: %d %s",w.Code,w.Body.String())}
+ key:=fixtureID(t)
+ msgPath:="/v2/conversations/"+d.ConversationID+"/messages"
+ body:=fmt.Sprintf(`{"idempotencyKey":"%s","text":"abc"}`,key)
+ w=request("POST",msgPath,body)
+ if w.Code!=200{t.Fatalf("send=%d %s",w.Code,w.Body.String())}
+ w=request("POST",msgPath,body)
+ if w.Code!=200{t.Fatalf("replay=%d %s",w.Code,w.Body.String())}
+ w=request("POST",msgPath,fmt.Sprintf(`{"idempotencyKey":"%s","text":"changed"}`,key))
+ if w.Code!=409{t.Fatalf("conflict=%d %s",w.Code,w.Body.String())}
+ w=request("POST",msgPath,strings.Repeat("a",65537))
+ if w.Code!=400{t.Fatalf("oversize=%d %s",w.Code,w.Body.String())}
+ w=request("GET","/v2/conversations/"+d.ConversationID+"/history","")
+ if w.Code!=200{t.Fatalf("history=%d %s",w.Code,w.Body.String())}
+}
+func TestHTTPv2AuthRequired(t *testing.T){
+ h:=HTTPHandler{}
+ w:=httptest.NewRecorder()
+ r:=httptest.NewRequest(http.MethodPost,"/v2/conversations/direct",strings.NewReader("{}"))
+ h.ServeHTTP(w,r)
+ if w.Code!=503{t.Fatalf("missing dependency status=%d",w.Code)}
+}
