@@ -47,6 +47,7 @@ func (h HTTPHandler) ServeHTTP(w http.ResponseWriter,r *http.Request){
  if len(parts)==1&&parts[0]=="direct"&&r.Method=="POST" {
   var req struct{PeerID string `json:"peerId"`}
   if !decode25(w,r,&req){return}
+  if !validUUID(req.PeerID){write25(w,400,"VALIDATION_ERROR");return}
   id,err:=h.Store.OpenDirect(r.Context(),user,req.PeerID)
   if err!=nil{http25Error(w,err);return}
   // Explicitly opening a direct chat restores the caller's own visibility.
@@ -56,6 +57,7 @@ func (h HTTPHandler) ServeHTTP(w http.ResponseWriter,r *http.Request){
  if len(parts)==1&&parts[0]=="group"&&r.Method=="POST"{
   var req struct{Name string `json:"name"`; Members []string `json:"members"`}
   if !decode25(w,r,&req){return}
+  for _,member:=range req.Members{if !validUUID(member){write25(w,400,"VALIDATION_ERROR");return}}
   id,err:=h.Store.CreateGroup(r.Context(),user,req.Name,req.Members)
   if err!=nil{http25Error(w,err);return}
   write25JSON(w,map[string]string{"conversationId":id});return
@@ -67,6 +69,7 @@ func (h HTTPHandler) ServeHTTP(w http.ResponseWriter,r *http.Request){
  case len(parts)==2&&verb=="messages"&&r.Method=="POST":
   var req struct{IdempotencyKey string `json:"idempotencyKey"`;Text string `json:"text"`;Document *struct{ID string `json:"id"`;Title string `json:"title"`} `json:"document"`}
   if !decode25(w,r,&req){return}
+  if !validUUID(req.IdempotencyKey){write25(w,400,"VALIDATION_ERROR");return}
   p:=Payload{Text:req.Text}
   if req.Document!=nil{p.DocumentID=&req.Document.ID;p.DocumentTitle=&req.Document.Title}
   result,err:=h.Store.Send(r.Context(),conversation,user,req.IdempotencyKey,p)
@@ -100,6 +103,7 @@ func (h HTTPHandler) ServeHTTP(w http.ResponseWriter,r *http.Request){
  case len(parts)==2&&verb=="members"&&r.Method=="POST":
   var req struct{AccountID string `json:"accountId"`;Role string `json:"role"`}
   if !decode25(w,r,&req){return};if req.Role==""{req.Role="member"}
+  if !validUUID(req.AccountID){write25(w,400,"VALIDATION_ERROR");return}
   epoch,err:=h.Store.Join(r.Context(),conversation,user,req.AccountID,req.Role)
   if err!=nil{http25Error(w,err);return}
   write25JSON(w,map[string]string{"epoch":epoch});return
@@ -117,12 +121,14 @@ func (h HTTPHandler) ServeHTTP(w http.ResponseWriter,r *http.Request){
  case len(parts)==2&&verb=="owner"&&r.Method=="PUT":
   var req struct{AccountID string `json:"accountId"`}
   if !decode25(w,r,&req){return}
+  if !validUUID(req.AccountID){write25(w,400,"VALIDATION_ERROR");return}
   err:=h.Store.TransferOwner(r.Context(),conversation,user,req.AccountID)
   if err!=nil{http25Error(w,err);return}
   write25JSON(w,map[string]string{"ownerId":req.AccountID});return
  case len(parts)==3&&verb=="admins"&&r.Method=="PUT":
   var req struct{Admin bool `json:"admin"`}
   if !decode25(w,r,&req){return}
+  if !validUUID(parts[2]){write25(w,400,"VALIDATION_ERROR");return}
   err:=h.Store.ChangeAdmin(r.Context(),conversation,user,parts[2],req.Admin)
   if err!=nil{http25Error(w,err);return}
   write25JSON(w,map[string]bool{"admin":req.Admin});return
