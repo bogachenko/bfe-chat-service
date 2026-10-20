@@ -208,6 +208,7 @@
     </TRACEABILITY>
     <REVIEW_GATE>READY_FOR_MODULE_CONTRACTS_REVIEW; Independent QA reviews interfaces and concurrency invariants before separate Project Owner approval. Class/function contracts, migration, implementation, tests and VPS operations are outside this gate.</REVIEW_GATE>
   </ISSUE25_MODULE_CONTRACTS>
+  <ISSUE25_CONTRACTS_REVISION_APPROVAL id="APPROVAL25-CONTRACTS-REVISION" authority="PROJECT_OWNER" approval="HUMAN_APPROVED" approved_commit="117bda7c2175c59ebaade269ffd0e3d19b2ed42e" approved_scope="Revised ISSUE25_MODULE_CONTRACTS and ISSUE25_FUNCTION_CONTRACTS; nine module contracts, intermodule protocols, class and function contracts"><BOUNDARY>This Project Owner approval applies only to the named Issue 25 sections at the exact approved commit. All prior legacy approvals retain their own scope. MentalScenarios, production code, automated tests, migrations, operations and deployment are not approved.</BOUNDARY></ISSUE25_CONTRACTS_REVISION_APPROVAL>
   <ISSUE25_FUNCTION_CONTRACTS id="FC25-PACKAGE" approval="NOT_HUMAN_APPROVED" status="READY_FOR_CLASS_FUNCTION_CONTRACTS_REVIEW" module_approval="APPROVAL25-MODULE-CONTRACTS" module_approved_commit="40f936d66c1b11c5b15e38018e6a923f3c5aa979">
     <SCOPE>Issue #25 proposed function and service-method contracts; no existing approved MC/CC/FC content is superseded. They describe Go-level logical signatures, not new public endpoints or approved migrations.</SCOPE>
     <CLASS_CONTRACTS>
