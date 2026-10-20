@@ -11,6 +11,22 @@ jobs:
     # Never execute pull_request head code on a personal self-hosted runner.
     # Only the protected main push path can use the local machine.
     runs-on: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'self-hosted' || 'ubuntu-24.04' }}
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_USER: bfe
+          POSTGRES_PASSWORD: test_only_password
+          POSTGRES_DB: bfe_chat
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bfe -d bfe_chat"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      BFE_CHAT_TEST_DATABASE_URL: postgres://bfe:test_only_password@localhost:5432/bfe_chat?sslmode=disable
     steps:
       - uses: actions/checkout@v5
         with:
@@ -56,6 +72,8 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Add cached tools to PATH
         run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Prepare isolated Issue25 database
+        run: go run github.com/pressly/goose/v3/cmd/goose@v3.28.0 -dir internal/storage/migrations postgres "$BFE_CHAT_TEST_DATABASE_URL" up
       - name: Blocking Go quality gates
         run: make quality
       - name: Changed-code mutation on PR
