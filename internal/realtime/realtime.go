@@ -63,13 +63,7 @@ type Service struct {
 
 // Bind installs FC-02 for every connection/reconnection, then FC-07 for
 // every client subscription. No client publications or history are enabled.
-func (s Service) Bind(node *centrifuge.Node, publicWebSocketURL string) error {
-	if node == nil || s.Auth == nil || s.Permissions == nil || s.Assignments == nil || s.Publisher == nil {
-		return ErrDeliveryFailed
-	}
-	s.Auth.BindOnConnecting(node, publicWebSocketURL)
-	node.OnConnect(func(client *centrifuge.Client) {
-		client.OnSubscribe(func(event centrifuge.SubscribeEvent, cb centrifuge.SubscribeCallback) {
+func (s Service) authorizeSubscribe(client *centrifuge.Client, event centrifuge.SubscribeEvent, cb centrifuge.SubscribeCallback) {
 			viewer := chat.AccountID(client.UserID())
 			if strings.HasPrefix(event.Channel, "chat:e:") {
 				if s.Epochs == nil || s.Epochs.AuthorizeEpochChannel(client.Context(), event.Channel, string(viewer)) != nil {
@@ -85,6 +79,15 @@ func (s Service) Bind(node *centrifuge.Node, publicWebSocketURL string) error {
 				return
 			}
 			cb(centrifuge.SubscribeReply{}, nil)
+}
+func (s Service) Bind(node *centrifuge.Node, publicWebSocketURL string) error {
+	if node == nil || s.Auth == nil || s.Permissions == nil || s.Assignments == nil || s.Publisher == nil {
+		return ErrDeliveryFailed
+	}
+	s.Auth.BindOnConnecting(node, publicWebSocketURL)
+	node.OnConnect(func(client *centrifuge.Client) {
+		client.OnSubscribe(func(event centrifuge.SubscribeEvent, cb centrifuge.SubscribeCallback) {
+			s.authorizeSubscribe(client,event,cb)
 		})
 	})
 	return nil
