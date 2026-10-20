@@ -111,7 +111,7 @@ func buildHandler(db *sql.DB, c runtimeConfig) (http.Handler, *centrifuge.Node, 
 	permissions := authorization.Authorizer{Assignments: store}
 	messages := conversations.Service{Auth: auth, Permissions: permissions, Store: store}
 	assignmentsSvc := assignments.Service{Auth: auth, Store: store}
-	realtimeSvc := realtime.Service{Auth: auth, Permissions: permissions, Assignments: store, Publisher: node}
+	realtimeSvc := realtime.Service{Auth: auth, Permissions: permissions, Assignments: store, Publisher: node, Epochs: issue25.Store{DB:db}}
 	handler, err := transport.NewHandler(messages, assignmentsSvc, realtimeSvc, node, "wss://"+strings.TrimPrefix(strings.TrimSuffix(c.origin, "/"), "https://")+"/ws", c.origin)
 	if err != nil {
 		return nil, nil, errors.New("transport configuration rejected")
