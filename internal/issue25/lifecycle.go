@@ -76,6 +76,7 @@ func (s Store) MarkRead(ctx context.Context,conversation,viewer string,ordinal i
  return result,err
 }
 func (s Store) Unread(ctx context.Context,conversation,viewer string)(int64,error){
+ if err:=s.AuthorizeHistory(ctx,conversation,viewer);err!=nil{return 0,err}
  var count int64
  err:=s.DB.QueryRowContext(ctx,`SELECT count(*) FROM issue25_messages m WHERE m.conversation_id=$1 AND m.sender_id<>$2
  AND m.ordinal>coalesce((SELECT last_read_ordinal FROM issue25_user_state WHERE conversation_id=$1 AND account_id=$2),0)
