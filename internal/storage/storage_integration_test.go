@@ -70,7 +70,7 @@ func TestGooseRoundTrip(t *testing.T){
  if err:=goose.Down(db,"migrations");err!=nil{t.Fatal(err)}
  if err:=goose.Down(db,"migrations");err!=nil{t.Fatal(err)}
  if err:=goose.Up(db,"migrations");err!=nil{t.Fatal(err)}
- if rows(t,db,"chat_messages")!=0{t.Fatal("down/up left messages")}
+ if rows(t,db,"chat_messages")!=1{t.Fatal("Issue25 down/up must preserve legacy messages")}
  var ver string;if err:=db.QueryRow("SHOW server_version").Scan(&ver);err!=nil{t.Fatal(err)}
  if !strings.HasPrefix(ver,"18.6"){t.Fatalf("server_version=%s",ver)}
 }
