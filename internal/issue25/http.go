@@ -70,7 +70,7 @@ func (h HTTPHandler) ServeHTTP(w http.ResponseWriter,r *http.Request){
   after:=int64(0);limit:=50
   if v:=r.Header.Get("X-After-Ordinal");v!=""{x,e:=strconv.ParseInt(v,10,64);if e!=nil||x<0{write25(w,400,"VALIDATION_ERROR");return};after=x}
   if v:=r.Header.Get("X-Limit");v!=""{x,e:=strconv.Atoi(v);if e!=nil{write25(w,400,"VALIDATION_ERROR");return};limit=x}
-  result,err:=h.Store.ReadHistory(r.Context(),conversation,user,after,limit)
+  result,err:=h.Store.ReadHistoryDetailed(r.Context(),conversation,user,after,limit)
   if err!=nil{http25Error(w,err);return}
   write25JSON(w,result);return
  case len(parts)==2&&verb=="unread"&&r.Method=="GET":
