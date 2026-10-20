@@ -61,7 +61,17 @@ func qaVerifyHTTPMessageLifecycle(t *testing.T, call func(string,string,string,s
  func() { e:=json.Unmarshal(raw,&replay); qaRejectf(t, (e!=nil||status!=200||!replay.Replayed||replay.ID!=first.ID), "idempotency: %+v %d %v",replay,status,e) }()
  status,raw=call(owner,"POST",route+"/messages",fmt.Sprintf(`{"idempotencyKey":"%s","text":"changed"}`,key),nil)
  qaRejectf(t, (status!=409), "changed replay=%d %s",status,raw)
- status,raw=call(member,"GET",route+"/history","",map[string]string{"X-Limit":"1","X-After-Ordinal":"0"})
+ qaVerifyHTTPReadLifecycle(t, call, member, route)
+ qaVerifyHTTPGroupHideRejected(t, call, owner, route)
+}
+
+func qaVerifyHTTPGroupHideRejected(t *testing.T, call func(string,string,string,string,map[string]string)(int,[]byte), owner, route string) {
+ status,raw:=call(owner,http.MethodPut,route+"/hidden",`{"hidden":true}`,nil)
+ qaRejectf(t, status!=400, "group hide must fail validation: %d %s",status,raw)
+}
+
+func qaVerifyHTTPReadLifecycle(t *testing.T, call func(string,string,string,string,map[string]string)(int,[]byte), member, route string) {
+ status,raw:=call(member,"GET",route+"/history","",map[string]string{"X-Limit":"1","X-After-Ordinal":"0"})
  qaRejectf(t, (status!=200), "history=%d %s",status,raw)
  var history []HistoryItem
  func() { e:=json.Unmarshal(raw,&history); qaRejectf(t, (e!=nil||len(history)!=1||history[0].Ordinal!=1||history[0].Text!="hello"), "history: %+v %v",history,e) }()
@@ -73,10 +83,4 @@ func qaVerifyHTTPMessageLifecycle(t *testing.T, call func(string,string,string,s
  qaRejectf(t, (status!=200), "read=%d %s",status,raw)
  status,raw=call(member,"GET",route+"/unread","",nil)
  func() { e:=json.Unmarshal(raw,&unread); qaRejectf(t, (e!=nil||status!=200||unread.Unread!=0), "after read=%d %v",unread.Unread,e) }()
- qaVerifyHTTPGroupHideRejected(t, call, owner, route)
-}
-
-func qaVerifyHTTPGroupHideRejected(t *testing.T, call func(string,string,string,string,map[string]string)(int,[]byte), owner, route string) {
- status,raw:=call(owner,http.MethodPut,route+"/hidden",`{"hidden":true}`,nil)
- qaRejectf(t, status!=400, "group hide must fail validation: %d %s",status,raw)
 }
