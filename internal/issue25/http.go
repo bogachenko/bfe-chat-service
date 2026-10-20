@@ -37,6 +37,12 @@ func (h HTTPHandler) ServeHTTP(w http.ResponseWriter,r *http.Request){
  path:=strings.TrimPrefix(r.URL.Path,"/v2/conversations")
  if path==r.URL.Path{write25(w,http.StatusNotFound,"NOT_FOUND");return}
  parts:=strings.Split(strings.Trim(path,"/"),"/")
+ if path==""||path=="/" {
+  if r.Method!="GET"{write25(w,http.StatusMethodNotAllowed,"METHOD_NOT_ALLOWED");return}
+  conversations,err:=h.Store.ListConversations(r.Context(),user)
+  if err!=nil{http25Error(w,err);return}
+  write25JSON(w,conversations);return
+ }
  if len(parts)==1&&parts[0]=="direct"&&r.Method=="POST" {
   var req struct{PeerID string `json:"peerId"`}
   if !decode25(w,r,&req){return}
