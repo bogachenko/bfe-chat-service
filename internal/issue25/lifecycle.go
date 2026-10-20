@@ -24,8 +24,12 @@ func insertGroupMembers(ctx context.Context, tx *sql.Tx, id, owner string, membe
 	}
 	return nil
 }
+func validGroupInput(owner, name string, members []string) bool {
+	return owner != "" && len(strings.TrimSpace(name)) != 0 && len(name) <= 256 && len(members)+1 <= 100
+}
+
 func (s Store) CreateGroup(ctx context.Context, owner, name string, members []string) (string, error) {
-	if owner == "" || len(strings.TrimSpace(name)) == 0 || len(name) > 256 || len(members)+1 > 100 {
+	if !validGroupInput(owner, name, members) {
 		return "", ErrInvalid
 	}
 	id, err := newUUID()
