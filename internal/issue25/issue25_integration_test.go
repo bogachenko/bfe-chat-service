@@ -51,8 +51,11 @@ func TestPGSendRemoveSerialOrders(t *testing.T){
  if !errors.Is(err,ErrForbidden){t.Fatalf("removed sender err=%v",err)}
  next,err:=s.Send(ctx,group,owner,fixtureID(t),Payload{Text:"owner after remove"});if err!=nil{t.Fatal(err)}
  if next.Ordinal!=2{t.Fatalf("post-removal ordinal=%d",next.Ordinal)}
+ _,err=s.ReadHistory(ctx,group,member,0,50)
+ if !errors.Is(err,ErrForbidden){t.Fatalf("revoked history must deny: %v",err)}
+ if _,err=s.Join(ctx,group,owner,member,"member");err!=nil{t.Fatal(err)}
  visible,err:=s.ReadHistory(ctx,group,member,0,50);if err!=nil{t.Fatal(err)}
- if len(visible)!=1||visible[0].Ordinal!=1{t.Fatalf("history=%+v",visible)}
+ if len(visible)!=1||visible[0].Ordinal!=1{t.Fatalf("history after rejoin=%+v",visible)}
  var counter int64
  if err=db.QueryRowContext(ctx,`SELECT next_ordinal FROM issue25_conversations WHERE id=$1`,group).Scan(&counter);err!=nil{t.Fatal(err)}
  if counter!=3{t.Fatalf("counter=%d",counter)}
