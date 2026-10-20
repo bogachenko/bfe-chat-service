@@ -60,12 +60,12 @@ def nginx_ok(config, host):
         routes = set()
         for loc in locations:
             parts = loc[0].split()
-            if len(parts) != 2 or parts[1] not in ("/ws", "/v1/"):
+            if len(parts) != 2 or parts[1] not in ("/ws", "/v1/", "/v2/"):
                 continue
             targets = [d.split()[1] for d in loc[1] if d.startswith("proxy_pass ") and len(d.split()) == 2]
             if targets == ["http://127.0.0.1:8081"]:
                 routes.add(parts[1])
-        if routes == {"/ws", "/v1/"}:
+        if routes == {"/ws", "/v1/", "/v2/"}:
             candidates.append(server)
     # Reject ambiguous or multiple host matches.
     return len(candidates) == 1
