@@ -119,6 +119,7 @@ func (s Store) OpenDirect(ctx context.Context, a, b string) (string, error) {
 	return id, nil
 }
 func ensureDirectMembers(ctx context.Context, tx *sql.Tx, id, a, b string) error {
+	var err error
 	for _, viewer := range []string{a, b} {
 		var activeEpoch string
 		err = tx.QueryRowContext(ctx, `SELECT epoch::text FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`, id, viewer).Scan(&activeEpoch)
