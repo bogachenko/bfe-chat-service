@@ -159,8 +159,12 @@ func (s Store) Send(ctx context.Context, conversation, sender, key string, p Pay
 			return e
 		}
 		replayed, e := checkSendReplay(ctx, tx, conversation, sender, key, raw, &result)
-		if e != nil { return e }
-		if replayed { return nil }
+		if e != nil {
+			return e
+		}
+		if replayed {
+			return nil
+		}
 		var ordinal int64
 		if e = tx.QueryRowContext(ctx, `UPDATE issue25_conversations SET next_ordinal=next_ordinal+1 WHERE id=$1 RETURNING next_ordinal-1`, conversation).Scan(&ordinal); e != nil {
 			return e
@@ -192,33 +196,43 @@ func (s Store) Send(ctx context.Context, conversation, sender, key string, p Pay
 	return result, err
 }
 func checkSendReplay(ctx context.Context, tx *sql.Tx, conversation, sender, key string, raw []byte, result *Message) (bool, error) {
-		var previous []byte
-		e := tx.QueryRowContext(ctx, `SELECT id::text,ordinal,canonical_payload FROM issue25_messages WHERE conversation_id=$1 AND sender_id=$2 AND idempotency_key=$3`, conversation, sender, key).Scan(&result.ID, &result.Ordinal, &previous)
-		if e == nil {
-			if !bytes.Equal(previous, raw) {
-				return true, ErrConflict
-			}
-			result.Replayed = true
-			return true, nil
+	var previous []byte
+	e := tx.QueryRowContext(ctx, `SELECT id::text,ordinal,canonical_payload FROM issue25_messages WHERE conversation_id=$1 AND sender_id=$2 AND idempotency_key=$3`, conversation, sender, key).Scan(&result.ID, &result.Ordinal, &previous)
+	if e == nil {
+		if !bytes.Equal(previous, raw) {
+			return true, ErrConflict
 		}
-		if !errors.Is(e, sql.ErrNoRows) {
-			return false, e
-		}
+		result.Replayed = true
+		return true, nil
+	}
+	if !errors.Is(e, sql.ErrNoRows) {
+		return false, e
+	}
 	return false, nil
 }
 func groupKind(ctx context.Context, tx *sql.Tx, conversation string) error {
- var kind string
- if err := tx.QueryRowContext(ctx, `SELECT kind FROM issue25_conversations WHERE id=$1`, conversation).Scan(&kind); err != nil { return err }
- if kind != "group" { return ErrInvalid }
- return nil
+	var kind string
+	if err := tx.QueryRowContext(ctx, `SELECT kind FROM issue25_conversations WHERE id=$1`, conversation).Scan(&kind); err != nil {
+		return err
+	}
+	if kind != "group" {
+		return ErrInvalid
+	}
+	return nil
 }
 func joinBoundary(ctx context.Context, tx *sql.Tx, conversation string) (int64, error) {
- var boundary int64
- if err := tx.QueryRowContext(ctx, `SELECT next_ordinal FROM issue25_conversations WHERE id=$1`, conversation).Scan(&boundary); err != nil { return 0, err }
- var count int
- if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM issue25_memberships WHERE conversation_id=$1 AND leave_boundary IS NULL`, conversation).Scan(&count); err != nil { return 0, err }
- if count >= 100 { return 0, ErrInvalid }
- return boundary,nil
+	var boundary int64
+	if err := tx.QueryRowContext(ctx, `SELECT next_ordinal FROM issue25_conversations WHERE id=$1`, conversation).Scan(&boundary); err != nil {
+		return 0, err
+	}
+	var count int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM issue25_memberships WHERE conversation_id=$1 AND leave_boundary IS NULL`, conversation).Scan(&count); err != nil {
+		return 0, err
+	}
+	if count >= 100 {
+		return 0, ErrInvalid
+	}
+	return boundary, nil
 }
 func (s Store) Join(ctx context.Context, conversation, actor, target, role string) (string, error) {
 	if role != "member" && role != "admin" {
@@ -229,7 +243,9 @@ func (s Store) Join(ctx context.Context, conversation, actor, target, role strin
 		return "", err
 	}
 	err = s.tx(ctx, conversation, func(tx *sql.Tx) error {
-		if e := groupKind(ctx, tx, conversation); e != nil { return e }
+		if e := groupKind(ctx, tx, conversation); e != nil {
+			return e
+		}
 		var actorRole string
 		if e := tx.QueryRowContext(ctx, `SELECT role FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`, conversation, actor).Scan(&actorRole); e != nil {
 			return ErrForbidden
@@ -241,7 +257,9 @@ func (s Store) Join(ctx context.Context, conversation, actor, target, role strin
 			return ErrForbidden
 		}
 		boundary, e := joinBoundary(ctx, tx, conversation)
-		if e != nil { return e }
+		if e != nil {
+			return e
+		}
 		_, e := tx.ExecContext(ctx, `INSERT INTO issue25_memberships(epoch,conversation_id,account_id,role,join_boundary) VALUES($1,$2,$3,$4,$5)`, epoch, conversation, target, role, boundary)
 		return e
 	})
@@ -253,8 +271,8 @@ func (s Store) Remove(ctx context.Context, conversation, actor, target string) e
 }
 
 // RemoveWithEpoch returns the exact epoch retired by the committed transaction.
-func authorizeRemoval(ctx context.Context,tx *sql.Tx,conversation,actor,target string) error {
-		var actorRole, targetRole string
+func authorizeRemoval(ctx context.Context, tx *sql.Tx, conversation, actor, target string) error {
+	var actorRole, targetRole string
 	if e := tx.QueryRowContext(ctx, `SELECT role FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`, conversation, actor).Scan(&actorRole); e != nil {
 		return ErrForbidden
 	}
@@ -269,8 +287,12 @@ func authorizeRemoval(ctx context.Context,tx *sql.Tx,conversation,actor,target s
 func (s Store) RemoveWithEpoch(ctx context.Context, conversation, actor, target string) (string, error) {
 	var retired string
 	err := s.tx(ctx, conversation, func(tx *sql.Tx) error {
-		if e := groupKind(ctx, tx, conversation); e != nil { return e }
-		if e := authorizeRemoval(ctx,tx,conversation,actor,target); e != nil {return e}
+		if e := groupKind(ctx, tx, conversation); e != nil {
+			return e
+		}
+		if e := authorizeRemoval(ctx, tx, conversation, actor, target); e != nil {
+			return e
+		}
 		if e := tx.QueryRowContext(ctx, `SELECT epoch::text FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`, conversation, target).Scan(&retired); e != nil {
 			return e
 		}

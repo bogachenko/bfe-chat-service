@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func insertGroupMembers(ctx context.Context,tx *sql.Tx,id,owner string,members []string) error {
+func insertGroupMembers(ctx context.Context, tx *sql.Tx, id, owner string, members []string) error {
 	seen := map[string]bool{owner: true}
 	for _, member := range members {
 		if member == "" || seen[member] {
@@ -49,7 +49,9 @@ func (s Store) CreateGroup(ctx context.Context, owner, name string, members []st
 	if err != nil {
 		return "", err
 	}
-	if err = insertGroupMembers(ctx,tx,id,owner,members);err != nil {return "",err}
+	if err = insertGroupMembers(ctx, tx, id, owner, members); err != nil {
+		return "", err
+	}
 	if err = tx.Commit(); err != nil {
 		return "", err
 	}

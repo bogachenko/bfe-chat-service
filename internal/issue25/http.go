@@ -28,7 +28,7 @@ type HTTPHandler struct {
 	PublicOrigin string
 }
 
-func (h HTTPHandler) ServeHTTP(w http.ResponseWriter,r *http.Request){
+func (h HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if h.Auth == nil || h.Store.DB == nil {
@@ -49,35 +49,56 @@ func (h HTTPHandler) ServeHTTP(w http.ResponseWriter,r *http.Request){
 		http25Error(w, err)
 		return
 	}
-	h.route25(w,r,caller.AccountID)
+	h.route25(w, r, caller.AccountID)
 }
-func (h HTTPHandler) route25(w http.ResponseWriter,r *http.Request,user string){
- path:=strings.TrimPrefix(r.URL.Path,"/v2/conversations")
- if path==r.URL.Path {write25(w,http.StatusNotFound,"NOT_FOUND");return}
- parts:=strings.Split(strings.Trim(path,"/"),"/")
- if path==""||path=="/" {h.route25_list(w,r,user);return}
- if len(parts)==1 && parts[0]=="direct" && r.Method=="POST"{h.route25_direct(w,r,user);return}
- if len(parts)==1 && parts[0]=="group" && r.Method=="POST"{h.route25_group(w,r,user);return}
- if len(parts)<2||parts[0]==""{write25(w,http.StatusNotFound,"NOT_FOUND");return}
- conversation,verb:=parts[0],parts[1]
- if !validUUID(conversation){write25(w,400,"VALIDATION_ERROR");return}
- handlers:=map[string]func(http.ResponseWriter,*http.Request,string,string,[]string){
-"POST messages 2": h.route25_post_messages_2,
-"GET history 2": h.route25_get_history_2,
-"GET unread 2": h.route25_get_unread_2,
-"PUT read 2": h.route25_put_read_2,
-"PUT hidden 2": h.route25_put_hidden_2,
-"POST members 2": h.route25_post_members_2,
-"DELETE members 3": h.route25_delete_members_3,
-"PUT owner 2": h.route25_put_owner_2,
-"PUT admins 3": h.route25_put_admins_3,
- }
- fn:=handlers[r.Method+" "+verb+" "+strconv.Itoa(len(parts))]
- if fn==nil {write25(w,http.StatusNotFound,"NOT_FOUND");return}
- fn(w,r,user,conversation,parts)
+func (h HTTPHandler) route25(w http.ResponseWriter, r *http.Request, user string) {
+	path := strings.TrimPrefix(r.URL.Path, "/v2/conversations")
+	if path == r.URL.Path {
+		write25(w, http.StatusNotFound, "NOT_FOUND")
+		return
+	}
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if path == "" || path == "/" {
+		h.route25_list(w, r, user)
+		return
+	}
+	if len(parts) == 1 && parts[0] == "direct" && r.Method == "POST" {
+		h.route25_direct(w, r, user)
+		return
+	}
+	if len(parts) == 1 && parts[0] == "group" && r.Method == "POST" {
+		h.route25_group(w, r, user)
+		return
+	}
+	if len(parts) < 2 || parts[0] == "" {
+		write25(w, http.StatusNotFound, "NOT_FOUND")
+		return
+	}
+	conversation, verb := parts[0], parts[1]
+	if !validUUID(conversation) {
+		write25(w, 400, "VALIDATION_ERROR")
+		return
+	}
+	handlers := map[string]func(http.ResponseWriter, *http.Request, string, string, []string){
+		"POST messages 2":  h.route25_post_messages_2,
+		"GET history 2":    h.route25_get_history_2,
+		"GET unread 2":     h.route25_get_unread_2,
+		"PUT read 2":       h.route25_put_read_2,
+		"PUT hidden 2":     h.route25_put_hidden_2,
+		"POST members 2":   h.route25_post_members_2,
+		"DELETE members 3": h.route25_delete_members_3,
+		"PUT owner 2":      h.route25_put_owner_2,
+		"PUT admins 3":     h.route25_put_admins_3,
+	}
+	fn := handlers[r.Method+" "+verb+" "+strconv.Itoa(len(parts))]
+	if fn == nil {
+		write25(w, http.StatusNotFound, "NOT_FOUND")
+		return
+	}
+	fn(w, r, user, conversation, parts)
 }
-func (h HTTPHandler) route25_list(w http.ResponseWriter,r *http.Request,user string){
-		if r.Method != "GET" {
+func (h HTTPHandler) route25_list(w http.ResponseWriter, r *http.Request, user string) {
+	if r.Method != "GET" {
 		write25(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED")
 		return
 	}
@@ -90,8 +111,8 @@ func (h HTTPHandler) route25_list(w http.ResponseWriter,r *http.Request,user str
 	return
 
 }
-func (h HTTPHandler) route25_direct(w http.ResponseWriter,r *http.Request,user string){
-		var req struct {
+func (h HTTPHandler) route25_direct(w http.ResponseWriter, r *http.Request, user string) {
+	var req struct {
 		PeerID string `json:"peerId"`
 	}
 	if !decode25(w, r, &req) {
@@ -115,8 +136,8 @@ func (h HTTPHandler) route25_direct(w http.ResponseWriter,r *http.Request,user s
 	return
 
 }
-func (h HTTPHandler) route25_group(w http.ResponseWriter,r *http.Request,user string){
-		var req struct {
+func (h HTTPHandler) route25_group(w http.ResponseWriter, r *http.Request, user string) {
+	var req struct {
 		Name    string   `json:"name"`
 		Members []string `json:"members"`
 	}
@@ -138,7 +159,7 @@ func (h HTTPHandler) route25_group(w http.ResponseWriter,r *http.Request,user st
 	return
 
 }
-func (h HTTPHandler) route25_post_messages_2(w http.ResponseWriter,r *http.Request,user,conversation string,parts []string){
+func (h HTTPHandler) route25_post_messages_2(w http.ResponseWriter, r *http.Request, user, conversation string, parts []string) {
 
 	var req struct {
 		IdempotencyKey string `json:"idempotencyKey"`
@@ -169,7 +190,7 @@ func (h HTTPHandler) route25_post_messages_2(w http.ResponseWriter,r *http.Reque
 	_ = h.Store.NotifyCommitted(r.Context(), h.Publisher, conversation, result)
 	write25JSON(w, result)
 }
-func (h HTTPHandler) route25_get_history_2(w http.ResponseWriter,r *http.Request,user,conversation string,parts []string){
+func (h HTTPHandler) route25_get_history_2(w http.ResponseWriter, r *http.Request, user, conversation string, parts []string) {
 
 	after := int64(0)
 	limit := 50
@@ -196,7 +217,7 @@ func (h HTTPHandler) route25_get_history_2(w http.ResponseWriter,r *http.Request
 	}
 	write25JSON(w, result)
 }
-func (h HTTPHandler) route25_get_unread_2(w http.ResponseWriter,r *http.Request,user,conversation string,parts []string){
+func (h HTTPHandler) route25_get_unread_2(w http.ResponseWriter, r *http.Request, user, conversation string, parts []string) {
 
 	n, err := h.Store.Unread(r.Context(), conversation, user)
 	if err != nil {
@@ -205,7 +226,7 @@ func (h HTTPHandler) route25_get_unread_2(w http.ResponseWriter,r *http.Request,
 	}
 	write25JSON(w, map[string]int64{"unread": n})
 }
-func (h HTTPHandler) route25_put_read_2(w http.ResponseWriter,r *http.Request,user,conversation string,parts []string){
+func (h HTTPHandler) route25_put_read_2(w http.ResponseWriter, r *http.Request, user, conversation string, parts []string) {
 
 	var req struct {
 		Ordinal int64 `json:"ordinal"`
@@ -220,7 +241,7 @@ func (h HTTPHandler) route25_put_read_2(w http.ResponseWriter,r *http.Request,us
 	}
 	write25JSON(w, map[string]int64{"lastReadOrdinal": n})
 }
-func (h HTTPHandler) route25_put_hidden_2(w http.ResponseWriter,r *http.Request,user,conversation string,parts []string){
+func (h HTTPHandler) route25_put_hidden_2(w http.ResponseWriter, r *http.Request, user, conversation string, parts []string) {
 
 	var req struct {
 		Hidden bool `json:"hidden"`
@@ -235,7 +256,7 @@ func (h HTTPHandler) route25_put_hidden_2(w http.ResponseWriter,r *http.Request,
 	}
 	write25JSON(w, map[string]bool{"hidden": req.Hidden})
 }
-func (h HTTPHandler) route25_post_members_2(w http.ResponseWriter,r *http.Request,user,conversation string,parts []string){
+func (h HTTPHandler) route25_post_members_2(w http.ResponseWriter, r *http.Request, user, conversation string, parts []string) {
 
 	var req struct {
 		AccountID string `json:"accountId"`
@@ -258,7 +279,7 @@ func (h HTTPHandler) route25_post_members_2(w http.ResponseWriter,r *http.Reques
 	}
 	write25JSON(w, map[string]string{"epoch": epoch})
 }
-func (h HTTPHandler) route25_delete_members_3(w http.ResponseWriter,r *http.Request,user,conversation string,parts []string){
+func (h HTTPHandler) route25_delete_members_3(w http.ResponseWriter, r *http.Request, user, conversation string, parts []string) {
 
 	target := parts[2]
 	if !validUUID(target) {
@@ -277,7 +298,7 @@ func (h HTTPHandler) route25_delete_members_3(w http.ResponseWriter,r *http.Requ
 	}
 	write25JSON(w, map[string]bool{"removed": true})
 }
-func (h HTTPHandler) route25_put_owner_2(w http.ResponseWriter,r *http.Request,user,conversation string,parts []string){
+func (h HTTPHandler) route25_put_owner_2(w http.ResponseWriter, r *http.Request, user, conversation string, parts []string) {
 
 	var req struct {
 		AccountID string `json:"accountId"`
@@ -296,7 +317,7 @@ func (h HTTPHandler) route25_put_owner_2(w http.ResponseWriter,r *http.Request,u
 	}
 	write25JSON(w, map[string]string{"ownerId": req.AccountID})
 }
-func (h HTTPHandler) route25_put_admins_3(w http.ResponseWriter,r *http.Request,user,conversation string,parts []string){
+func (h HTTPHandler) route25_put_admins_3(w http.ResponseWriter, r *http.Request, user, conversation string, parts []string) {
 
 	var req struct {
 		Admin bool `json:"admin"`
