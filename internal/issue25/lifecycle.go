@@ -28,6 +28,7 @@ func (s Store) TransferOwner(ctx context.Context,conversation,owner,successor st
   var role string
   if err:=tx.QueryRowContext(ctx,`SELECT role FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`,conversation,owner).Scan(&role);err!=nil||role!="owner"{return ErrForbidden}
   if err:=tx.QueryRowContext(ctx,`SELECT role FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`,conversation,successor).Scan(&role);err!=nil{return ErrForbidden}
+  // Owner uniqueness is enforced at statement boundaries: demote first, then promote.
   if _,err:=tx.ExecContext(ctx,`UPDATE issue25_memberships SET role='member' WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`,conversation,owner);err!=nil{return err}
   _,err:=tx.ExecContext(ctx,`UPDATE issue25_memberships SET role='owner' WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`,conversation,successor)
   return err
