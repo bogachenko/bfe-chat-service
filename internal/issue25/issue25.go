@@ -144,6 +144,7 @@ func (s Store) ReadHistory(ctx context.Context,conversation,viewer string,after 
  return result,rows.Err()
 }
 func (s Store) RegisterAttempt(ctx context.Context,a Attempt)error{
+ if a.Channel!="chat:e:"+a.Epoch||a.WakeToken==""||a.ID=="" {return ErrInvalid}
  return s.tx(ctx,a.Conversation,func(tx *sql.Tx)error{
   var id string
   e:=tx.QueryRowContext(ctx,`SELECT m.id::text FROM issue25_messages m JOIN issue25_memberships h ON h.conversation_id=m.conversation_id
