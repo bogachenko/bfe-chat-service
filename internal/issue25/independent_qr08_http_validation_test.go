@@ -4,7 +4,6 @@ import (
  "context"
  "database/sql"
  "errors"
- "net/http"
  "net/http/httptest"
  "strings"
  "testing"
@@ -31,13 +30,13 @@ func TestIndependentQR08HTTPValidationRejectsBeforeDatabase(t *testing.T) {
  {"bad group member","POST","/v2/conversations/group",`{"name":"ok","members":["not-uuid"]}`,"test-token","test-proof",400},
  {"bad message id","POST","/v2/conversations/nope/messages",`{}`,"test-token","test-proof",400},
  {"bad send key","POST","/v2/conversations/00000000-0000-4000-8000-000000000001/messages",`{"idempotencyKey":"bad","text":"hello"}`,"test-token","test-proof",400},
- {"bad history header","GET","/v2/conversations/00000000-0000-4000-8000-000000000001/history","","test-token","test-proof",0},
+ {"bad history header","GET","/v2/conversations/00000000-0000-4000-8000-000000000001/history","","test-token","test-proof",400},
  }
  for _,tc:=range cases{t.Run(tc.name,func(t *testing.T){
-  if tc.want==0{return}
   req:=httptest.NewRequest(tc.method,tc.path,strings.NewReader(tc.body))
   if tc.auth!=""{req.Header.Set("Authorization","Bearer "+tc.auth)}
   if tc.proof!=""{req.Header.Set("DPoP",tc.proof)}
+  if tc.name=="bad history header"{req.Header.Set("X-After-Ordinal","-1")}
   w:=httptest.NewRecorder();h.ServeHTTP(w,req)
   if w.Code!=tc.want{t.Fatalf("status=%d expected=%d body=%s",w.Code,tc.want,w.Body.String())}
   if w.Header().Get("Cache-Control")!="no-store"{t.Fatal("cache policy missing")}
@@ -71,4 +70,3 @@ func TestIndependentQR08NotifyWithoutBroker(t *testing.T) {
  if e:=s.NotifyCommitted(context.Background(),nil,"",Message{});e!=nil{t.Fatal(e)}
  if e:=s.NotifyCommitted(context.Background(),nil,"",Message{Replayed:true});e!=nil{t.Fatal(e)}
 }
-var _ = http.MethodGet
