@@ -1,4 +1,5 @@
 workspace "BFE Chat Service" "C4 views of approved GRACE architecture and merged Issue #25" {
+    !identifiers hierarchical
     model {
         user = person "BFE user" "Uses conversations and messages."
         employee = person "BFE employee" "Communicates with authorized participants."
@@ -48,7 +49,6 @@ workspace "BFE Chat Service" "C4 views of approved GRACE architecture and merged
         employee -> clients "Uses"
         admin -> clients "Uses"
         clients -> chat.ingress "Chat API and realtime" "HTTPS / WSS, DPoP"
-        chat.app -> drive "Validate session and DPoP" "UDS"
         clients -> drive "Open or download documents under Drive ACL" "HTTPS"
     }
     views {
