@@ -2,6 +2,7 @@ package issue25
 
 import (
  "context"
+ "database/sql"
  "fmt"
  "testing"
 )
@@ -27,15 +28,7 @@ func TestPGMS2503MembershipHistory(t *testing.T){
  want:=[]int64{10,11,12,13,14,15,16,17,18,19,30,31}
  qaRejectf(t, (len(items)!=len(want)), "visible count=%d, expected12",len(items))
  for i,ord:=range want{qaRejectf(t, (items[i].Ordinal!=ord), "at %d ordinal=%d expected %d",i,items[i].Ordinal,ord)}
- rows,err:=db.QueryContext(ctx,`SELECT epoch::text,join_boundary,leave_boundary FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 ORDER BY join_boundary`,group,viewer)
- qaReject(t, (err!=nil), err);defer func() { if err := rows.Close(); err != nil { t.Errorf("close membership rows: %v", err) } }()
- var epoch string;var join int64;var leave *int64
- qaReject(t, (!rows.Next()), "missing E1")
- func() { err=rows.Scan(&epoch,&join,&leave); qaReject(t, (err!=nil), err) }()
- qaRejectf(t, (epoch!=e1||join!=10||leave==nil||*leave!=20), "E1 %s [%d,%v)",epoch,join,leave)
- qaReject(t, (!rows.Next()), "missing E2")
- func() { err=rows.Scan(&epoch,&join,&leave); qaReject(t, (err!=nil), err) }()
- qaRejectf(t, (epoch!=e2||join!=30||leave!=nil), "E2 %s [%d,%v)",epoch,join,leave)
+ qaVerifyMembershipEpochRows(t, db, ctx, group, viewer, e1, e2)
 }
 func TestPGMS2505TransferOwnerAndLeave(t *testing.T){
  db:=integrationDB(t);ctx:=context.Background();s:=Store{DB:db}
@@ -49,4 +42,16 @@ func TestPGMS2505TransferOwnerAndLeave(t *testing.T){
  qaRejectf(t, (activeOwners!=1), "active owners=%d",activeOwners)
  var role string
  func() { err=db.QueryRowContext(ctx,`SELECT role FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`,group,next).Scan(&role); qaRejectf(t, (err!=nil||role!="owner"), "successor role %q: %v",role,err) }()
+}
+
+func qaVerifyMembershipEpochRows(t *testing.T, db *sql.DB, ctx context.Context, group, viewer, e1, e2 string) {
+ rows,err:=db.QueryContext(ctx,`SELECT epoch::text,join_boundary,leave_boundary FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 ORDER BY join_boundary`,group,viewer)
+ qaReject(t, (err!=nil), err);defer func() { if err := rows.Close(); err != nil { t.Errorf("close membership rows: %v", err) } }()
+ var epoch string;var join int64;var leave *int64
+ qaReject(t, (!rows.Next()), "missing E1")
+ func() { err=rows.Scan(&epoch,&join,&leave); qaReject(t, (err!=nil), err) }()
+ qaRejectf(t, (epoch!=e1||join!=10||leave==nil||*leave!=20), "E1 %s [%d,%v)",epoch,join,leave)
+ qaReject(t, (!rows.Next()), "missing E2")
+ func() { err=rows.Scan(&epoch,&join,&leave); qaReject(t, (err!=nil), err) }()
+ qaRejectf(t, (epoch!=e2||join!=30||leave!=nil), "E2 %s [%d,%v)",epoch,join,leave)
 }

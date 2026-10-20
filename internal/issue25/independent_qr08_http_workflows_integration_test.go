@@ -45,6 +45,11 @@ func TestIndependentQR08HTTPConversationWorkflow(t *testing.T) {
    qaRejectf(t, (status!=tc.status), "status=%d want=%d body=%s",status,tc.status,body)
   })
  }
+ qaVerifyHTTPMessageLifecycle(t, call, owner, member, route)
+
+}
+
+func qaVerifyHTTPMessageLifecycle(t *testing.T, call func(string,string,string,string,map[string]string)(int,[]byte), owner, member, route string) {
  key:=fixtureID(t)
  send:=fmt.Sprintf(`{"idempotencyKey":"%s","text":"hello"}`,key)
  status,raw:=call(owner,"POST",route+"/messages",send,nil)
