@@ -13,7 +13,7 @@ func TestFC13RejectsUnsafeRequests(t *testing.T){
   {"query credential surface","GET","/ws?token=secret","","",400},
   {"socket wrong method","POST","/ws","","",405},
   {"invalid owner","GET","/v1/conversations/not-a-uuid/history","","",404},
-  {"missing DPoP","GET","/v1/conversations/11111111-1111-1111-1111-111111111111/history","DPoP token","",401},
+  {"retired v1 ignores credential state","GET","/v1/conversations/11111111-1111-1111-1111-111111111111/history","DPoP token","",404},
   {"unsupported route","GET","/x","","",404},
  }
  for _,tc:=range cases{t.Run(tc.name,func(t *testing.T){

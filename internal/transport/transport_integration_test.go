@@ -57,46 +57,32 @@ func request(t *testing.T,h http.Handler,method,path,body string,headers map[str
  for k,v:=range headers{req.Header.Set(k,v)}
  w:=httptest.NewRecorder();h.ServeHTTP(w,req);return w
 }
-func TestFC13ServiceRouting(t *testing.T){
- for _,tc:=range []struct{name,method,path,body string;headers map[string]string;want int}{
-  {"message text",http.MethodPost,"messages",`{"idempotencyKey":"33333333-3333-3333-3333-333333333333","text":"hello"}`,nil,200},
-  {"message document",http.MethodPost,"messages",`{"idempotencyKey":"33333333-3333-3333-3333-333333333333","document":{"id":"file","title":"Title"}}`,nil,200},
-  {"message empty",http.MethodPost,"messages",`{"idempotencyKey":"33333333-3333-3333-3333-333333333333"}`,nil,400},
-  {"message invalid JSON",http.MethodPost,"messages",`{"extra":1}`,nil,400},
-  {"message duplicated JSON",http.MethodPost,"messages",`{}{}`,nil,400},
-  {"message too large",http.MethodPost,"messages",strings.Repeat("x",70<<10),nil,400},
-  {"message content type",http.MethodPost,"messages",`{}`,map[string]string{"Content-Type":"text/plain"},415},
-  {"message method",http.MethodGet,"messages","",nil,405},
-  {"history",http.MethodGet,"history","",nil,200},
-  {"history cursor",http.MethodGet,"history","",map[string]string{"X-After-ID":"12","X-Limit":"20"},200},
-  {"history invalid cursor",http.MethodGet,"history","",map[string]string{"X-After-ID":"wat"},400},
-  {"history invalid limit",http.MethodGet,"history","",map[string]string{"X-Limit":"wat"},400},
-  {"history invalid method",http.MethodPost,"history","",nil,405},
-  {"assignment",http.MethodPut,"assignment",`{"recipientAccountId":"22222222-2222-2222-2222-222222222222"}`,nil,200},
-  {"assignment invalid recipient",http.MethodPut,"assignment",`{"recipientAccountId":"bad"}`,nil,400},
-  {"assignment invalid method",http.MethodGet,"assignment","",nil,405},
-  {"unknown endpoint",http.MethodGet,"unexpected","",nil,404},
- } {
+func TestFC13RetiredHTTPRoutes(t *testing.T) {
+ t.Parallel()
+ h:=protocolHandler(nil,nil,nil)
+ for _,tc:=range []struct{name,method,path string}{
+  {"v1 messages",http.MethodPost,"/v1/conversations/"+testOwner+"/messages"},
+  {"v1 history",http.MethodGet,"/v1/conversations/"+testOwner+"/history"},
+  {"v1 assignment",http.MethodPut,"/v1/conversations/"+testOwner+"/assignment"},
+  {"v2 direct",http.MethodPost,"/v2/conversations/direct"},
+  {"v2 history",http.MethodGet,"/v2/conversations/"+testOwner+"/history"},
+  {"v2 group rename",http.MethodPut,"/v2/conversations/"+testOwner+"/name"},
+  {"v2 root",http.MethodGet,"/v2/conversations"},
+ }{
   t.Run(tc.name,func(t *testing.T){
-   path:="https://chat.example.test/v1/conversations/"+testOwner+"/"+tc.path
-   w:=request(t,protocolHandler(nil,nil,nil),tc.method,path,tc.body,tc.headers)
-   if w.Code!=tc.want{t.Fatalf("status=%d want=%d body=%s",w.Code,tc.want,w.Body.String())}
+   t.Parallel()
+   w:=request(t,h,tc.method,"https://chat.example.test"+tc.path,"",nil)
+   if w.Code!=http.StatusNotFound{t.Fatalf("retired path returned %d: %s",w.Code,w.Body.String())}
+   if !strings.Contains(w.Body.String(),"NOT_FOUND"){t.Fatalf("unexpected response %q",w.Body.String())}
   })
  }
 }
-func TestFC13AuthorizationAndInfrastructureFailures(t *testing.T){
- for _,tc:=range []struct{name string;auth,policy,store error;want int}{
-  {"invalid token",authentication.ErrAuthInvalid,nil,nil,401},
-  {"DPoP mismatch",authentication.ErrProofInvalid,nil,nil,401},
-  {"Drive unavailable",authentication.ErrAuthUnavailable,nil,nil,503},
-  {"forbidden",nil,authorization.ErrForbidden,nil,403},
-  {"storage unavailable",nil,nil,errors.New("postgres down"),503},
- }{
-  t.Run(tc.name,func(t *testing.T){
-   w:=request(t,protocolHandler(tc.auth,tc.policy,tc.store),http.MethodGet,"https://chat.example.test/v1/conversations/"+testOwner+"/history","",nil)
-   if w.Code!=tc.want{t.Fatalf("status=%d want=%d",w.Code,tc.want)}
-   if strings.Contains(w.Body.String(),"postgres down"){t.Fatal("internal error leaked")}
-  })
+func TestFC13RetiredPathsFailBeforeLegacyDependencies(t *testing.T){
+ t.Parallel()
+ for _,err:=range []error{authentication.ErrAuthInvalid,authentication.ErrProofInvalid,authentication.ErrAuthUnavailable}{
+  h:=protocolHandler(err,authorization.ErrForbidden,errors.New("postgres down"))
+  w:=request(t,h,http.MethodGet,"https://chat.example.test/v1/conversations/"+testOwner+"/history","",nil)
+  if w.Code!=http.StatusNotFound{t.Fatalf("retired route reached old dependency %v: %d",err,w.Code)}
  }
 }
 func TestFC14WSHandlerWiringAndOriginValidation(t *testing.T){

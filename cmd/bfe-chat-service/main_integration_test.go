@@ -50,7 +50,7 @@ func TestDPM08RealPostgreSQLBootstrapHTTPAndShutdown(t *testing.T){
  defer stop()
  result:=make(chan error,1)
  go func(){result<-run(runtimeCtx,args)}()
- url:="http://127.0.0.1:"+strconv.Itoa(port)+"/v1/conversations/11111111-1111-1111-1111-111111111111/history"
+ url:="http://127.0.0.1:"+strconv.Itoa(port)+"/conversations/11111111-1111-1111-1111-111111111111/history"
  client:=&http.Client{Timeout:500*time.Millisecond}
  ready:=false
  for deadline:=time.Now().Add(30*time.Second);time.Now().Before(deadline);{
@@ -59,6 +59,13 @@ func TestDPM08RealPostgreSQLBootstrapHTTPAndShutdown(t *testing.T){
    _,_ =io.Copy(io.Discard,resp.Body)
    _=resp.Body.Close()
    if resp.StatusCode!=http.StatusUnauthorized{t.Fatalf("public endpoint did not fail closed: %d",resp.StatusCode)}
+   for _,retired:=range []string{"/v1/conversations/11111111-1111-1111-1111-111111111111/history","/v2/conversations/direct","/v2/conversations","/conversations-bypass"}{
+    oldResp,oldErr:=client.Get("http://127.0.0.1:"+strconv.Itoa(port)+retired)
+    if oldErr!=nil{t.Fatal(oldErr)}
+    _,_=io.Copy(io.Discard,oldResp.Body)
+    _=oldResp.Body.Close()
+    if oldResp.StatusCode!=http.StatusNotFound{t.Fatalf("retired route %s returned %d, want 404",retired,oldResp.StatusCode)}
+   }
    ready=true;break
   }
   select{case err:=<-result:t.Fatalf("bootstrap failed: %v",err);default:}
