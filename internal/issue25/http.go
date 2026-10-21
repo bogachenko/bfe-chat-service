@@ -29,10 +29,14 @@ type HTTPHandler struct {
 }
 
 // credentials25 rejects ambiguous Authorization headers before reaching Internal Auth.
+func validProofHeader25(proof string) bool {
+	return proof != "" && strings.TrimSpace(proof) == proof && !strings.ContainsAny(proof, " \\t\\r\\n")
+}
+
 func credentials25(r *http.Request) (string, string, bool) {
 	values := r.Header.Values("Authorization")
 	proofs := r.Header.Values("DPoP")
-	if len(values) != 1 || len(proofs) != 1 || proofs[0] == "" || strings.TrimSpace(proofs[0]) != proofs[0] || strings.ContainsAny(proofs[0], " \\t\\r\\n") {
+	if len(values) != 1 || len(proofs) != 1 || !validProofHeader25(proofs[0]) {
 		return "", "", false
 	}
 	fields := strings.Split(values[0], " ")
