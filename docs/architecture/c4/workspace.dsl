@@ -47,14 +47,11 @@ workspace "BFE Chat Service" "C4 views of approved GRACE architecture and merged
             app -> database "Queries and transactional writes" "pgx / SQL"
         }
 
-        user -> chat "Create direct conversations, send and read messages (REQ25-DIRECT, REQ25-SEND, REQ25-HISTORY)"
-        groupOwner -> chat "Create groups; manage owner and membership (REQ25-GROUP, REQ25-ROLES)"
-        groupMember -> chat "Participate in groups and read permitted history (REQ25-MEMBERSHIP, REQ25-HISTORY)"
-        employee -> chat "Reply under current legacy assignment (BP-SEND, BP-HISTORY)"
-        admin -> chat "Manage legacy assignments and administrative read (BP-ASSIGN, BP-ADMIN-READ)"
-        user -> clients "Uses"
-        employee -> clients "Uses"
-        admin -> clients "Uses"
+        user -> clients "Direct chats, messaging and history (REQ25-DIRECT, REQ25-SEND, REQ25-HISTORY)"
+        groupOwner -> clients "Group creation and roles (REQ25-GROUP, REQ25-ROLES)"
+        groupMember -> clients "Group participation (REQ25-MEMBERSHIP)"
+        employee -> clients "Legacy assigned conversations (BP-SEND, BP-HISTORY)"
+        admin -> clients "Legacy assignments and administrative read (BP-ASSIGN, BP-ADMIN-READ)"
         clients -> chat.ingress "Chat API and realtime" "HTTPS / WSS, DPoP"
         clients -> drive "Open or download documents under Drive ACL" "HTTPS"
     }
