@@ -34,6 +34,13 @@ func TestHTTPv2AuthorizationDPoPCompatibility(t *testing.T) {
 		{"missing proof", "DPoP opaque-access-token", "", 0, http.StatusUnauthorized},
 		{"missing scheme", "opaque-access-token", "signed-proof", 0, http.StatusUnauthorized},
 		{"wrong scheme", "Basic opaque-access-token", "signed-proof", 0, http.StatusUnauthorized},
+		{"empty DPoP token", "DPoP ", "signed-proof", 0, http.StatusUnauthorized},
+		{"empty Bearer token", "Bearer ", "signed-proof", 0, http.StatusUnauthorized},
+		{"spaces token", "DPoP    ", "signed-proof", 0, http.StatusUnauthorized},
+		{"leading spaces", "DPoP  opaque-access-token", "signed-proof", 0, http.StatusUnauthorized},
+		{"trailing spaces", "DPoP opaque-access-token ", "signed-proof", 0, http.StatusUnauthorized},
+		{"combined schemes", "Bearer DPoP opaque-access-token", "signed-proof", 0, http.StatusUnauthorized},
+		{"invalid proof", "DPoP opaque-access-token", "not a proof", 0, http.StatusUnauthorized},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -52,5 +59,19 @@ func TestHTTPv2AuthorizationDPoPCompatibility(t *testing.T) {
 				t.Fatalf("wrong authentication forwarding: token=%q proof=%q binding=%+v", auth.token, auth.proof, auth.binding)
 			}
 		})
+	}
+}
+
+func TestHTTPv2DuplicateAuthorizationRejected(t *testing.T) {
+	auth := &captureHTTPAuth25{}
+	h := HTTPHandler{Auth: auth, Store: Store{DB: &sql.DB{}}, PublicOrigin: "https://chat.example.test"}
+	req := httptest.NewRequest(http.MethodGet, "/v2/conversations/unknown", nil)
+	req.Header.Add("Authorization", "DPoP opaque-access-token")
+	req.Header.Add("Authorization", "Bearer opaque-access-token")
+	req.Header.Set("DPoP", "signed-proof")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized || auth.calls != 0 {
+		t.Fatalf("duplicate headers: code=%d calls=%d", rec.Code, auth.calls)
 	}
 }
