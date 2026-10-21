@@ -104,3 +104,22 @@ func TestIssue32RenameConcurrentWithRevocation(t *testing.T){
  var count int
  if err=db.QueryRowContext(ctx,"SELECT count(*) FROM issue25_memberships WHERE conversation_id=$1 AND role='owner' AND leave_boundary IS NULL",group).Scan(&count);err!=nil||count!=1{t.Fatalf("owner invariant=%d %v",count,err)}
 }
+
+func TestIssue32RenameGroupFailurePaths(t *testing.T){
+ db:=integrationDB(t)
+ ctx:=context.Background()
+ s:=Store{DB:db}
+ owner,member:=fixtureID(t),fixtureID(t)
+ group,err:=s.CreateGroup(ctx,owner,"stable",[]string{member})
+ if err!=nil{t.Fatal(err)}
+ if err:=s.RenameGroup(ctx,fixtureID(t),owner,"new");err==nil{t.Fatal("nonexistent conversation accepted")}
+ stopped,cancel:=context.WithCancel(ctx)
+ cancel()
+ if err:=s.RenameGroup(stopped,group,owner,"new");err==nil{t.Fatal("cancelled transaction accepted")}
+ if err:=s.ChangeAdmin(ctx,group,owner,member,true);err!=nil{t.Fatal(err)}
+ if err:=s.ChangeAdmin(ctx,group,owner,member,false);err!=nil{t.Fatal(err)}
+ if err:=s.RenameGroup(ctx,group,member,"unauthorized");!errors.Is(err,ErrForbidden){t.Fatalf("demoted admin accepted: %v",err)}
+ var name string
+ if err:=db.QueryRowContext(ctx,"SELECT name FROM issue25_conversations WHERE id=$1",group).Scan(&name);err!=nil{t.Fatal(err)}
+ if name!="stable"{t.Fatalf("rejected rename changed name=%q",name)}
+}
