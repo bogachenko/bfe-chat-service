@@ -360,7 +360,9 @@ func (h HTTPHandler) route25_put_admins_3(w http.ResponseWriter, r *http.Request
 	write25JSON(w, map[string]bool{"admin": req.Admin})
 }
 func (h HTTPHandler) route32_rename_group(w http.ResponseWriter, r *http.Request, user, conversation string, parts []string) {
-	var req struct { Name string `json:"name"` }
+	var req struct {
+		Name string `json:"name"`
+	}
 	if !decode25(w, r, &req) {
 		return
 	}
