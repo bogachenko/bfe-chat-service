@@ -28,6 +28,24 @@ type HTTPHandler struct {
 	PublicOrigin string
 }
 
+// credentials25 rejects ambiguous Authorization headers before reaching Internal Auth.
+func validProofHeader25(proof string) bool {
+	return proof != "" && strings.TrimSpace(proof) == proof && !strings.ContainsAny(proof, " \t\r\n")
+}
+
+func credentials25(r *http.Request) (string, string, bool) {
+	values := r.Header.Values("Authorization")
+	proofs := r.Header.Values("DPoP")
+	if len(values) != 1 || len(proofs) != 1 || !validProofHeader25(proofs[0]) {
+		return "", "", false
+	}
+	fields := strings.Split(values[0], " ")
+	if len(fields) != 2 || (fields[0] != "DPoP" && fields[0] != "Bearer") || fields[1] == "" || strings.ContainsAny(fields[1], " \t\r\n") {
+		return "", "", false
+	}
+	return fields[1], proofs[0], true
+}
+
 func (h HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -39,12 +57,12 @@ func (h HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		write25(w, http.StatusBadRequest, "VALIDATION_ERROR")
 		return
 	}
-	token, proof := r.Header.Get("Authorization"), r.Header.Get("DPoP")
-	if !strings.HasPrefix(token, "Bearer ") || proof == "" {
+	token, proof, ok := credentials25(r)
+	if !ok {
 		write25(w, http.StatusUnauthorized, "AUTH_INVALID")
 		return
 	}
-	caller, err := h.Auth.ValidateCaller(r.Context(), strings.TrimPrefix(token, "Bearer "), proof, authentication.RequestBinding{Method: r.Method, Target: strings.TrimSuffix(h.PublicOrigin, "/") + r.URL.EscapedPath()})
+	caller, err := h.Auth.ValidateCaller(r.Context(), token, proof, authentication.RequestBinding{Method: r.Method, Target: strings.TrimSuffix(h.PublicOrigin, "/") + r.URL.EscapedPath()})
 	if err != nil {
 		http25Error(w, err)
 		return
