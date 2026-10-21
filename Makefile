@@ -39,21 +39,40 @@ mutation-full:
 	gremlins unleash --exclude-files '.*_test\.go$$' --exclude-files '.*\.pb\.go$$'
 quality: fmt vet lint security vulncheck dupl complexity coverage race
 
-# Start or refresh the C4 viewer; stop only Structurizr occupying our port.
+# C4 operations may touch only this checkout's explicitly labelled container.
 C4_PORT ?= 8080
+C4_NAME := bfe-chat-c4
+C4_LABEL := com.bfe.chat.c4.workspace
 .PHONY: c4 c4-stop
 c4:
 	@set -eu; \
-	for id in $$(docker ps --filter "publish=$(C4_PORT)" --format '{{.ID}}'); do \
-		image=$$(docker inspect --format '{{.Config.Image}}' "$$id"); \
-		case "$$image" in \
-			structurizr/structurizr|structurizr/structurizr:*) docker stop "$$id" >/dev/null ;; \
-			*) echo "Port $(C4_PORT) is occupied by another application ($$image)" >&2; exit 1 ;; \
-		esac; \
+	owner="$(CURDIR)"; \
+	owned() { \
+		actual=$$(docker inspect --format '{{ index .Config.Labels "$(C4_LABEL)" }}' "$$1"); \
+		[ "$$actual" = "$$owner" ]; \
+	}; \
+	name_id=$$(docker ps -aq --filter 'name=^/$(C4_NAME)$$'); \
+	if [ -n "$$name_id" ] && ! owned "$$name_id"; then \
+		echo "Container name $(C4_NAME) is owned by another project" >&2; \
+		exit 1; \
+	fi; \
+	for id in $$(docker ps -q --filter "publish=$(C4_PORT)"); do \
+		if [ "$$id" != "$$name_id" ]; then \
+			echo "Port $(C4_PORT) belongs to another container ($$id)" >&2; \
+			exit 1; \
+		fi; \
+		if ! owned "$$id"; then \
+			echo "Port $(C4_PORT) belongs to an unowned container ($$id)" >&2; \
+			exit 1; \
+		fi; \
 	done; \
-	docker rm -f bfe-chat-c4 >/dev/null 2>&1 || true; \
+	if [ -n "$$name_id" ]; then \
+		docker stop "$$name_id" >/dev/null; \
+		docker rm "$$name_id" >/dev/null; \
+	fi; \
 	docker volume create bfe-structurizr-data >/dev/null; \
-	docker run --rm -d --name bfe-chat-c4 \
+	docker run -d --name "$(C4_NAME)" \
+		--label "$(C4_LABEL)=$$owner" \
 		-p 127.0.0.1:$(C4_PORT):8080 \
 		-v bfe-structurizr-data:/usr/local/structurizr \
 		-v "$(CURDIR)/docs/architecture/c4/workspace.dsl:/usr/local/structurizr/workspace.dsl:ro" \
@@ -61,4 +80,16 @@ c4:
 	echo "Structurizr: http://localhost:$(C4_PORT)"
 
 c4-stop:
-	@docker stop bfe-chat-c4
+	@set -eu; \
+	id=$$(docker ps -aq --filter 'name=^/$(C4_NAME)$$'); \
+	if [ -z "$$id" ]; then \
+		echo "No $(C4_NAME) container"; \
+	else \
+		owner=$$(docker inspect --format '{{ index .Config.Labels "$(C4_LABEL)" }}' "$$id"); \
+		if [ "$$owner" != "$(CURDIR)" ]; then \
+			echo "Refusing to stop unowned container $(C4_NAME)" >&2; \
+			exit 1; \
+		fi; \
+		docker stop "$$id" >/dev/null; \
+		docker rm "$$id" >/dev/null; \
+	fi
