@@ -28,6 +28,7 @@ jobs:
                   emit('foreign-port' if state in ('port_foreign','port_foreign_with_owned_name') else ('owned-name' if state=='owned' else ''))
           elif a[0]=='inspect':
               ident=a[-1]
+              if state=='inspect_query_error': sys.exit(14)
               emit(repo if ident=='owned-name' and state!='owned_wrong_label' else '/unrelated/checkout')
           elif a[0] in ('stop','rm','run','volume'):
               with log.open('a') as f: f.write(' '.join(a)+'\\n')
