@@ -20,8 +20,12 @@ jobs:
           def emit(x=''): print(x)
           if a[0]=='ps':
               named = '--filter' in a and any('name=' in v for v in a)
-              if named:\n                  if state=='name_query_error': sys.exit(13)\n                  emit('other-name' if state=='name_foreign' else ('owned-name' if state in ('owned','port_foreign_with_owned_name','owned_wrong_label','port_query_error','inspect_query_error') else ''))
-              else:\n                  if state=='port_query_error': sys.exit(12)\n                  emit('foreign-port' if state in ('port_foreign','port_foreign_with_owned_name') else ('owned-name' if state=='owned' else ''))
+              if named:
+                  if state=='name_query_error': sys.exit(13)
+                  emit('other-name' if state=='name_foreign' else ('owned-name' if state in ('owned','port_foreign_with_owned_name','owned_wrong_label','port_query_error','inspect_query_error') else ''))
+              else:
+                  if state=='port_query_error': sys.exit(12)
+                  emit('foreign-port' if state in ('port_foreign','port_foreign_with_owned_name') else ('owned-name' if state=='owned' else ''))
           elif a[0]=='inspect':
               ident=a[-1]
               emit(repo if ident=='owned-name' and state!='owned_wrong_label' else '/unrelated/checkout')
@@ -38,7 +42,12 @@ jobs:
               log=root/'docker.log'
               env['C4_DOCKER_LOG']=str(log)
               for scenario,target,expect_success,expected_mutations in [
-                  ('name_foreign','c4',False,False),\n                  ('name_query_error','c4',False,False),\n                  ('name_query_error','c4-stop',False,False),\n                  ('port_query_error','c4',False,False),\n                  ('inspect_query_error','c4',False,False),\n                  ('inspect_query_error','c4-stop',False,False),
+                  ('name_foreign','c4',False,False),
+                  ('name_query_error','c4',False,False),
+                  ('name_query_error','c4-stop',False,False),
+                  ('port_query_error','c4',False,False),
+                  ('inspect_query_error','c4',False,False),
+                  ('inspect_query_error','c4-stop',False,False),
                   ('name_foreign','c4-stop',False,False),
                   ('port_foreign','c4',False,False),
                   ('port_foreign_with_owned_name','c4',False,False),
