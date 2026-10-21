@@ -1,24 +1,25 @@
-# C4 architecture — GRACE traceability
+# BFE Chat C4 — GRACE views
 
-**Status: DRAFT.** Each diagram is a *view of a specific GRACE artifact*, not an independent architecture decision.
+The approved GRACE XML documents remain the source of truth. This Structurizr workspace is a **visualization**, not a new approval.
 
-| GRACE stage / source | C4 view | What to verify |
+| GRACE source | Diagram | Traceability |
 |---|---|---|
-| 1. [RequirementsAnalysis.xml](../../../RequirementsAnalysis.xml) | **Requirements → C1** (`requirements-c1-context`) | Actors, external boundaries, use cases: `ACT-USER`, `ACT-EMPLOYEE`, `ACT-ADMIN`, `ACT25-OWNER`, `ACT25-MEMBER`; `REQ25-DIRECT`, `REQ25-GROUP`, `REQ25-SEND`, `REQ25-HISTORY`. |
-| 2. [Technology.xml](../../../Technology.xml) + 3. [DevelopmentPlan.xml](../../../DevelopmentPlan.xml) | **Technology/DevelopmentPlan → C2** (`technology-development-c2-containers`) | One Go service, embedded Centrifuge, Chat PostgreSQL, external BFE Drive UDS, HTTPS ingress. |
-| 4. [Contracts.xml](../../../Contracts.xml) | **Contracts → C3** (`contracts-c3-components`) | Legacy `MC-01..MC-08` and Issue #25 `MC25-01..MC25-09` implementation responsibilities. |
-| 5. [MentalScenarios.xml](../../../MentalScenarios.xml) | **Scenario review** | Verify interactions, privileges, message ordering; dynamic diagrams are not yet modelled. |
+| `RequirementsAnalysis.xml` | **C1** (`requirements-c1-context`) | `ACT-USER`, `ACT-EMPLOYEE`, `ACT-ADMIN`, `ACT25-USER`, `ACT25-OWNER`, `ACT25-MEMBER`; `REQ25-DIRECT/GROUP/MEMBERSHIP/HISTORY`. Group owner/member are roles of a BFE user, **not additional account categories or direct network clients**. |
+| `Technology.xml` and `DevelopmentPlan.xml` | **C2** (`technology-development-c2-containers`) | Single Go process, embedded Centrifuge, PostgreSQL, BFE Drive Internal Auth via UDS, HTTPS ingress. |
+| `Contracts.xml` | **C3** (`contracts-c3-components`) | Legacy `MC-01..MC-08`, Issue #25 `MC25-01..MC25-09` as logical responsibilities. |
+| `MentalScenarios.xml` | Future dynamic diagrams | Not yet visualized. |
 
-## Interpretation
+## Correct boundaries
 
-- C1 is the **requirements diagram**: people and logical use cases; arrows from actors to Chat do not claim clients bypass the HTTP ingress.
-- C2 is the **technology/deployment architecture**; Nginx is infrastructure for the test runtime (its config is not merged into `main`).
-- C3 describes **logical components inside one Go executable**; Issue #25 logic is often co-located in `internal/issue25` rather than deployed separately.
-- Current Git main is the source for GRACE and implementation. Document context carries metadata only; actual access to documents is authorized by BFE Drive.
-- The diagrams must not silently rewrite legacy GRACE requirements; legacy assignments and Issue #25 self-service chats are separately represented.
+- People → external BFE clients → HTTPS ingress → Chat Go service. **Never** Person → Chat Service directly.
+- Chat service → BFE Drive Internal Auth by private UDS. BFE Drive owns documents and their ACL; document ID/title in chat confer no document access.
+- PostgreSQL is a **Chat-owned database**, not a new separate software product. The database model does not imply a separate physical VPS.
+- `MC25-*` components in C3 are **logical groupings** within `internal/issue25`, not standalone deployed services.
+- Nginx test topology is runtime evidence, not a change to the approved requirements.
+- Keep arrows short and put requirements/contracts in element descriptions and this traceability table, rather than inventing direct interaction edges to display use cases.
 
-## View
+## Run and review
 
-Run `make c4` on this branch and open http://localhost:8080.
+`make c4`; browser: http://localhost:8080. `make c4-stop` stops the viewer.
 
-**Acceptance:** Validate Structurizr DSL, independently trace actor/edge/module claims to GRACE XML and Go, then approve/merge the documentation PR. This model makes no production changes.
+Independent review must validate DSL using the actual Structurizr parser and trace all system boundaries, module labels and arrows to the approved XML and Go code. **Not yet parser-validated or independently approved.**
