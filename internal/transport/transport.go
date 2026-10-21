@@ -5,8 +5,8 @@ package transport
 
 import (
 	"encoding/json"
-	"io"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
