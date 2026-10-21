@@ -16,7 +16,7 @@ import (
 )
 
 type Handler struct {
-	WebSocket http.Handler
+	WebSocket    http.Handler
 	PublicOrigin string
 }
 
