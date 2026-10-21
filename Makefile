@@ -39,11 +39,26 @@ mutation-full:
 	gremlins unleash --exclude-files '.*_test\.go$$' --exclude-files '.*\.pb\.go$$'
 quality: fmt vet lint security vulncheck dupl complexity coverage race
 
-# Open C4 architecture diagrams in Structurizr Local.
+# Start or refresh the C4 viewer; stop only Structurizr occupying our port.
+C4_PORT ?= 8080
+.PHONY: c4 c4-stop
 c4:
-	docker volume create bfe-structurizr-data >/dev/null
-	docker run --rm -it \
-		-p 127.0.0.1:8080:8080 \
+	@set -eu; \
+	for id in $$(docker ps --filter "publish=$(C4_PORT)" --format '{{.ID}}'); do \
+		image=$$(docker inspect --format '{{.Config.Image}}' "$$id"); \
+		case "$$image" in \
+			structurizr/structurizr|structurizr/structurizr:*) docker stop "$$id" >/dev/null ;; \
+			*) echo "Port $(C4_PORT) is occupied by another application ($$image)" >&2; exit 1 ;; \
+		esac; \
+	done; \
+	docker rm -f bfe-chat-c4 >/dev/null 2>&1 || true; \
+	docker volume create bfe-structurizr-data >/dev/null; \
+	docker run --rm -d --name bfe-chat-c4 \
+		-p 127.0.0.1:$(C4_PORT):8080 \
 		-v bfe-structurizr-data:/usr/local/structurizr \
 		-v "$(CURDIR)/docs/architecture/c4/workspace.dsl:/usr/local/structurizr/workspace.dsl:ro" \
-		structurizr/structurizr local
+		structurizr/structurizr local >/dev/null; \
+	echo "Structurizr: http://localhost:$(C4_PORT)"
+
+c4-stop:
+	@docker stop bfe-chat-c4
