@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/bogachenko/bfe-chat-service/internal/assignments"
+	"github.com/bogachenko/bfe-chat-service/internal/authentication"
 	"github.com/bogachenko/bfe-chat-service/internal/conversations"
 	"github.com/bogachenko/bfe-chat-service/internal/realtime"
 	"github.com/centrifugal/centrifuge"
@@ -101,6 +102,24 @@ func (h Handler) serveSocket(w http.ResponseWriter, r *http.Request) {
 func methodNotAllowed(w http.ResponseWriter, allowed string) {
 	w.Header().Set("Allow", allowed)
 	writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED")
+}
+func writeDomainError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, authentication.ErrAuthInvalid), errors.Is(err, authentication.ErrProofInvalid):
+		writeError(w, http.StatusUnauthorized, "AUTH_INVALID")
+	case errors.Is(err, authentication.ErrAuthUnavailable):
+		writeError(w, http.StatusServiceUnavailable, "AUTH_UNAVAILABLE")
+	case errors.Is(err, conversations.ErrForbidden), errors.Is(err, assignments.ErrForbidden):
+		writeError(w, http.StatusForbidden, "FORBIDDEN")
+	case errors.Is(err, conversations.ErrValidation), errors.Is(err, assignments.ErrInvalidRecipient):
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR")
+	case errors.Is(err, conversations.ErrNoAssignment), errors.Is(err, assignments.ErrNoAssignment):
+		writeError(w, http.StatusConflict, "NO_ASSIGNMENT")
+	case errors.Is(err, assignments.ErrAssignmentConflict):
+		writeError(w, http.StatusConflict, "ASSIGNMENT_CONFLICT")
+	default:
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE")
+	}
 }
 func writeError(w http.ResponseWriter, status int, code string) {
 	writeJSON(w, status, map[string]string{"error": code})
