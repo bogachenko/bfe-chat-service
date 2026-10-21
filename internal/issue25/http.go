@@ -40,11 +40,11 @@ func (h HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token, proof := r.Header.Get("Authorization"), r.Header.Get("DPoP")
-	if !strings.HasPrefix(token, "DPoP ") || proof == "" {
+	if (!strings.HasPrefix(token, "DPoP ") && !strings.HasPrefix(token, "Bearer ")) || proof == "" {
 		write25(w, http.StatusUnauthorized, "AUTH_INVALID")
 		return
 	}
-	caller, err := h.Auth.ValidateCaller(r.Context(), strings.TrimPrefix(token, "DPoP "), proof, authentication.RequestBinding{Method: r.Method, Target: strings.TrimSuffix(h.PublicOrigin, "/") + r.URL.EscapedPath()})
+	caller, err := h.Auth.ValidateCaller(r.Context(), strings.TrimPrefix(strings.TrimPrefix(token, "DPoP "), "Bearer "), proof, authentication.RequestBinding{Method: r.Method, Target: strings.TrimSuffix(h.PublicOrigin, "/") + r.URL.EscapedPath()})
 	if err != nil {
 		http25Error(w, err)
 		return
