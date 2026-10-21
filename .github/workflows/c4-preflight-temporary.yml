@@ -1,0 +1,61 @@
+name: Temporary C4 preflight failure verification
+on:
+  push:
+    branches: [docs/c4-chat-architecture]
+jobs:
+  docker-isolation:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Simulate Docker ownership, name and port conflicts without real Docker
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, subprocess, tempfile
+          with tempfile.TemporaryDirectory() as directory:
+              root = pathlib.Path(directory)
+              stub = root / 'docker'
+              stub.write_text("""#!/usr/bin/env python3
+          import os,sys,pathlib
+          a=sys.argv[1:]; state=os.environ.get('C4_MOCK_CASE',''); repo=os.environ['C4_WORKSPACE']; log=pathlib.Path(os.environ['C4_DOCKER_LOG'])
+          def emit(x=''): print(x)
+          if a[0]=='ps':
+              named = '--filter' in a and any('name=' in v for v in a)
+              if named:\n                  if state=='name_query_error': sys.exit(13)\n                  emit('other-name' if state=='name_foreign' else ('owned-name' if state in ('owned','port_foreign_with_owned_name','owned_wrong_label','port_query_error','inspect_query_error') else ''))
+              else:\n                  if state=='port_query_error': sys.exit(12)\n                  emit('foreign-port' if state in ('port_foreign','port_foreign_with_owned_name') else ('owned-name' if state=='owned' else ''))
+          elif a[0]=='inspect':
+              ident=a[-1]
+              emit(repo if ident=='owned-name' and state!='owned_wrong_label' else '/unrelated/checkout')
+          elif a[0] in ('stop','rm','run','volume'):
+              with log.open('a') as f: f.write(' '.join(a)+'\\n')
+              if a[0]=='run': emit('new-id')
+          else:
+              raise SystemExit('Unexpected fake Docker command: '+str(a))
+          """.replace('          ',''))
+              stub.chmod(0o755)
+              env=os.environ.copy()
+              env['PATH']=directory+os.pathsep+env['PATH']
+              env['C4_WORKSPACE']=str(pathlib.Path.cwd())
+              log=root/'docker.log'
+              env['C4_DOCKER_LOG']=str(log)
+              for scenario,target,expect_success,expected_mutations in [
+                  ('name_foreign','c4',False,False),\n                  ('name_query_error','c4',False,False),\n                  ('name_query_error','c4-stop',False,False),\n                  ('port_query_error','c4',False,False),\n                  ('inspect_query_error','c4',False,False),\n                  ('inspect_query_error','c4-stop',False,False),
+                  ('name_foreign','c4-stop',False,False),
+                  ('port_foreign','c4',False,False),
+                  ('port_foreign_with_owned_name','c4',False,False),
+                  ('owned_wrong_label','c4',False,False),
+                  ('owned_wrong_label','c4-stop',False,False),
+                  ('absent','c4-stop',True,False),
+                  ('owned','c4',True,True),
+                  ('owned','c4-stop',True,True),
+                  ('absent','c4',True,True),
+              ]:
+                  log.write_text('')
+                  env['C4_MOCK_CASE']=scenario
+                  p=subprocess.run(['make',target],env=env,capture_output=True,text=True)
+                  mutations=bool(log.read_text().strip())
+                  assert (p.returncode==0)==expect_success and mutations==expected_mutations,(scenario,target,p.returncode,p.stdout,p.stderr,log.read_text())
+                  if not expect_success: assert not mutations,(scenario,log.read_text())
+                  print('PASS',scenario,target)
+          PY
+      - name: Parse C4 workspace with Structurizr
+        run: docker run --rm -v "$PWD:/usr/local/structurizr" structurizr/structurizr validate -workspace docs/architecture/c4/workspace.dsl
