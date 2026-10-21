@@ -5,6 +5,7 @@ package transport
 
 import (
 	"encoding/json"
+	"io"
 	"errors"
 	"net/http"
 	"net/url"
@@ -16,6 +17,8 @@ import (
 	"github.com/bogachenko/bfe-chat-service/internal/realtime"
 	"github.com/centrifugal/centrifuge"
 )
+
+const maxBody = 64 << 10
 
 type Handler struct {
 	Messages     conversations.Service
@@ -98,6 +101,24 @@ func (h Handler) serveSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.WebSocket.ServeHTTP(w, r)
+}
+func decode(w http.ResponseWriter, r *http.Request, out any) bool {
+	if r.Header.Get("Content-Type") != "application/json" {
+		writeError(w, http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE")
+		return false
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(out); err != nil {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR")
+		return false
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR")
+		return false
+	}
+	return true
 }
 func methodNotAllowed(w http.ResponseWriter, allowed string) {
 	w.Header().Set("Allow", allowed)
