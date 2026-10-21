@@ -42,7 +42,7 @@ func NewHandler(messages conversations.Service, recipient assignments.Service, r
 	if err := realTime.Bind(node, socketURL); err != nil {
 		return nil, err
 	}
-	return Handler{Messages: messages, Assignments: recipient, WebSocket:    centrifuge.NewWebsocketHandler(node, centrifuge.WebsocketConfig{}), Realtime: realTime, PublicOrigin: strings.TrimSuffix(publicOrigin, "/")}, nil
+	return Handler{Messages: messages, Assignments: recipient, WebSocket: centrifuge.NewWebsocketHandler(node, centrifuge.WebsocketConfig{}), Realtime: realTime, PublicOrigin: strings.TrimSuffix(publicOrigin, "/")}, nil
 }
 
 // NewCurrentHandler binds the current DPoP-authenticated epoch-channel
@@ -67,7 +67,7 @@ func NewCurrentHandler(auth *authentication.Validator, epochs interface {
 		})
 	})
 	return Handler{
-		WebSocket: centrifuge.NewWebsocketHandler(node, centrifuge.WebsocketConfig{}),
+		WebSocket:    centrifuge.NewWebsocketHandler(node, centrifuge.WebsocketConfig{}),
 		PublicOrigin: strings.TrimSuffix(publicOrigin, "/"),
 	}, nil
 }
