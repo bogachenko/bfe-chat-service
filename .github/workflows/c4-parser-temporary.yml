@@ -8,4 +8,4 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Parse and validate C4 workspace with Structurizr CLI
-        run: docker run --rm -v "$PWD:/usr/local/structurizr" structurizr/cli validate -workspace docs/architecture/c4/workspace.dsl
+        run: docker run --rm -v "$PWD:/usr/local/structurizr" structurizr/structurizr validate -workspace docs/architecture/c4/workspace.dsl
