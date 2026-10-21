@@ -61,6 +61,25 @@ func (s Store) CreateGroup(ctx context.Context, owner, name string, members []st
 	}
 	return id, nil
 }
+
+// RenameGroup updates only a group title under the existing conversation lock.
+func (s Store) RenameGroup(ctx context.Context, conversation, actor, name string) error {
+	if len(strings.TrimSpace(name)) == 0 || len(name) > 256 {
+		return ErrInvalid
+	}
+	return s.tx(ctx, conversation, func(tx *sql.Tx) error {
+		if err := groupKind(ctx, tx, conversation); err != nil {
+			return err
+		}
+		var role string
+		if err := tx.QueryRowContext(ctx, `SELECT role FROM issue25_memberships WHERE conversation_id=$1 AND account_id=$2 AND leave_boundary IS NULL`, conversation, actor).Scan(&role); err != nil || (role != "owner" && role != "admin") {
+			return ErrForbidden
+		}
+		_, err := tx.ExecContext(ctx, `UPDATE issue25_conversations SET name=$2 WHERE id=$1 AND kind='group'`, conversation, name)
+		return err
+	})
+}
+
 func (s Store) TransferOwner(ctx context.Context, conversation, owner, successor string) error {
 	if owner == successor {
 		return ErrInvalid
