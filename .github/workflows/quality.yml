@@ -19,14 +19,12 @@ jobs:
           POSTGRES_PASSWORD: test_only_password
           POSTGRES_DB: bfe_chat
         ports:
-          - 5432:5432
+          - 5432
         options: >-
           --health-cmd "pg_isready -U bfe -d bfe_chat"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 15
-    env:
-      BFE_CHAT_TEST_DATABASE_URL: postgres://bfe:test_only_password@localhost:5432/bfe_chat?sslmode=disable
     steps:
       - uses: actions/checkout@v5
         with:
@@ -41,7 +39,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/bin
-          key: go-tools-bin-only-go1.27.2-v5-lint2.14.0-gosec2.29.0-vuln1.9.0-dupl1.1.0-cyclop1.2.3-gremlins0.6.0-x-tools0.52.0
+          key: go-tools-bin-only-go1.27.3-v5-lint2.14.0-gosec2.29.0-vuln1.9.0-dupl1.1.0-cyclop1.2.3-gremlins0.6.0-x-tools0.52.0
       - name: Install pinned tools
         if: steps.tools-cache.outputs.cache-hit != 'true'
         run: |
@@ -72,6 +70,10 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Add cached tools to PATH
         run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Configure isolated PostgreSQL connection
+        env:
+          POSTGRES_HOST_PORT: ${{ job.services.postgres.ports[5432] }}
+        run: echo "BFE_CHAT_TEST_DATABASE_URL=postgres://bfe:test_only_password@localhost:${POSTGRES_HOST_PORT}/bfe_chat?sslmode=disable" >> "$GITHUB_ENV"
       - name: Prepare isolated Issue25 database
         run: go run github.com/pressly/goose/v3/cmd/goose@v3.28.0 -dir internal/storage/migrations postgres "$BFE_CHAT_TEST_DATABASE_URL" up
       - name: Blocking Go quality gates

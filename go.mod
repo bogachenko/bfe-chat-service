@@ -1,6 +1,6 @@
 module github.com/bogachenko/bfe-chat-service
 
-go 1.27.2
+go 1.27.3
 
 require (
 	github.com/centrifugal/centrifuge v0.39.3
