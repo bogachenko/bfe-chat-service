@@ -22,4 +22,4 @@ The approved GRACE XML documents remain the source of truth. This Structurizr wo
 
 `make c4`; browser: http://localhost:8080. `make c4-stop` stops the viewer.
 
-Independent review must validate DSL using the actual Structurizr parser and trace all system boundaries, module labels and arrows to the approved XML and Go code. **Not yet parser-validated or independently approved.**
+Independent review must validate DSL using the actual Structurizr parser and trace all system boundaries, module labels and arrows to the approved XML and Go code. **Structurizr parser validation: PASS** ([GitHub Actions #39592100062](https://github.com/bogachenko/bfe-chat-service/actions/runs/39592100062)). **Independent QA approval is still pending.**
