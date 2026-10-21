@@ -48,15 +48,16 @@ c4:
 	@set -eu; \
 	owner="$(CURDIR)"; \
 	owned() { \
-		actual=$$(docker inspect --format '{{ index .Config.Labels "$(C4_LABEL)" }}' "$$1"); \
+		actual=$(docker inspect --format '{{ index .Config.Labels "$(C4_LABEL)" }}' "$1") || return 1; \
 		[ "$$actual" = "$$owner" ]; \
 	}; \
-	name_id=$$(docker ps -aq --filter 'name=^/$(C4_NAME)$$'); \
+	name_id=$(docker ps -aq --filter 'name=^/$(C4_NAME)$') || exit 1; \
 	if [ -n "$$name_id" ] && ! owned "$$name_id"; then \
 		echo "Container name $(C4_NAME) is owned by another project" >&2; \
 		exit 1; \
 	fi; \
-	for id in $$(docker ps -q --filter "publish=$(C4_PORT)"); do \
+	port_ids=$(docker ps -q --filter "publish=$(C4_PORT)") || exit 1; \
+	for id in $port_ids; do \
 		if [ "$$id" != "$$name_id" ]; then \
 			echo "Port $(C4_PORT) belongs to another container ($$id)" >&2; \
 			exit 1; \
@@ -81,11 +82,11 @@ c4:
 
 c4-stop:
 	@set -eu; \
-	id=$$(docker ps -aq --filter 'name=^/$(C4_NAME)$$'); \
+	id=$(docker ps -aq --filter 'name=^/$(C4_NAME)$') || exit 1; \
 	if [ -z "$$id" ]; then \
 		echo "No $(C4_NAME) container"; \
 	else \
-		owner=$$(docker inspect --format '{{ index .Config.Labels "$(C4_LABEL)" }}' "$$id"); \
+		owner=$(docker inspect --format '{{ index .Config.Labels "$(C4_LABEL)" }}' "$id") || exit 1; \
 		if [ "$$owner" != "$(CURDIR)" ]; then \
 			echo "Refusing to stop unowned container $(C4_NAME)" >&2; \
 			exit 1; \
