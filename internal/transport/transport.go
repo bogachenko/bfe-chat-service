@@ -4,6 +4,7 @@
 package transport
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -43,6 +44,34 @@ func NewHandler(messages conversations.Service, recipient assignments.Service, r
 	}
 	return Handler{Messages: messages, Assignments: recipient, WebSocket: centrifuge.NewWebsocketHandler(node, centrifuge.WebsocketConfig{}), Realtime: realTime, PublicOrigin: strings.TrimSuffix(publicOrigin, "/")}, nil
 }
+
+// NewCurrentHandler binds the current DPoP-authenticated epoch-channel
+// WebSocket transport without initializing retired assignment services.
+func NewCurrentHandler(auth *authentication.Validator, epochs interface {
+	AuthorizeEpochChannel(context.Context, string, string) error
+}, node *centrifuge.Node, socketURL, publicOrigin string) (http.Handler, error) {
+	if auth == nil || epochs == nil || node == nil {
+		return nil, errors.New("transport dependencies missing")
+	}
+	if err := validateOrigin(socketURL, publicOrigin); err != nil {
+		return nil, err
+	}
+	auth.BindOnConnecting(node, socketURL)
+	node.OnConnect(func(client *centrifuge.Client) {
+		client.OnSubscribe(func(event centrifuge.SubscribeEvent, cb centrifuge.SubscribeCallback) {
+			if epochs.AuthorizeEpochChannel(client.Context(), event.Channel, client.UserID()) != nil {
+				cb(centrifuge.SubscribeReply{}, centrifuge.ErrorPermissionDenied)
+				return
+			}
+			cb(centrifuge.SubscribeReply{}, nil)
+		})
+	})
+	return Handler{
+		WebSocket: centrifuge.NewWebsocketHandler(node, centrifuge.WebsocketConfig{}),
+		PublicOrigin: strings.TrimSuffix(publicOrigin, "/"),
+	}, nil
+}
+
 func validateOrigin(socketURL, publicOrigin string) error {
 	origin, err := url.Parse(publicOrigin)
 	if err != nil {
