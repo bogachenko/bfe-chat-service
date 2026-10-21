@@ -118,7 +118,7 @@ func buildHandler(db *sql.DB, c runtimeConfig) (http.Handler, *centrifuge.Node, 
 	}
 	v2 := issue25.HTTPHandler{Store: issue25.Store{DB: db}, Auth: auth, Publisher: node, Revoker: node, PublicOrigin: c.origin}
 	combined := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/v2/conversations") {
+		if r.URL.Path == "/conversations" || strings.HasPrefix(r.URL.Path, "/conversations/") {
 			v2.ServeHTTP(w, r)
 			return
 		}
