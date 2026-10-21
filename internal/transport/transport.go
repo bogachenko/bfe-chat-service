@@ -7,42 +7,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
 
-	"github.com/bogachenko/bfe-chat-service/internal/assignments"
 	"github.com/bogachenko/bfe-chat-service/internal/authentication"
-	"github.com/bogachenko/bfe-chat-service/internal/conversations"
-	"github.com/bogachenko/bfe-chat-service/internal/realtime"
 	"github.com/centrifugal/centrifuge"
 )
 
-const maxBody = 64 << 10
-
 type Handler struct {
-	Messages     conversations.Service
-	Assignments  assignments.Service
-	WebSocket    http.Handler
-	Realtime     realtime.Service
+	WebSocket http.Handler
 	PublicOrigin string
-}
-
-func NewHandler(messages conversations.Service, recipient assignments.Service, realTime realtime.Service, node *centrifuge.Node, socketURL, publicOrigin string) (http.Handler, error) {
-	if node == nil || messages.Auth == nil || messages.Permissions == nil || messages.Store == nil {
-		return nil, errors.New("transport dependencies missing")
-	}
-	if recipient.Auth == nil || recipient.Store == nil {
-		return nil, errors.New("assignment dependencies missing")
-	}
-	if err := validateOrigin(socketURL, publicOrigin); err != nil {
-		return nil, err
-	}
-	if err := realTime.Bind(node, socketURL); err != nil {
-		return nil, err
-	}
-	return Handler{Messages: messages, Assignments: recipient, WebSocket: centrifuge.NewWebsocketHandler(node, centrifuge.WebsocketConfig{}), Realtime: realTime, PublicOrigin: strings.TrimSuffix(publicOrigin, "/")}, nil
 }
 
 // NewCurrentHandler binds the current DPoP-authenticated epoch-channel
@@ -131,45 +106,9 @@ func (h Handler) serveSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	h.WebSocket.ServeHTTP(w, r)
 }
-func decode(w http.ResponseWriter, r *http.Request, out any) bool {
-	if r.Header.Get("Content-Type") != "application/json" {
-		writeError(w, http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE")
-		return false
-	}
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(out); err != nil {
-		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR")
-		return false
-	}
-	var extra any
-	if err := decoder.Decode(&extra); err != io.EOF {
-		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR")
-		return false
-	}
-	return true
-}
 func methodNotAllowed(w http.ResponseWriter, allowed string) {
 	w.Header().Set("Allow", allowed)
 	writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED")
-}
-func writeDomainError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, authentication.ErrAuthInvalid), errors.Is(err, authentication.ErrProofInvalid):
-		writeError(w, http.StatusUnauthorized, "AUTH_INVALID")
-	case errors.Is(err, authentication.ErrAuthUnavailable):
-		writeError(w, http.StatusServiceUnavailable, "AUTH_UNAVAILABLE")
-	case errors.Is(err, conversations.ErrForbidden), errors.Is(err, assignments.ErrForbidden):
-		writeError(w, http.StatusForbidden, "FORBIDDEN")
-	case errors.Is(err, conversations.ErrValidation), errors.Is(err, assignments.ErrInvalidRecipient):
-		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR")
-	case errors.Is(err, conversations.ErrNoAssignment), errors.Is(err, assignments.ErrNoAssignment):
-		writeError(w, http.StatusConflict, "NO_ASSIGNMENT")
-	case errors.Is(err, assignments.ErrAssignmentConflict):
-		writeError(w, http.StatusConflict, "ASSIGNMENT_CONFLICT")
-	default:
-		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE")
-	}
 }
 func writeError(w http.ResponseWriter, status int, code string) {
 	writeJSON(w, status, map[string]string{"error": code})
