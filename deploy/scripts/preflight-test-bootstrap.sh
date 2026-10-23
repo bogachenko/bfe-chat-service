@@ -25,7 +25,7 @@ report 'Nginx' command -v nginx
 report 'BFE Drive active' systemctl is-active --quiet bfe-drive.service
 report 'Chat service exists' systemctl cat bfe-chat-service.service
 report 'Chat system user exists' id bfe-chat
-report 'Chat DB exists' sh -c 'sudo -n -u postgres psql -XAtqc "SELECT 1 FROM pg_database WHERE datname=\x27bfe_chat\x27" | grep -qx 1'
+report 'Chat DB exists' sh -c 'sudo -n -u postgres psql -XAt -d bfe_chat -c "SELECT 1" | grep -qx 1'
 report 'Chat service binary exists' test -x /usr/local/bin/bfe-chat-service
 report 'Drive Nginx extension directory' test -d /etc/nginx/snippets/bfe-drive.local.d
 report 'Chat DB migrations directory' test -d /var/lib/bfe-chat-service/migrations
