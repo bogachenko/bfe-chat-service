@@ -12,10 +12,10 @@ make update-test-runtime
 
 - Active dedicated `bfe-chat-service.service` with `/usr/local/bin/bfe-chat-service`, listening on loopback `127.0.0.1:8081`.
 - Dedicated PostgreSQL database `bfe_chat` and local Linux identity `bfe-chat` able to query `goose_db_version`.
-- Separate BFE Drive Internal Auth UDS, explicitly accessible to Chat without weakening socket permissions. The Chat service config supplies `-public-origin=https://<approved-host>`, `-drive-auth-uds=...`, `-migrations=/var/lib/bfe-chat-service/migrations`, and a protected DB DSN through `BFE_CHAT_DATABASE_URL` or a configured alternative.
+- Separate BFE Drive Internal Auth UDS, explicitly accessible to Chat without weakening socket permissions. The Chat service config supplies `-public-origin=https://<approved-host>`, `-drive-auth-uds=...`, `-migrations=/opt/bfe-chat-service/migrations`, and a protected DB DSN through `BFE_CHAT_DATABASE_URL` or a configured alternative.
 - Host HTTPS ingress exposing `/conversations` and `/ws` without rewriting DPoP-bound URLs; WebSocket forwarding configured separately. Validate whether Drive and Chat can safely share public hostname before provisioning.
 - Root-owned `/var/lib/bfe-chat-service/runtime-release.json` (mode 0600) containing `public_host`, `service` (`bfe-chat-service.service`), `commit`, `binary_sha256`, and `migrations_sha256`. These entries must identify an already working approved installation.
-- `/var/lib/bfe-chat-service/migrations` byte-identical to the repository's SQL migration tree, with matching already-applied Goose database schema version.
+- `/opt/bfe-chat-service/migrations` byte-identical to the repository's SQL migration tree, with matching already-applied Goose database schema version.
 - Test SSH identity permitted to read systemd state, architecture, and transfer an artifact into `/tmp`, plus appropriately scoped noninteractive sudo for Chat-only update operations. Do not modify BFE Drive service, database or secrets.
 
 ## Update semantics
