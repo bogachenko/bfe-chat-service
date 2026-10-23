@@ -7,6 +7,8 @@ for c in git ssh scp tar go python3 sha256sum; do command -v "$c" >/dev/null || 
 : "${BFE_TEST_PUBLIC_HOST:?BFE_TEST_PUBLIC_HOST required}"
 [[ "$BFE_TEST_VPS_SSH_TARGET" =~ ^[A-Za-z0-9_.@:-]+$ ]] || fail 'unsafe SSH target'
 [[ "$BFE_TEST_PUBLIC_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z]{2,}$ ]] || fail 'public host must be bare DNS name'
+CHAT_HOST="${BFE_TEST_CHAT_PUBLIC_HOST:-chat.webshopstudio.ru}"
+[[ "$CHAT_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z]{2,}$ ]] || fail "invalid Chat hostname"
 ROOT="$(git rev-parse --show-toplevel)" || fail 'not a git repository'
 cd "$ROOT"
 [[ "$(git remote get-url origin)" == *bogachenko/bfe-chat-service* ]] || fail 'wrong repository'
@@ -29,13 +31,13 @@ if [[ -n "${BFE_TEST_VPS_SSH_IDENTITY_FILE:-}" ]]; then
   SCP+=(-i "$BFE_TEST_VPS_SSH_IDENTITY_FILE")
 fi
 remote() { "${SSH[@]}" "$BFE_TEST_VPS_SSH_TARGET" "$@"; }
-printf 'BFE Chat test preflight: commit=%s host=%s\n' "$CANDIDATE" "$BFE_TEST_PUBLIC_HOST"
+printf 'BFE Chat test preflight: commit=%s host=%s\n' "$CANDIDATE" "$CHAT_HOST"
 # Preflight is READ-ONLY: reject any host which has not explicitly been provisioned.
-INFO="$(remote "sudo -n env EXPECTED_HOST='$BFE_TEST_PUBLIC_HOST' bash -s" <<'REMOTE'
+INFO="$(remote "sudo -n env EXPECTED_HOST='$CHAT_HOST' bash -s" <<'REMOTE'
 set -euo pipefail
 BIN=/usr/local/bin/bfe-chat-service
 STATE=/var/lib/bfe-chat-service/runtime-release.json
-MIG=/var/lib/bfe-chat-service/migrations
+MIG=/opt/bfe-chat-service/migrations
 systemctl is-active --quiet bfe-chat-service.service
 test -x "$BIN" && test -s "$STATE" && test -d "$MIG"
 python3 - "$STATE" "$EXPECTED_HOST" <<'PY'
