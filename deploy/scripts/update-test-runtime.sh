@@ -98,3 +98,6 @@ os.chmod(tmp,0o600);os.replace(tmp,path)
 PY
 printf 'BFE Chat TEST UPDATE PASS: %s\n' "$CANDIDATE"
 REMOTE
+
+# Keep dedicated Chat ingress synchronized with the versioned repository config.
+bash ./deploy/scripts/update-test-nginx.sh
