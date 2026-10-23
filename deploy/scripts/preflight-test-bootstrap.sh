@@ -28,7 +28,7 @@ report 'Chat system user exists' id bfe-chat
 report 'Chat DB exists' sh -c 'sudo -n -u postgres psql -XAt -d bfe_chat -c "SELECT 1" | grep -qx 1'
 report 'Chat service binary exists' test -x /usr/local/bin/bfe-chat-service
 report 'Drive Nginx extension directory' test -d /etc/nginx/snippets/bfe-drive.local.d
-report 'Chat DB migrations directory' test -d /var/lib/bfe-chat-service/migrations
+report 'Chat DB migrations directory' test -d /opt/bfe-chat-service/migrations
 report 'Chat release state file' sudo -n test -s /var/lib/bfe-chat-service/runtime-release.json
 printf '%s\n' 'CHECK MANUALLY: approved HTTPS host, Drive Auth UDS path and permissions, DB backups, nginx routing, public DPoP origin, and migration authorization'
 REMOTE
