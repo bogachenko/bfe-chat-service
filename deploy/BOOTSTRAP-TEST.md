@@ -13,3 +13,5 @@ Candidate templates under `deploy/templates/` are **not applied** by this reposi
 5. Plan first binary deployment and initial `runtime-release.json` provenance. Verify rollback, service health, DPoP authenticated requests and WebSocket subscription before enabling `make update-test-runtime`.
 
 **No file here authorizes first install, migration, nginx reload, or production deployment.**
+
+SSH uses interactive password authentication. The script does not store passwords; its `sudo -n` checks remain noninteractive and may show MISSING when passwordless sudo is not configured.
