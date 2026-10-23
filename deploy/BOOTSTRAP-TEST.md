@@ -14,4 +14,4 @@ Candidate templates under `deploy/templates/` are **not applied** by this reposi
 
 **No file here authorizes first install, migration, nginx reload, or production deployment.**
 
-SSH uses standard authentication according to the user's SSH configuration (including password when allowed). The script does not store passwords; its `sudo -n` checks remain noninteractive and may show MISSING when passwordless sudo is not configured.
+Test SSH disables public-key authentication and prompts for a password (when the server allows it). The script does not store passwords; its `sudo -n` checks remain noninteractive and may show MISSING when passwordless sudo is not configured.
