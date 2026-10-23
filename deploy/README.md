@@ -27,3 +27,15 @@ This is an **updater**, not a bootstrap installer: if Chat has never been instal
 ## Verification still required before first test use
 
 Independent QA: shell syntax, fail-closed behavior and stubbed remote operations; review of least-privilege sudo and systemd settings, database read-only provenance checks, ingress/DPoP, `/ws` readiness and server-side rollback. After PR quality checks and explicit owner approval, perform first test VPS rollout followed by authenticated end-to-end tests. Neither adding this script nor merging its PR authorizes remote deployment.
+
+## Versioned Chat Nginx configuration
+
+The dedicated Chat vhost is versioned at `deploy/nginx/bfe-chat.conf`. It replaces the obsolete `/v1/` and `/v2/` locations with `/conversations` and `/conversations/`, retaining WebSocket `/ws`.
+
+To repair only Chat ingress without rebuilding/restarting Chat:
+
+```sh
+make update-test-nginx
+```
+
+The command checks that `/etc/nginx/conf.d/bfe-chat.conf` already belongs to the expected Chat host and backend, uploads the repository template, backups the old vhost, validates `nginx -t`, reloads Nginx, and restores it on validation/reload failure. No BFE Drive file or application service is updated. Future `make update-test-runtime` runs also synchronize this vhost.
