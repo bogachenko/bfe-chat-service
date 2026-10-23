@@ -5,7 +5,7 @@ fail(){ printf 'BLOCKED: %s\n' "$*" >&2; exit 1; }
 : "${BFE_TEST_PUBLIC_HOST:?BFE_TEST_PUBLIC_HOST is required}"
 [[ "$BFE_TEST_VPS_SSH_TARGET" =~ ^[a-zA-Z0-9_.@:-]+$ ]] || fail 'invalid SSH target'
 [[ "$BFE_TEST_PUBLIC_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z]{2,}$ ]] || fail 'invalid public hostname'
-ssh_args=(-o BatchMode=no -o PreferredAuthentications=password,keyboard-interactive -o PubkeyAuthentication=no -o StrictHostKeyChecking=yes -o ConnectTimeout=10)
+ssh_args=(-o StrictHostKeyChecking=yes -o ConnectTimeout=10)
 if [[ -n "${BFE_TEST_VPS_SSH_IDENTITY_FILE:-}" ]]; then
   [[ "$BFE_TEST_VPS_SSH_IDENTITY_FILE" = /* && -r "$BFE_TEST_VPS_SSH_IDENTITY_FILE" ]] || fail 'invalid SSH key path'
   ssh_args+=(-i "$BFE_TEST_VPS_SSH_IDENTITY_FILE")
