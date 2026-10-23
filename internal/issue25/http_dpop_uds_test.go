@@ -22,7 +22,7 @@ import (
 )
 
 const udsTestToken25 = "opaque-session-token"
-const udsTestTarget25 = "https://chat.example.test/v2/conversations/unknown"
+const udsTestTarget25 = "https://chat.example.test/conversations/unknown"
 
 type udsCase25 struct {
  name,scheme,method,uri,athToken string
@@ -69,7 +69,7 @@ func runUDSCase25(t *testing.T,tc udsCase25,private ed25519.PrivateKey,status *a
  if tc.revoked {status.Store(http.StatusUnauthorized)}
  h:=HTTPHandler{Store:Store{DB:&sql.DB{}},Auth:validator,PublicOrigin:"https://chat.example.test"}
  if tc.down {h.Auth=unavailable}
- req:=httptest.NewRequest(http.MethodGet,"/v2/conversations/unknown",nil)
+ req:=httptest.NewRequest(http.MethodGet,"/conversations/unknown",nil)
  req.Header.Set("Authorization",tc.scheme+" "+udsTestToken25)
  req.Header.Set("DPoP",signUDSProof25(t,private,tc))
  recorder:=httptest.NewRecorder()
@@ -99,15 +99,15 @@ func TestHTTPv2RealValidatorUDS(t *testing.T) {
  if err!=nil {t.Fatal(err)}
  cases:=[]udsCase25{
   {"valid DPoP","DPoP",http.MethodGet,udsTestTarget25,udsTestToken25,0,false,false,false,http.StatusNotFound},
-  {"valid legacy Bearer","Bearer",http.MethodGet,udsTestTarget25,udsTestToken25,0,false,false,false,http.StatusNotFound},
+  {"Bearer rejected before UDS","Bearer",http.MethodGet,udsTestTarget25,udsTestToken25,0,false,false,false,http.StatusUnauthorized},
   {"bad signature","DPoP",http.MethodGet,udsTestTarget25,udsTestToken25,0,true,false,false,http.StatusUnauthorized},
   {"wrong htm","DPoP",http.MethodPost,udsTestTarget25,udsTestToken25,0,false,false,false,http.StatusUnauthorized},
-  {"wrong htu","DPoP",http.MethodGet,"https://other.invalid/v2/conversations/unknown",udsTestToken25,0,false,false,false,http.StatusUnauthorized},
+  {"wrong htu","DPoP",http.MethodGet,"https://other.invalid/conversations/unknown",udsTestToken25,0,false,false,false,http.StatusUnauthorized},
   {"expired","DPoP",http.MethodGet,udsTestTarget25,udsTestToken25,-10*time.Minute,false,false,false,http.StatusUnauthorized},
   {"revoked","DPoP",http.MethodGet,udsTestTarget25,udsTestToken25,0,false,true,false,http.StatusUnauthorized},
   {"bad ath","DPoP",http.MethodGet,udsTestTarget25,"other-udsTestToken25",0,false,false,false,http.StatusUnauthorized},
   {"UDS down","DPoP",http.MethodGet,udsTestTarget25,udsTestToken25,0,false,false,true,http.StatusServiceUnavailable},
  }
  for _,tc:=range cases {t.Run(tc.name,func(t *testing.T){runUDSCase25(t,tc,private,&status,validator,unavailable)})}
- if hits.Load()!=int64(len(cases)-1) {t.Fatalf("UDS hits=%d",hits.Load())}
+ if hits.Load()!=int64(len(cases)-2) {t.Fatalf("UDS hits=%d",hits.Load())}
 }

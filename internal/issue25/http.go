@@ -40,7 +40,7 @@ func credentials25(r *http.Request) (string, string, bool) {
 		return "", "", false
 	}
 	fields := strings.Split(values[0], " ")
-	if len(fields) != 2 || (fields[0] != "DPoP" && fields[0] != "Bearer") || fields[1] == "" || strings.ContainsAny(fields[1], " \t\r\n") {
+	if len(fields) != 2 || fields[0] != "DPoP" || fields[1] == "" || strings.ContainsAny(fields[1], " \t\r\n") {
 		return "", "", false
 	}
 	return fields[1], proofs[0], true
@@ -70,8 +70,8 @@ func (h HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.route25(w, r, caller.AccountID)
 }
 func (h HTTPHandler) route25(w http.ResponseWriter, r *http.Request, user string) {
-	path := strings.TrimPrefix(r.URL.Path, "/v2/conversations")
-	if path == r.URL.Path {
+	path := strings.TrimPrefix(r.URL.Path, "/conversations")
+	if path == r.URL.Path || (path != "" && !strings.HasPrefix(path, "/")) {
 		write25(w, http.StatusNotFound, "NOT_FOUND")
 		return
 	}
@@ -103,6 +103,7 @@ func (h HTTPHandler) route25(w http.ResponseWriter, r *http.Request, user string
 		"DELETE members 3": h.route25_delete_members_3,
 		"PUT owner 2":      h.route25_put_owner_2,
 		"PUT admins 3":     h.route25_put_admins_3,
+		"PUT name 2":       h.route32_rename_group,
 	}
 	fn := handlers[r.Method+" "+verb+" "+strconv.Itoa(len(parts))]
 	if fn == nil {
@@ -357,6 +358,19 @@ func (h HTTPHandler) route25_put_admins_3(w http.ResponseWriter, r *http.Request
 		return
 	}
 	write25JSON(w, map[string]bool{"admin": req.Admin})
+}
+func (h HTTPHandler) route32_rename_group(w http.ResponseWriter, r *http.Request, user, conversation string, parts []string) {
+	var req struct {
+		Name string `json:"name"`
+	}
+	if !decode25(w, r, &req) {
+		return
+	}
+	if err := h.Store.RenameGroup(r.Context(), conversation, user, req.Name); err != nil {
+		http25Error(w, err)
+		return
+	}
+	write25JSON(w, map[string]string{"name": req.Name})
 }
 func decode25(w http.ResponseWriter, r *http.Request, d any) bool {
 	if r.Body == nil {

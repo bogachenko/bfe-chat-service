@@ -1,189 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<DEVELOPMENT_PLAN id="DP-BFE-CHAT-001" status="HUMAN_APPROVED" requirements_source="RequirementsAnalysis.xml" technology_source="Technology.xml">
-  <PURPOSE>Проект архитектурного графа GRACE: восемь предварительно согласованных модулей, вызовы, границы владения и последовательность работ. Утверждён командным центром; разрешена подготовка контрактов, но тесты и реализация только после их отдельного согласования.</PURPOSE>
-  <MODULES>
-    <MODULE id="DP-M01" refs="BR-013 BR-026">BFE Auth integration: внутренний UDS validate, проверка текущей сессии; проверка ADMIN для административных операций, DPoP на клиентских соединениях.</MODULE>
-    <MODULE id="DP-M02" refs="BR-004 BR-022">Назначения: явный recipient_account_id, атомарная замена; без автоматического выбора администратора.</MODULE>
-    <MODULE id="DP-M03" refs="BR-001 BR-020 BR-023 BR-024">Переписки и сообщения: одна история на пользователя, идемпотентность и определение получателя при записи.</MODULE>
-    <MODULE id="DP-M04" refs="BR-003 BR-015 BR-016 BR-026">Разграничение доступа к истории, отправке, административному просмотру и смене получателя.</MODULE>
-    <MODULE id="DP-M05" refs="BR-010 BR-018">Centrifuge real-time доставка и OnConnecting; история сохраняется в PostgreSQL.</MODULE>
-    <MODULE id="DP-M06" refs="DOC-001 DOC-009">Контекст одного документа без передачи файлов и прав доступа.</MODULE>
-    <MODULE id="DP-M07" refs="BR-012 BR-023">PostgreSQL, pgx, goose: хранение, транзакции и миграции.</MODULE>
-    <MODULE id="DP-M08" refs="EXT-CLIENTS EXT-ADMIN-UI">HTTP и WebSocket транспорт для Flutter Web, Android и административного UI.</MODULE>
-  </MODULES>
-  <ARCHITECTURE_GRAPH status="PROPOSED_FOR_COMMAND_CENTER_REVIEW">
-    <BOUNDARIES>
-      <BOUNDARY id="DP-B01" owner="DP-M01">BFE Auth owns accounts, session lifecycle and ADMIN state. DP-M01 validates existing token via restricted Unix socket, independently verifies client DPoP and exposes request identity; it does not create accounts, tokens or sessions.</BOUNDARY>
-      <BOUNDARY id="DP-B02" owner="DP-M02">DP-M02 exclusively owns recipient assignment changes. Admin UI supplies an accountId selected from BFE Drive user list; assignment is stored in Chat Service, replacement is atomic and never automatic.</BOUNDARY>
-      <BOUNDARY id="DP-B03" owner="DP-M03">DP-M03 owns one conversation per user, message writes, idempotency and history. Persisting owner messages continues when the previously assigned recipient is blocked or deleted.</BOUNDARY>
-      <BOUNDARY id="DP-B04" owner="DP-M04">DP-M04 decides chat resource permissions using validated caller identity and current chat assignment. ADMIN is required only for administrative actions; audit-mode viewing remains read-only and never generates view-audit events.</BOUNDARY>
-      <BOUNDARY id="DP-B05" owner="DP-M05">DP-M05 owns transient connection/subscription/delivery state, not permanent messages or assignment. Centrifuge OnConnecting delegates token/DPoP validation to DP-M01 and permission checks to DP-M04.</BOUNDARY>
-      <BOUNDARY id="DP-B06" owner="DP-M06">DP-M06 validates and stores at most one provided document ID/title context per message; BFE Drive exclusively owns document content and its access controls.</BOUNDARY>
-      <BOUNDARY id="DP-B07" owner="DP-M07">DP-M07 is the sole persistence adapter for Chat Service data in PostgreSQL, including transactionally consistent assignment/message operations and migrations. No direct access to BFE Drive application tables is assumed.</BOUNDARY>
-      <BOUNDARY id="DP-B08" owner="DP-M08">DP-M08 owns external HTTP/WebSocket protocol boundaries only, not authentication policy, authorization decisions or business persistence.</BOUNDARY>
-    </BOUNDARIES>
-    <DEPENDENCIES convention="from-calls-to; runtime logical dependency, not Go import graph">
-      <EDGE id="DP-E01" from="DP-M08" to="DP-M01" kind="authenticate" />
-      <EDGE id="DP-E02" from="DP-M08" to="DP-M04" kind="authorize" />
-      <EDGE id="DP-E03" from="DP-M08" to="DP-M02" kind="admin-assignment" />
-      <EDGE id="DP-E04" from="DP-M08" to="DP-M03" kind="send-history" />
-      <EDGE id="DP-E05" from="DP-M01" to="EXT-AUTH" kind="uds-session-validation" />
-      <EDGE id="DP-E06" from="DP-M02" to="DP-M04" kind="authorize-admin-mutation" />
-      <EDGE id="DP-E07" from="DP-M02" to="DP-M07" kind="atomic-assignment" />
-      <EDGE id="DP-E08" from="DP-M03" to="DP-M04" kind="authorize-message-or-history" />
-      <EDGE id="DP-E09" from="DP-M03" to="DP-M02" kind="resolve-current-assignment" />
-      <EDGE id="DP-E10" from="DP-M03" to="DP-M06" kind="document-context" />
-      <EDGE id="DP-E11" from="DP-M03" to="DP-M07" kind="durable-message-transaction" />
-      <EDGE id="DP-E12" from="DP-M03" to="DP-M05" kind="post-commit-realtime" />
-      <EDGE id="DP-E13" from="DP-M04" to="DP-M01" kind="trusted-caller-identity" />
-      <EDGE id="DP-E14" from="DP-M04" to="DP-M07" kind="read-authoritative-assignment-for-acl" />
-      <EDGE id="DP-E15" from="DP-M05" to="DP-M01" kind="onconnecting-authenticate" />
-      <EDGE id="DP-E16" from="DP-M05" to="DP-M04" kind="subscribe-and-deliver-authorization" />
-      <EDGE id="DP-E17" from="DP-M06" to="DP-M07" kind="message-context-persistence" />
-      <EDGE id="DP-E18" from="DP-M07" to="PostgreSQL" kind="sql" />
-    </DEPENDENCIES>
-    <FLOWS>
-      <FLOW id="DP-F01" refs="BR-023 BR-024 BR-026">Flutter client - DP-M08 - DP-M01 - DP-M04 - DP-M03 - DP-M02/DP-M06 - DP-M07 commit - DP-M05 delivery; recipients are reauthorized against the current assignment, and no delivery precedes durable persistence.</FLOW>
-      <FLOW id="DP-F02" refs="BR-004 BR-022">Admin UI - DP-M08 - DP-M01 ADMIN - DP-M04 - DP-M02 - DP-M07 atomic assignment; former recipient loses access without rewriting history.</FLOW>
-      <FLOW id="DP-F03" refs="BR-015 BR-016 BR-026">Admin UI - DP-M08 - DP-M01 ADMIN - DP-M04 audit-read permission - DP-M03 - DP-M07; no view-audit event or sending permission is created.</FLOW>
-      <FLOW id="DP-F04" refs="BR-010 BR-018">Flutter Web/Android WebSocket - DP-M08 - DP-M05 OnConnecting - DP-M01 BFE token via UDS plus DPoP - DP-M04 subscription authorization; history is fetched from DP-M03/DP-M07 after reconnect.</FLOW>
-    </FLOWS>
-    <INTEGRATION_CONSTRAINTS>
-      <RULE>All eight modules belong to the single approved Go Chat Service process; graph edges are logical responsibilities and do not prescribe new network services.</RULE>
-      <RULE>Reuse approved Centrifuge, net/http, PostgreSQL, pgx and goose; do not add Redis, a separate broker, JWT, connection tickets or alternative Auth endpoints without new evidence and approval.</RULE>
-      <RULE>Protect the local BFE Auth Unix socket using approved OS access controls. Nginx and external HTTPS remain at the public ingress of the shared Ubuntu VPS.</RULE>
-      <RULE>Recipient blocking or deletion does not interrupt owner message persistence; the recipient is unable to authenticate through revoked sessions. A missing assignment still prevents sending.</RULE>
-    </INTEGRATION_CONSTRAINTS>
-  </ARCHITECTURE_GRAPH>
-  <IMPLEMENTATION_ORDER status="PLANNING_ONLY_NO_WORK_AUTHORIZED">
-    <PHASE id="DP-P01" depends_on="">After DevelopmentPlan approval, specify module boundaries and function contracts; independently validate authorization and ownership rules before implementation.</PHASE>
-    <PHASE id="DP-P02" depends_on="DP-P01">Specify storage schema, migration discipline, conversation/assignment integrity, transactional idempotency and concurrency behavior.</PHASE>
-    <PHASE id="DP-P03" depends_on="DP-P01 DP-P02">Specify BFE UDS Auth, ADMIN boundaries, DPoP OnConnecting, key binding, replay resistance and reconnection semantics.</PHASE>
-    <PHASE id="DP-P04" depends_on="DP-P02 DP-P03">Implement assignment, conversation, message, history and document context operations behind the reviewed contracts.</PHASE>
-    <PHASE id="DP-P05" depends_on="DP-P03 DP-P04">Implement Centrifuge subscriptions and post-commit delivery with authorization under reassignments; do not use its transient history as durable storage.</PHASE>
-    <PHASE id="DP-P06" depends_on="DP-P03 DP-P05">Run Flutter Web and Android integration tests for DPoP, replay, revoked sessions, reconnection and recipient access transitions.</PHASE>
-    <PHASE id="DP-P07" depends_on="DP-P04 DP-P05">Run approved acceptance checks; verify the shared VPS resource budget, PostgreSQL 18.6 compatibility, systemd, Nginx and socket permissions before deployment.</PHASE>
-  </IMPLEMENTATION_ORDER>
-  <SEQUENCE>
-    <STEP id="DP-S01" refs="BR-004 BR-022 BR-023">Согласовать контракты модулей, схему постоянных данных, атомарность назначений и идемпотентность.</STEP>
-    <STEP id="DP-S02" refs="BR-026">Определить конкретную DPoP-проверку в Centrifuge OnConnecting: подпись, dpopJkt, ath, привязка proof к соединению, срок действия, replay и reconnect. Без JWT, новых сессий и билетов.</STEP>
-    <STEP id="DP-S03" refs="BR-004 BR-013 BR-018 ERR-013">Проверить отправку активным владельцем после блокировки получателя; доступ заблокированного получателя запрещён, назначение не меняется автоматически.</STEP>
-    <STEP id="DP-S04" refs="AC-003 AC-019 AC-020 AC-021">Реализовать после одобрения контрактов операции назначения, переписки, сообщений, истории и доставки.</STEP>
-    <STEP id="DP-S05" refs="EXT-CLIENTS BR-026">Интеграционные тесты Flutter Web и Android: DPoP, replay, истёкшие и отозванные сессии, переподключение, права.</STEP>
-    <STEP id="DP-S06" refs="BR-010 BR-012">Проверить Ubuntu VPS, PostgreSQL 18.6, systemd, Nginx и локальный Unix socket до развёртывания.</STEP>
-  </SEQUENCE>
-  <GATES>
-    <GATE id="DP-G01">DevelopmentPlan.xml HUMAN_APPROVED решением командного центра.</GATE>
-    <GATE id="DP-G02">После утверждения плана подготовить контракты модулей и функций, затем тесты и реализацию согласно GRACE.</GATE>
-  </GATES>
-  <APPROVAL_STATE>HUMAN_APPROVED: утверждены восемь модулей, архитектурный граф, границы ответственности, зависимости, потоки данных и последовательность работ. Разрешён этап проектирования контрактов модулей и функций.</APPROVAL_STATE>
-  <ISSUE25_DEVELOPMENT_APPROVAL_RECORD id="APPROVAL25-DEVELOPMENT" authority="PROJECT_OWNER" approval="HUMAN_APPROVED" approved_commit="c6b2761e86c4f79c6cf19ade13a3b169695c2df9" approved_scope="ISSUE25_DEVELOPMENT_PLAN"><BOUNDARY>Approval concerns only Issue #25 architecture in the named commit. Existing legacy contracts and all future module/function contracts, migrations, implementation, tests and deployment are NOT approved by this record.</BOUNDARY></ISSUE25_DEVELOPMENT_APPROVAL_RECORD>
-  <ISSUE25_ARCHITECTURE_REVISION_APPROVAL id="APPROVAL25-ARCH-REVISION" authority="PROJECT_OWNER" approval="HUMAN_APPROVED" approved_commit="117bda7c2175c59ebaade269ffd0e3d19b2ed42e" approved_scope="Architecture Revision of ISSUE25_DEVELOPMENT_PLAN including Variant C and immutable publication attempt binding"><BOUNDARY>This Project Owner approval applies only to the named Issue 25 sections at the exact approved commit. All prior legacy approvals retain their own scope. MentalScenarios, production code, automated tests, migrations, operations and deployment are not approved.</BOUNDARY></ISSUE25_ARCHITECTURE_REVISION_APPROVAL>
-  <ISSUE25_DEVELOPMENT_PLAN id="DP25-001" status="HUMAN_APPROVED" approval="HUMAN_APPROVED" requirements_source="RequirementsAnalysis.xml" technology_source="Technology.xml" requirements_approval="APPROVAL25-REQUIREMENTS" technology_approval="APPROVAL25-TECHNOLOGY">
-    <SCOPE>Issue #25 semantic/architectural graph only; existing approved DP-M01..DP-M08 architecture remains unchanged for legacy scope. This candidate requires Independent QA and Project Owner approval before any contract/code change.</SCOPE>
-    <DESIGN_BOUNDARIES>Same Go service and approved PostgreSQL bfe_chat / pgx / goose / embedded Centrifuge / net/http / existing UDS and DPoP. No dependency changes or BFE Drive mutations. API endpoints and schema migration are not implemented or approved.</DESIGN_BOUNDARIES>
-    <MODULES>
-      <MODULE id="DP25-M01" refs="REQ25-SECURITY REQ25-ISOLATION REQ25-GROUP REQ25-ROLES"><NAME>Identity and Chat authorization</NAME><RESPONSIBILITY>Validate caller via existing UDS/DPoP; resolve conversation membership/role from bfe_chat at protected operation boundary; reject on auth outage. Drive ADMIN has no automatic Chat permission.</RESPONSIBILITY></MODULE>
-      <MODULE id="DP25-M02" refs="REQ25-DIRECT REQ25-GROUP REQ25-HIDE"><NAME>Conversation lifecycle</NAME><RESPONSIBILITY>Independent conversation_id UUID with kind DIRECT/GROUP; canonical unordered direct pair uniqueness; personal hidden flag for each direct participant; incoming message or explicit open restores visibility.</RESPONSIBILITY></MODULE>
-      <MODULE id="DP25-M03" refs="REQ25-MEMBERSHIP REQ25-ROLES REQ25-GROUP REQ25-HISTORY"><NAME>Membership/roles/visibility</NAME><RESPONSIBILITY>Per-conversation membership epochs represented as half-open visibility intervals in committed message order; exactly one owner for groups; only owner changes admin; admin manages members only; leaving owner must transfer first.</RESPONSIBILITY></MODULE>
-      <MODULE id="DP25-M04" refs="REQ25-SEND REQ25-HISTORY REQ25-DOC REQ25-LEGACY"><NAME>Durable messaging/history</NAME><RESPONSIBILITY>PostgreSQL conversation-scoped ordered messages, immutable author/payload/document metadata, history filtered by union of user's membership intervals, keyset pagination and immutable persisted idempotency outcome.</RESPONSIBILITY></MODULE>
-      <MODULE id="DP25-M05" refs="REQ25-REALTIME REQ25-SECURITY REQ25-MEMBERSHIP"><NAME>Realtime delivery</NAME><RESPONSIBILITY>Centrifuge delivers only minimal content-free wake-up to opaque conversation/viewer/never-reused membership-epoch channels. PostgreSQL transaction gate protects SEND/JOIN/REMOVE/TRANSFER and committed message order, not cancellation of external Publish. Pre-REMOVE Publish can complete after REMOVE or timeout, outcome UNKNOWN; NEW Publish attempts after removal are rejected. Subscription revocation best effort; every history read requires fresh authorization and membership interval check. No sensitive content in envelope, channel IDs, or recoverable history.</RESPONSIBILITY></MODULE>
-      <MODULE id="DP25-M06" refs="REQ25-READ REQ25-MEMBERSHIP REQ25-HISTORY"><NAME>Read states</NAME><RESPONSIBILITY>Durable per-account/conversation monotonic last-read marker; unread counts only committed visible other-authored messages after marker, excluding intervals of absence.</RESPONSIBILITY></MODULE>
-      <MODULE id="DP25-M07" refs="REQ25-LEGACY REQ25-COMPAT REQ25-DIRECT"><NAME>Legacy transition boundary</NAME><RESPONSIBILITY>Preserve source assignments/owner-stream/messages and opaque historical recipient; classify unambiguous records only after read-only inventory and approved mapping; ambiguous stays isolated; cutover owned by Release Manager.</RESPONSIBILITY></MODULE>
-      <MODULE id="DP25-M08" refs="REQ25-LIMITS REQ25-SECURITY REQ25-COMPAT"><NAME>Transport/validation</NAME><RESPONSIBILITY>Existing net/http endpoints for new conversation identities after separate API contract approval; validate UTF-8 byte sizes 16384 text, 256 name, JSON body 65536, at most 100 participants and history page 100/default 50.</RESPONSIBILITY></MODULE>
-      <MODULE id="DP25-M09" refs="REQ25-DOC REQ25-ISOLATION"><NAME>Document reference</NAME><RESPONSIBILITY>Store document id/title snapshot in chat messages only; never change Drive ACL or Drive data; opening document remains existing Drive authorization.</RESPONSIBILITY></MODULE>
-    </MODULES>
-    <SEMANTIC_GRAPH>
-      <FLOW id="DP25-F01" modules="DP25-M08 DP25-M01 DP25-M02"><ACTION>CREATE_DIRECT</ACTION><INVARIANT>Validate caller, canonical pair, uniqueness-enforced get-or-create; reject self-direct.</INVARIANT></FLOW>
-      <FLOW id="DP25-F02" modules="DP25-M08 DP25-M01 DP25-M02 DP25-M03"><ACTION>CREATE_GROUP</ACTION><INVARIANT>Group creation and initial owner-membership occur in same transaction; never commit ownerless group.</INVARIANT></FLOW>
-      <FLOW id="DP25-F03" modules="DP25-M08 DP25-M01 DP25-M03 DP25-M04 DP25-M05"><ACTION>JOIN_REMOVE</ACTION><INVARIANT>SEND/JOIN/REMOVE share PostgreSQL conversation transaction gate; REMOVE commits epoch retirement and closes visibility interval. Newly initiated old-epoch notifications after commit denied; already initiated Publish may finish late without sensitive payload. Unsubscribe/disconnect requested after commit.</INVARIANT></FLOW>
-      <FLOW id="DP25-F04" modules="DP25-M08 DP25-M01 DP25-M03"><ACTION>TRANSFER_OWNER</ACTION><INVARIANT>Transfer owner role atomically to existing eligible member then allow owner leave; never zero/two current owner state at committed boundary.</INVARIANT></FLOW>
-      <FLOW id="DP25-F05" modules="DP25-M08 DP25-M01 DP25-M03 DP25-M04 DP25-M05 DP25-M09"><ACTION>SEND</ACTION><INVARIANT>Validate current actor/membership, deduplicate canonical payload under unique sender+conversation+key, allocate commit-visible message order and commit before best-effort delivery.</INVARIANT></FLOW>
-      <FLOW id="DP25-F06" modules="DP25-M08 DP25-M01 DP25-M03 DP25-M04 DP25-M06"><ACTION>HISTORY_READ</ACTION><INVARIANT>Authenticate and scope by current/previous valid membership; cursor strictly progresses over authorized committed ordered messages; never leak absent-interval messages.</INVARIANT></FLOW>
-      <FLOW id="DP25-F07" modules="DP25-M08 DP25-M01 DP25-M03 DP25-M06"><ACTION>MARK_READ</ACTION><INVARIANT>Accept only authorized visible marker, update via max(old,new) atomically, sync via committed state to all devices.</INVARIANT></FLOW>
-      <FLOW id="DP25-F08" modules="DP25-M01 DP25-M03 DP25-M05"><ACTION>WS_LIFECYCLE</ACTION><INVARIANT>OnConnecting and OnSubscribe verify session and current epoch; no sensitive recoverable notifications. Register attempt under PostgreSQL conversation gate while epoch is active, do not hold DB transaction gate while external Publish executes. Pre-REMOVE Publish may finish late, including after timeout UNKNOWN. Rejoin uses fresh opaque epoch channel; HTTP read always reauthorizes.</INVARIANT></FLOW>
-      <FLOW id="DP25-F09" modules="DP25-M07 DP25-M02 DP25-M04 DP25-M08"><ACTION>LEGACY_CUTOVER</ACTION><INVARIANT>Inventory/classify in read-only phase, preserve all original data, staged verification and reversibility requirements, Release Manager owns deployment.</INVARIANT></FLOW>
-    </SEMANTIC_GRAPH>
-    <DATA_MODEL_CANDIDATES>
-      <ENTITY id="DP25-E01">conversation(conversation_id UUID, kind, created_at, metadata); direct unordered pair has a unique canonical identity; no owner_account_id as conversation identity.</ENTITY>
-      <ENTITY id="DP25-E02">membership(conversation_id, account_id, role, state) and immutable membership interval boundaries over conversation-local committed ordinals; exactly one owner in every committed group state.</ENTITY>
-      <ENTITY id="DP25-E03">message(conversation_id, ordinal, sender_account_id, idempotency_key, canonical payload hash/bytes, body, document_id/title, committed metadata); unique(conversation_id,sender,key); payload mismatch yields 409.</ENTITY>
-      <ENTITY id="DP25-E04">read_state(conversation_id,account_id,last_read_ordinal), nondecreasing; direct visibility state stored per user, not shared.</ENTITY>
-      <ENTITY id="DP25-E05">legacy provenance retains original owner/sender/recipient/idempotency/message IDs/document metadata without silent merge; physical layout deferred to contract/migration stage.</ENTITY>
-    </DATA_MODEL_CANDIDATES>
-    <CONCURRENCY_AND_SECURITY>
-      <INVARIANT id="DP25-I01" refs="REQ25-SEND REQ25-MEMBERSHIP">SEND, JOIN, REMOVE and ownership change have one serialized committed order per conversation. Authorization and assignment of ordinal occur under the same transactional boundary; pending sends after removal commit are rejected.</INVARIANT>
-      <INVARIANT id="DP25-I02" refs="REQ25-ROLES REQ25-GROUP">Exactly one owner exists in any committed group. Transfer is single atomic role transition, never an observable ownerless state. Last owner cannot leave without eligible successor.</INVARIANT>
-      <INVARIANT id="DP25-I03" refs="REQ25-MEMBERSHIP REQ25-HISTORY">A user sees messages only from union of prior/current membership intervals, never during absent intervals; rejoin opens a new interval without backfilling the gap.</INVARIANT>
-      <INVARIANT id="DP25-I04" refs="REQ25-REALTIME REQ25-SECURITY">REMOVE linearizes at PostgreSQL COMMIT under per-conversation transaction gate protecting SEND/JOIN/TRANSFER, ordinal allocation and membership retirement. Centrifuge Publish is external noncancellable operation: one initiated before REMOVE can be admitted/delivered after REMOVE or caller-side timeout UNKNOWN. Only newly initiated old-epoch Publish after REMOVE must be rejected. Late wake-up and opaque channel IDs reveal no confidential messages, participants, documents or identifiers and convey no access. Never reuse epochs; request unsubscribe/disconnect, but all HTTP/history/fetch reauthorize current session and historic membership intervals. Failed/unknown notification never rolls back persisted message.</INVARIANT>
-      <INVARIANT id="DP25-I05" refs="REQ25-SEND">The same conversation/sender/key with identical canonical payload replays original result; different canonical payload fails 409 with no write/publish. Commit precedes realtime delivery; publication error never rolls back a message.</INVARIANT>
-      <INVARIANT id="DP25-I06" refs="REQ25-READ">Last-read marker is monotonically increasing within visible committed ordinal bounds; own messages and absent intervals do not contribute to unread; multiple devices converge to committed maximum.</INVARIANT>
-      <INVARIANT id="DP25-I07" refs="REQ25-ISOLATION REQ25-SECURITY">All new Chat membership/role decisions are based on valid caller session plus bfe_chat state, not Drive ADMIN or Drive ACL. No changes to Drive APIs, database or permissions.</INVARIANT>
-    </CONCURRENCY_AND_SECURITY>
-    <CONFLICT_RESOLUTIONS>
-      <RESOLUTION id="DP25-TC25-01" conflict="TC25-01" refs="REQ25-DIRECT REQ25-GROUP REQ25-LEGACY"><MECHANISM>Introduce conversation UUID and unordered-pair direct uniqueness separate from legacy owner_account_id; legacy streams remain separate read-only identities until classified. Transitional translation cannot silently merge.</MECHANISM><VERIFICATION>Two concurrent creates return same conversation; ambiguous legacy pair remains unchanged.</VERIFICATION></RESOLUTION>
-      <RESOLUTION id="DP25-TC25-02" conflict="TC25-02" refs="REQ25-SECURITY REQ25-ISOLATION"><MECHANISM>Explicit conversation kind/namespace separates legacy ADMIN_READ operations from new membership-only ACL; no fallback ADMIN privileges.</MECHANISM><VERIFICATION>Drive ADMIN nonmember cannot read, send or subscribe to new conversations.</VERIFICATION></RESOLUTION>
-      <RESOLUTION id="DP25-TC25-03" conflict="TC25-03" refs="REQ25-REALTIME REQ25-MEMBERSHIP"><MECHANISM>Variant C: PostgreSQL transaction gate serializes SEND/JOIN/REMOVE/TRANSFER and ordinal; no assumption that gate cancels Centrifuge Publish. Never-reused opaque viewer membership-epoch channels; check epoch before initiating Publish; no new attempt after retirement. An in-flight old-epoch Publish can complete after REMOVE and timeout result is UNKNOWN. No confidential envelope or channel identifiers, no recoverable content; reauthorize every HTTP history read. Revoke requests best-effort unsubscribe/disconnect.</MECHANISM><VERIFICATION>For PUBLISH→REMOVE, timeout→REMOVE, REMOVE→PUBLISH, CHECK→REMOVE→PUBLISH, REMOVE→REJOIN and failure, prove read-access denial after membership closure, no sensitive envelope/channel leakage, no old-epoch reuse, durable committed messages.</VERIFICATION></RESOLUTION>
-      <RESOLUTION id="DP25-TC25-04" conflict="TC25-04" refs="REQ25-LEGACY REQ25-COMPAT"><MECHANISM>Snapshot/read-only inventory; store immutable source provenance and retain original tables/history; classify with approval gates; quarantine ambiguous legacy records rather than infer direct pairs; rollback retains original API/source.</MECHANISM><VERIFICATION>Source counts and per-message IDs/keys/doc metadata exactly preserved; ambiguous not merged.</VERIFICATION></RESOLUTION>
-      <RESOLUTION id="DP25-TC25-05" conflict="TC25-05" refs="REQ25-SEND REQ25-HISTORY REQ25-READ"><MECHANISM>Per-conversation PostgreSQL transaction gate serializes message commits and membership-boundary changes; allocate conversation-local monotone ordinal while holding same lock, and commit with message. Cursor uses ordinal, not global identity/created_at; no holes visible as committed checkpoints.</MECHANISM><VERIFICATION>Concurrent messages and JOIN/REMOVE yield one stable committed total order; pagination never skips late-committed lower ordinal.</VERIFICATION></RESOLUTION>
-    </CONFLICT_RESOLUTIONS>
-    <WEBSOCKET_REVOCATION_PROTOCOL id="DP25-REVOCATION" status="PROPOSED_FOR_RE_REVIEW">
-      <LINEARIZATION>PostgreSQL conversation transaction gate linearizes SEND/JOIN/REMOVE/TRANSFER and ordinal at COMMIT. New notification attempt checks committed active epoch before initiating Publish. No claim that external Centrifuge Publish can be cancelled or linearized at PostgreSQL gate. Publish initiated before REMOVE may complete late; timeout is UNKNOWN, not evidence of non-admission.</LINEARIZATION>
-      <TRANSPORT_BOUNDARY>Centrifuge v0.39.3 Node.Publish is synchronous but has no context argument or cancellation guarantee; success signifies broker call completion, not device delivery. Notification contains exactly version and opaque wakeToken, never content, document, sender or protected IDs. Channel names are opaque random unguessable per viewer/epoch and do not reveal private account/conversation IDs. No recoverable publication history. On REMOVE request unsubscribe/disconnect, but security rests on content-free transport and fresh HTTP authorization for each read.</TRANSPORT_BOUNDARY>
-      <EPOCH_ISOLATION>JOIN produces never-reused epoch and distinct opaque channel. REMOVE retires epoch at commit; no NEW publish or subscription into retired epoch. REJOIN cannot recover prior epoch or read absent membership gaps.</EPOCH_ISOLATION>
-      <FAILURES>Timeout or ambiguous broker error means UNKNOWN admission, even if an asynchronous wrapper returned. No release of lock is taken as evidence of cancellation; external Publish proceeds outside the PostgreSQL gate. Failed/UNKNOWN realtime notification never undoes committed message; authorized clients resynchronize from PostgreSQL.</FAILURES>
-<ATTEMPT_AUTHORIZATION>Before any external Centrifuge Publish, register an immutable durable attempt record in bfe_chat under the SAME PostgreSQL per-conversation transaction gate used by SEND and REMOVE. Registration references an already COMMITTED message/event, identified by immutable (attemptId UUID, conversationId UUID, viewerId UUID, membershipEpoch never-reused, messageOrdinal bigint, messageId, opaqueWakeToken, opaqueEpochChannelId); these values are fixed at registration and cannot be rebound or updated. Within the lock verify exact committed message belongs to conversation, current viewer membership epoch is active, and messageOrdinal belongs to viewer visibility interval [joinBoundary,leaveBoundary) in the adopted half-open committed ordinal boundary model: ordinal &gt;= joinBoundary and, if closed, ordinal &lt; leaveBoundary. A pending REMOVE cannot interleave registration because it uses the same gate. After REMOVE commits, no attempt may be registered in retired epoch or for a message with ordinal at/after leaveBoundary. A previously registered attempt refers ONLY to that earlier visible message: it cannot be repurposed for a later message M2 even if external Publish finishes after REMOVE. Publication worker atomically and durably transitions REGISTERED to CLAIMED once before invoking Publish outside the PostgreSQL gate; concurrent workers and redelivery cannot execute the same logical attempt again, including when result is UNKNOWN. Timeout/ambiguous broker response sets UNKNOWN, not proof of non-admission; no automatic replay after CLAIMED/UNKNOWN. Durable message remains authoritative, authorized client catches up via HTTP history. Notification transport contains exactly version and unguessable wakeToken, never any binding fields; channel identifiers remain opaque. This is a candidate contract/storage design only, not an approved migration.</ATTEMPT_AUTHORIZATION>
-      <SCENARIOS>
-        <SCENARIO id="DP25-WS-BOUND-ATTEMPT"><LINEARIZATION_AND_MECHANISM>REGISTER(A,M1) commits under conversation gate before REMOVE(B); M2 commits after boundary B; delayed Publish(A) uses immutable committed M1 binding only.</LINEARIZATION_AND_MECHANISM><EXPECTED>Attempt A cannot address M2 or change viewer/epoch; M2 ordinal at/after leaveBoundary is ineligible for retired epoch.</EXPECTED></SCENARIO>
-        <SCENARIO id="DP25-WS-ONCE-UNKNOWN"><LINEARIZATION_AND_MECHANISM>Two workers atomically claim identical durable attemptId; caller timeout yields UNKNOWN after one invocation.</LINEARIZATION_AND_MECHANISM><EXPECTED>At most one logical Node.Publish invocation per attemptId; UNKNOWN not reissued, with authorized history catch-up.</EXPECTED></SCENARIO>
-        <SCENARIO id="DP25-WS-PUBLISH-REMOVE"><LINEARIZATION_AND_MECHANISM>Publish begun during active epoch before REMOVE commit.</LINEARIZATION_AND_MECHANISM><EXPECTED>May be delivered after REMOVE, without protected information or access.</EXPECTED></SCENARIO>
-        <SCENARIO id="DP25-WS-PUBLISH-TIMEOUT-REMOVE"><LINEARIZATION_AND_MECHANISM>Publish began before REMOVE, caller timeout UNKNOWN.</LINEARIZATION_AND_MECHANISM><EXPECTED>Possible late broker admission; no protected data or history access.</EXPECTED></SCENARIO>
-        <SCENARIO id="DP25-WS-REMOVE-PUBLISH"><LINEARIZATION_AND_MECHANISM>REMOVE committed epoch retirement before new attempt.</LINEARIZATION_AND_MECHANISM><EXPECTED>New old-epoch Publish forbidden.</EXPECTED></SCENARIO>
-        <SCENARIO id="DP25-WS-CHECK-REMOVE-PUBLISH"><LINEARIZATION_AND_MECHANISM>Only a Publish begun before REMOVE may complete after; no newly initiated call after retirement.</LINEARIZATION_AND_MECHANISM><EXPECTED>No confidential data leak.</EXPECTED></SCENARIO>
-        <SCENARIO id="DP25-WS-SEND-REMOVE"><LINEARIZATION_AND_MECHANISM>SEND and REMOVE commit under same PostgreSQL gate.</LINEARIZATION_AND_MECHANISM><EXPECTED>Stable ordinal and membership interval ordering.</EXPECTED></SCENARIO>
-        <SCENARIO id="DP25-WS-REMOVE-REJOIN"><LINEARIZATION_AND_MECHANISM>Fresh epoch/channel after rejoin.</LINEARIZATION_AND_MECHANISM><EXPECTED>No old rights or absent-interval disclosure.</EXPECTED></SCENARIO>
-        <SCENARIO id="DP25-WS-RECONNECT-REMOVED"><LINEARIZATION_AND_MECHANISM>Reconnect checks current session and membership.</LINEARIZATION_AND_MECHANISM><EXPECTED>Old epoch subscription denied.</EXPECTED></SCENARIO>
-        <SCENARIO id="DP25-WS-PUBLISH-FAILURE"><LINEARIZATION_AND_MECHANISM>Message already committed before publication attempt.</LINEARIZATION_AND_MECHANISM><EXPECTED>Durable message survives failed notification.</EXPECTED></SCENARIO>
-      </SCENARIOS>
-      <CROSS_INVARIANT_CHECK refs="DP25-I01 DP25-I03 DP25-I05 DP25-TC25-05">Conversation order, membership windows, idempotency and cursor remain PostgreSQL transaction-gated and unaffected by asynchronous notification outcome.</CROSS_INVARIANT_CHECK>
-    </WEBSOCKET_REVOCATION_PROTOCOL>
-    <LEGACY_API_TRANSITION>
-      <GATE id="DP25-LG01">Inventory real bfe_chat data only after separate read-only approval; distribution and conflicts are UNKNOWN and must not be assumed.</GATE>
-      <GATE id="DP25-LG02">Approve deterministic mapping criteria separately. Keep ambiguous records in original legacy scope with stable access and no automatic reassignment, deletion or merge.</GATE>
-      <GATE id="DP25-LG03">Verify counts, IDs, sender/recipient, idempotency, document metadata, ordering and history for all preserved rows; freeze irreversible steps until proven.</GATE>
-      <GATE id="DP25-LG04">Require Web/Android readiness, old client compatibility audit, rollback contract preserving old data and separately approved Release Manager cutover. Do not select rollout time in this plan.</GATE>
-    </LEGACY_API_TRANSITION>
-    <TRACEABILITY>
-      <EDGE requirement="REQ25-SECURITY" technology="TD25-03" module="DP25-M01"/>
-      <EDGE requirement="REQ25-ISOLATION" technology="TD25-03" module="DP25-M01"/>
-      <EDGE requirement="REQ25-GROUP" technology="TD25-01" module="DP25-M01"/>
-      <EDGE requirement="REQ25-ROLES" technology="TD25-01" module="DP25-M01"/>
-      <EDGE requirement="REQ25-DIRECT" technology="TD25-01" module="DP25-M02"/>
-      <EDGE requirement="REQ25-GROUP" technology="TD25-01" module="DP25-M02"/>
-      <EDGE requirement="REQ25-HIDE" technology="TD25-08" module="DP25-M02"/>
-      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-02" module="DP25-M03"/>
-      <EDGE requirement="REQ25-ROLES" technology="TD25-01" module="DP25-M03"/>
-      <EDGE requirement="REQ25-GROUP" technology="TD25-01" module="DP25-M03"/>
-      <EDGE requirement="REQ25-HISTORY" technology="TD25-05" module="DP25-M03"/>
-      <EDGE requirement="REQ25-SEND" technology="TD25-05" module="DP25-M04"/>
-      <EDGE requirement="REQ25-HISTORY" technology="TD25-05" module="DP25-M04"/>
-      <EDGE requirement="REQ25-DOC" technology="TD25-09" module="DP25-M04"/>
-      <EDGE requirement="REQ25-LEGACY" technology="TD25-06" module="DP25-M04"/>
-      <EDGE requirement="REQ25-REALTIME" technology="TD25-04" module="DP25-M05"/>
-      <EDGE requirement="REQ25-SECURITY" technology="TD25-03" module="DP25-M05"/>
-      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-02" module="DP25-M05"/>
-      <EDGE requirement="REQ25-READ" technology="TD25-08" module="DP25-M06"/>
-      <EDGE requirement="REQ25-MEMBERSHIP" technology="TD25-02" module="DP25-M06"/>
-      <EDGE requirement="REQ25-HISTORY" technology="TD25-05" module="DP25-M06"/>
-      <EDGE requirement="REQ25-LEGACY" technology="TD25-06" module="DP25-M07"/>
-      <EDGE requirement="REQ25-COMPAT" technology="TD25-06" module="DP25-M07"/>
-      <EDGE requirement="REQ25-DIRECT" technology="TD25-01" module="DP25-M07"/>
-      <EDGE requirement="REQ25-LIMITS" technology="TD25-07" module="DP25-M08"/>
-      <EDGE requirement="REQ25-SECURITY" technology="TD25-03" module="DP25-M08"/>
-      <EDGE requirement="REQ25-COMPAT" technology="TD25-06" module="DP25-M08"/>
-      <EDGE requirement="REQ25-DOC" technology="TD25-09" module="DP25-M09"/>
-      <EDGE requirement="REQ25-ISOLATION" technology="TD25-03" module="DP25-M09"/>
-    </TRACEABILITY>
-    <REVIEW_GATE>READY_FOR_DEVELOPMENT_PLAN_RE_REVIEW; requires Independent QA review and explicit Project Owner approval of only this Issue #25 architecture. All existing module/function contracts are unchanged; no migration, implementation, test changes or VPS activity.</REVIEW_GATE>
-  </ISSUE25_DEVELOPMENT_PLAN>
+<DEVELOPMENT_PLAN id="DP-BFE-CHAT-001" status="HUMAN_APPROVED" requirements_source="RequirementsAnalysis.xml" technology_source="Technology.xml" effective_revision="ISSUE32" previous_approvals="HISTORICAL_ONLY">
+
+  <ISSUE32_APPROVAL_PROVENANCE source="project_owner_issue_comments" release_status="NOT_APPROVED">
+    <HUMAN_APPROVAL artifact="DevelopmentPlan.xml" comment_url="https://github.com/bogachenko/bfe-chat-service/issues/32#issuecomment-6322940899" reviewed_commit="cf883e5b9c0109bcc950b74ba23f9e19749455ec" />
+  </ISSUE32_APPROVAL_PROVENANCE>
+  <EFFECTIVE_SPECIFICATION id="DP32-EFFECTIVE" status="HUMAN_APPROVED" approval="HUMAN_APPROVED" target="UNVERSIONED_CONVERSATIONS_DPOP_ONLY">Only ISSUE32 is normative. Past approvals remain in Git history.</EFFECTIVE_SPECIFICATION>
+<APPROVAL_PROVENANCE status="HISTORICAL_ONLY"><HISTORICAL_APPROVAL ref="APPROVAL25-DEVELOPMENT" commit="c6b2761e86c4f79c6cf19ade13a3b169695c2df9" />
+<HISTORICAL_APPROVAL ref="APPROVAL25-ARCH-REVISION" commit="117bda7c2175c59ebaade269ffd0e3d19b2ed42e" /></APPROVAL_PROVENANCE>
+
+
+  
+  <ISSUE32_DEVELOPMENT_REVISION id="DP32-001" status="HUMAN_APPROVED" approval="HUMAN_APPROVED" baseline="3ed6798ab6f64c50fc3c3dca1029ac94b44a7368" requirements_ref="RA32-001" technology_ref="TECH32-001">
+    <SCOPE>Target delta to the Issue #25 direct/group architecture; historical legacy architecture and approval records are preserved as prior-scope evidence, not as target endpoints.</SCOPE>
+    <MODULE id="DP32-M-TRANSPORT" refs="REQ32-API TD32-HTTP"><RESPONSIBILITY>One unversioned /conversations route tree to the existing conversation domain handlers; remove old route registrations only at approved cutover.</RESPONSIBILITY><NON_RESPONSIBILITY>No duplicate /v1 or /v2 handlers and no rewriting of working conversation logic.</NON_RESPONSIBILITY></MODULE>
+    <MODULE id="DP32-M-AUTH" refs="REQ32-AUTH TD32-SECURITY"><RESPONSIBILITY>Existing BFE Drive Internal Auth UDS plus DPoP-only caller validation, independent conversation membership/role checks and WebSocket revocation.</RESPONSIBILITY><INVARIANT ref="INV32-DPOP" /></MODULE>
+    <MODULE id="DP32-M-DOMAIN" refs="REQ32-MODEL TD32-REUSE"><RESPONSIBILITY>Reuse the currently working /v2 direct and group lifecycle, authorization, message/history, documents and realtime logic through one conversation identity.</RESPONSIBILITY></MODULE>
+    <MODULE id="DP32-M-TRANSITION" refs="REQ32-PRESERVE TD32-MIGRATION"><RESPONSIBILITY>Inspect repository schema definitions and call sites to identify obsolete legacy components. Do not inspect production data, implement migration or support old clients; preserve the direct/group model. Database destruction is outside Developer authority.</RESPONSIBILITY><NON_RESPONSIBILITY>Cannot authorize DB migration, deployment, merges or client cutover.</NON_RESPONSIBILITY></MODULE>
+    <MODULE id="DP32-M-DIRECT-GROUP" refs="REQ32-DIRECT REQ32-GROUP REQ32-ROLES REQ32-MEMBERSHIP TD32-DOMAIN"><RESPONSIBILITY>Direct/group creation, ownership and roles, membership epochs, private hide and concurrent direct uniqueness.</RESPONSIBILITY></MODULE>
+    <MODULE id="DP32-M-MESSAGING" refs="REQ32-HISTORY REQ32-MESSAGE REQ32-DOCUMENT REQ32-READ TD32-DOMAIN"><RESPONSIBILITY>Ordered idempotent messages, history filtered by membership periods, document metadata without Drive grants, monotonic read markers.</RESPONSIBILITY></MODULE>
+    <MODULE id="DP32-M-REALTIME" refs="REQ32-REALTIME REQ32-MEMBERSHIP TD32-SECURITY"><RESPONSIBILITY>Centrifuge authorized fan-out, membership/delivery ordering, revocation, reconnect and multi-device.</RESPONSIBILITY></MODULE>
+    <FLOW id="DP32-F01">HTTP /conversations -&gt; DPoP/UDS validation -&gt; membership authorization -&gt; shared direct/group domain -&gt; PostgreSQL storage -&gt; authorized Centrifuge delivery.</FLOW>
+    <FLOW id="DP32-F02">Repository route/schema inventory -&gt; approved target contracts -&gt; authorized obsolete-code/schema cleanup -&gt; existing quality gates -&gt; Release Manager deployment decision.</FLOW>
+    <GATE id="DP32-G01">Requirements and Technology approval first; DevelopmentPlan approval then module and class/function contracts; mental scenarios and check criteria precede any production code cleanup. No migration or legacy-client support. Release Manager owns integration/deployment decisions.</GATE>
+  </ISSUE32_DEVELOPMENT_REVISION>
 </DEVELOPMENT_PLAN>

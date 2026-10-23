@@ -17,24 +17,24 @@ func TestIndependentQR08HTTPValidationRejectsBeforeDatabase(t *testing.T) {
  t.Cleanup(func(){if e:=db.Close();e!=nil{t.Error(e)}})
  h:=HTTPHandler{Store:Store{DB:db},Auth:fakeCaller{id:"00000000-0000-4000-8000-000000000001"},PublicOrigin:"https://example.invalid"}
  cases:=[]struct{name,method,path,body,auth,proof string;want int}{
- {"query forbidden","GET","/v2/conversations?secret=1","","test-token","test-proof",400},
- {"missing bearer","POST","/v2/conversations/direct",`{"peerId":"abc"}`,"","test-proof",401},
- {"missing DPoP","POST","/v2/conversations/direct",`{"peerId":"abc"}`,"test-token","",401},
+ {"query forbidden","GET","/conversations?secret=1","","test-token","test-proof",400},
+ {"missing authorization","POST","/conversations/direct",`{"peerId":"abc"}`,"","test-proof",401},
+ {"missing DPoP","POST","/conversations/direct",`{"peerId":"abc"}`,"test-token","",401},
  {"wrong prefix","GET","/v2/other","","test-token","test-proof",404},
- {"bad direct UUID","POST","/v2/conversations/direct",`{"peerId":"abc"}`,"test-token","test-proof",400},
- {"unknown JSON field","POST","/v2/conversations/direct",`{"peerId":"abc","other":42}`,"test-token","test-proof",400},
- {"invalid JSON","POST","/v2/conversations/group","{","test-token","test-proof",400},
- {"two JSON values","POST","/v2/conversations/group",`{}{}`,"test-token","test-proof",400},
- {"empty body","POST","/v2/conversations/group","","test-token","test-proof",400},
- {"over body limit","POST","/v2/conversations/group",strings.Repeat("x",65537),"test-token","test-proof",400},
- {"bad group member","POST","/v2/conversations/group",`{"name":"ok","members":["not-uuid"]}`,"test-token","test-proof",400},
- {"bad message id","POST","/v2/conversations/nope/messages",`{}`,"test-token","test-proof",400},
- {"bad send key","POST","/v2/conversations/00000000-0000-4000-8000-000000000001/messages",`{"idempotencyKey":"bad","text":"hello"}`,"test-token","test-proof",400},
- {"bad history header","GET","/v2/conversations/00000000-0000-4000-8000-000000000001/history","","test-token","test-proof",400},
+ {"bad direct UUID","POST","/conversations/direct",`{"peerId":"abc"}`,"test-token","test-proof",400},
+ {"unknown JSON field","POST","/conversations/direct",`{"peerId":"abc","other":42}`,"test-token","test-proof",400},
+ {"invalid JSON","POST","/conversations/group","{","test-token","test-proof",400},
+ {"two JSON values","POST","/conversations/group",`{}{}`,"test-token","test-proof",400},
+ {"empty body","POST","/conversations/group","","test-token","test-proof",400},
+ {"over body limit","POST","/conversations/group",strings.Repeat("x",65537),"test-token","test-proof",400},
+ {"bad group member","POST","/conversations/group",`{"name":"ok","members":["not-uuid"]}`,"test-token","test-proof",400},
+ {"bad message id","POST","/conversations/nope/messages",`{}`,"test-token","test-proof",400},
+ {"bad send key","POST","/conversations/00000000-0000-4000-8000-000000000001/messages",`{"idempotencyKey":"bad","text":"hello"}`,"test-token","test-proof",400},
+ {"bad history header","GET","/conversations/00000000-0000-4000-8000-000000000001/history","","test-token","test-proof",400},
  }
  for _,tc:=range cases{t.Run(tc.name,func(t *testing.T){
   req:=httptest.NewRequest(tc.method,tc.path,strings.NewReader(tc.body))
-  if tc.auth!=""{req.Header.Set("Authorization","Bearer "+tc.auth)}
+  if tc.auth!=""{req.Header.Set("Authorization","DPoP "+tc.auth)}
   if tc.proof!=""{req.Header.Set("DPoP",tc.proof)}
   if tc.name=="bad history header"{req.Header.Set("X-After-Ordinal","-1")}
   w:=httptest.NewRecorder();h.ServeHTTP(w,req)

@@ -20,16 +20,16 @@ func TestPGMS2513NewHTTPFailClosed(t *testing.T){
   {authentication.ErrAuthUnavailable,503},
  }{
   h:=HTTPHandler{Store:Store{DB:db},Auth:rejectCaller{err:tc.err},PublicOrigin:"https://example.invalid"}
-  w:=httptest.NewRecorder();r:=httptest.NewRequest("POST","/v2/conversations/direct",strings.NewReader(`{"peerId":"00000000-0000-4000-8000-000000000001"}`))
-  r.Header.Set("Authorization","Bearer token");r.Header.Set("DPoP","proof")
+  w:=httptest.NewRecorder();r:=httptest.NewRequest("POST","/conversations/direct",strings.NewReader(`{"peerId":"00000000-0000-4000-8000-000000000001"}`))
+  r.Header.Set("Authorization","DPoP token");r.Header.Set("DPoP","proof")
   h.ServeHTTP(w,r)
   qaRejectf(t, (w.Code!=tc.status), "err %v: status %d expected %d",tc.err,w.Code,tc.status)
  }
  outsider:=fixtureID(t);owner:=fixtureID(t)
  group,err:=(Store{DB:db}).CreateGroup(context.Background(),owner,"private",nil);qaReject(t, (err!=nil), err)
  h:=HTTPHandler{Store:Store{DB:db},Auth:fakeCaller{id:outsider},PublicOrigin:"https://example.invalid"}
- w:=httptest.NewRecorder();r:=httptest.NewRequest("GET","/v2/conversations/"+group+"/history",nil)
- r.Header.Set("Authorization","Bearer test-token");r.Header.Set("DPoP","test-proof");h.ServeHTTP(w,r)
+ w:=httptest.NewRecorder();r:=httptest.NewRequest("GET","/conversations/"+group+"/history",nil)
+ r.Header.Set("Authorization","DPoP test-token");r.Header.Set("DPoP","test-proof");h.ServeHTTP(w,r)
  qaRejectf(t, (w.Code!=403), "nonmember history code=%d body=%s",w.Code,w.Body.String())
 }
 func TestPGMS2515RequestLimitsAndAtomicity(t *testing.T){
@@ -38,15 +38,15 @@ func TestPGMS2515RequestLimitsAndAtomicity(t *testing.T){
  call:=func(path,body string)int{
   t.Helper()
   w:=httptest.NewRecorder();r:=httptest.NewRequest(http.MethodPost,path,strings.NewReader(body))
-  r.Header.Set("Authorization","Bearer test-token");r.Header.Set("DPoP","test-proof")
+  r.Header.Set("Authorization","DPoP test-token");r.Header.Set("DPoP","test-proof")
   h.ServeHTTP(w,r);return w.Code
  }
  equal:=`{"name":"group"}`+strings.Repeat(" ",65536-len(`{"name":"group"}`))
- func() { got:=call("/v2/conversations/group",equal); qaRejectf(t, (got!=200), "65536 bytes status=%d",got) }()
+ func() { got:=call("/conversations/group",equal); qaRejectf(t, (got!=200), "65536 bytes status=%d",got) }()
  above:=equal+" "
- func() { got:=call("/v2/conversations/group",above); qaRejectf(t, (got!=400), "65537 bytes status=%d",got) }()
- if got:=call("/v2/conversations/group",fmt.Sprintf(`{"name":"%s"}`,strings.Repeat("a",256)));got!=200{t.Fatalf("256 name status=%d",got)}
- if got:=call("/v2/conversations/group",fmt.Sprintf(`{"name":"%s"}`,strings.Repeat("a",257)));got!=400{t.Fatalf("257 name status=%d",got)}
+ func() { got:=call("/conversations/group",above); qaRejectf(t, (got!=400), "65537 bytes status=%d",got) }()
+ if got:=call("/conversations/group",fmt.Sprintf(`{"name":"%s"}`,strings.Repeat("a",256)));got!=200{t.Fatalf("256 name status=%d",got)}
+ if got:=call("/conversations/group",fmt.Sprintf(`{"name":"%s"}`,strings.Repeat("a",257)));got!=400{t.Fatalf("257 name status=%d",got)}
 }
 
 func TestPGMS2515DomainLimitEdges(t *testing.T){

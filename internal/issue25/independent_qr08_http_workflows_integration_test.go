@@ -19,8 +19,8 @@ func TestIndependentQR08HTTPConversationWorkflow(t *testing.T) {
  call:=func(user,method,route,body string,headers map[string]string)(int,[]byte){
   t.Helper()
   h:=HTTPHandler{Store:s,Auth:fakeCaller{id:user},PublicOrigin:"https://example.invalid"}
-  req:=httptest.NewRequest(method,"/v2/conversations"+route,strings.NewReader(body))
-  req.Header.Set("Authorization","Bearer test-token")
+  req:=httptest.NewRequest(method,"/conversations"+route,strings.NewReader(body))
+  req.Header.Set("Authorization","DPoP test-token")
   req.Header.Set("DPoP","test-proof")
   for k,v:=range headers{req.Header.Set(k,v)}
   w:=httptest.NewRecorder();h.ServeHTTP(w,req)

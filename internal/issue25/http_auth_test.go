@@ -30,7 +30,7 @@ func TestHTTPv2AuthorizationDPoPCompatibility(t *testing.T) {
 		status int
 	}{
 		{"DPoP", "DPoP opaque-access-token", "signed-proof", 1, http.StatusNotFound},
-		{"legacy Bearer with proof", "Bearer opaque-access-token", "signed-proof", 1, http.StatusNotFound},
+		{"Bearer forbidden despite proof", "Bearer opaque-access-token", "signed-proof", 0, http.StatusUnauthorized},
 		{"missing proof", "DPoP opaque-access-token", "", 0, http.StatusUnauthorized},
 		{"missing scheme", "opaque-access-token", "signed-proof", 0, http.StatusUnauthorized},
 		{"wrong scheme", "Basic opaque-access-token", "signed-proof", 0, http.StatusUnauthorized},
@@ -46,7 +46,7 @@ func TestHTTPv2AuthorizationDPoPCompatibility(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			auth := &captureHTTPAuth25{}
 			h := HTTPHandler{Auth: auth, Store: Store{DB: &sql.DB{}}, PublicOrigin: "https://chat.example.test"}
-			req := httptest.NewRequest(http.MethodGet, "/v2/conversations/unknown", nil)
+			req := httptest.NewRequest(http.MethodGet, "/conversations/unknown", nil)
 			req.Header.Set("Authorization", tc.authorization)
 			req.Header.Set("DPoP", tc.proof)
 			rec := httptest.NewRecorder()
@@ -55,7 +55,7 @@ func TestHTTPv2AuthorizationDPoPCompatibility(t *testing.T) {
 				t.Fatalf("HTTP=%d authCalls=%d; want HTTP=%d authCalls=%d", rec.Code, auth.calls, tc.status, tc.authCalls)
 			}
 			if tc.authCalls == 1 && (auth.token != "opaque-access-token" || auth.proof != tc.proof ||
-				auth.binding.Method != http.MethodGet || auth.binding.Target != "https://chat.example.test/v2/conversations/unknown") {
+				auth.binding.Method != http.MethodGet || auth.binding.Target != "https://chat.example.test/conversations/unknown") {
 				t.Fatalf("wrong authentication forwarding: token=%q proof=%q binding=%+v", auth.token, auth.proof, auth.binding)
 			}
 		})
@@ -65,7 +65,7 @@ func TestHTTPv2AuthorizationDPoPCompatibility(t *testing.T) {
 func TestHTTPv2DuplicateAuthorizationRejected(t *testing.T) {
 	auth := &captureHTTPAuth25{}
 	h := HTTPHandler{Auth: auth, Store: Store{DB: &sql.DB{}}, PublicOrigin: "https://chat.example.test"}
-	req := httptest.NewRequest(http.MethodGet, "/v2/conversations/unknown", nil)
+	req := httptest.NewRequest(http.MethodGet, "/conversations/unknown", nil)
 	req.Header.Add("Authorization", "DPoP opaque-access-token")
 	req.Header.Add("Authorization", "Bearer opaque-access-token")
 	req.Header.Set("DPoP", "signed-proof")
