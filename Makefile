@@ -1,4 +1,4 @@
-.PHONY: c4 fmt vet lint security vulncheck dupl complexity coverage coverage-tools race integration mutation-pr mutation-full quality
+.PHONY: update-runtime update-test-runtime c4 fmt vet lint security vulncheck dupl complexity coverage coverage-tools race integration mutation-pr mutation-full quality
 GO ?= go
 GOFILES := $(shell find cmd internal -type f -name '*.go' ! -name '*_test.go' 2>/dev/null)
 BASE_REF ?= origin/main
@@ -94,3 +94,12 @@ c4-stop:
 		docker stop "$$id" >/dev/null; \
 		docker rm "$$id" >/dev/null; \
 	fi
+
+# Production Chat deployment is not configured.
+update-runtime:
+	@echo 'ERROR: production Chat deployment is not configured or authorized' >&2; exit 1
+
+update-test-runtime:
+	@test -n "$(BFE_TEST_VPS_SSH_TARGET)" || { echo 'BFE_TEST_VPS_SSH_TARGET is required' >&2; exit 1; }
+	@test -n "$(BFE_TEST_PUBLIC_HOST)" || { echo 'BFE_TEST_PUBLIC_HOST is required' >&2; exit 1; }
+	@bash ./deploy/scripts/update-test-runtime.sh
