@@ -21,8 +21,8 @@ migration_digest() {
 MIG_SHA="$(migration_digest "$MIG")"
 MIG_VER="$(find "$MIG" -type f -name '*.sql' -printf '%f\n' | sed -n 's/^0*\([1-9][0-9]*\)_.*/\1/p' | sort -n | tail -1)"
 [[ "$MIG_VER" =~ ^[0-9]+$ ]] || fail 'invalid migrations'
-SSH=(ssh -o BatchMode=no -o PreferredAuthentications=password,keyboard-interactive -o PubkeyAuthentication=no -o StrictHostKeyChecking=yes -o ConnectTimeout=10)
-SCP=(scp -o BatchMode=no -o PreferredAuthentications=password,keyboard-interactive -o PubkeyAuthentication=no -o StrictHostKeyChecking=yes -o ConnectTimeout=10)
+SSH=(ssh -o StrictHostKeyChecking=yes -o ConnectTimeout=10)
+SCP=(scp -o StrictHostKeyChecking=yes -o ConnectTimeout=10)
 if [[ -n "${BFE_TEST_VPS_SSH_IDENTITY_FILE:-}" ]]; then
   [[ "$BFE_TEST_VPS_SSH_IDENTITY_FILE" = /* && -r "$BFE_TEST_VPS_SSH_IDENTITY_FILE" ]] || fail 'invalid SSH identity'
   SSH+=(-i "$BFE_TEST_VPS_SSH_IDENTITY_FILE")
