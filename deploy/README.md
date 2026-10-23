@@ -1,6 +1,6 @@
 # BFE Chat: test-only runtime update
 
-`make update-test-runtime` updates an **already provisioned** Chat runtime on the test VPS. The target comes exclusively from `BFE_TEST_VPS_SSH_TARGET`; the bare public hostname comes from `BFE_TEST_PUBLIC_HOST`. SSH uses the system SSH configuration and may prompt for a password when the server permits password authentication; passwords are not stored. Host-key checking remains strict. Privileged deployment operations still require separately configured noninteractive sudo (`sudo -n`).
+`make update-test-runtime` updates an **already provisioned** Chat runtime on the test VPS. The target comes exclusively from `BFE_TEST_VPS_SSH_TARGET`; the bare public hostname comes from `BFE_TEST_PUBLIC_HOST`. Test SSH explicitly disables public-key authentication to prevent agent key attempts and requests a password interactively. Passwords are not stored. Host-key checking remains strict. Privileged deployment operations still require separately configured noninteractive sudo (`sudo -n`).
 
 ```sh
 make update-test-runtime
