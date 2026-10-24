@@ -59,9 +59,10 @@
 ## Verification status
 
 - Source branch heads and base SHAs were rechecked before the draft update.
-- Current backend RequirementsAnalysis revision includes explicit AAG, process, invariant, acceptance and mental-scenario edges; current XML parser rerun is pending.
-- Static graph check after the main traceability edit: 90 unique IDs, 72 traceability links, 0 unresolved traceability endpoints. The historical `APPROVAL25-REQUIREMENTS` reference is unresolved in both the draft and the unchanged baseline; it was not introduced by this change.
-- The previous backend XML revision at `b73e2b6a01d6e411a0ca870cf35862bba97c2417` passed Python XML parsing, but that result does not cover the new XML revision.
+- Current backend RequirementsAnalysis revision: `45d7189cf6ee871efce974ec5bc1d6f65e7bd3bf`; it includes explicit AAG, process, invariant, acceptance and mental-scenario edges. Current XML parser rerun is pending.
+- Static graph check on the current XML content: 90 unique IDs, 74 traceability links, 0 unresolved traceability endpoints. All ten new requirements link to an AAG scenario, a business process, an invariant, an acceptance criterion and a mental scenario.
+- The historical `APPROVAL25-REQUIREMENTS` reference is unresolved in both the draft and unchanged baseline; it was not introduced by this change.
+- The previous backend XML revision at `b73e2b6a01d6e411a0ca870cf35862bba97c2417` passed Python XML parsing, but that result does not cover the current XML revision.
 - Backend C1 DSL is unchanged (blob `9da6ed068b5856c7af30ff1c3496f4142a5c1c24`) and its real Structurizr parser run returned exit code 0.
 - Flutter XML and C1 parser checks passed at draft HEAD `4b8d70e5ef7e59ed253d0d04b8150dbd481eff10`; the Flutter artifacts have not changed since that validation.
 - Independent QA: NOT RUN. Human Approval: NOT GRANTED. Technology, implementation and deployment: BLOCKED.
