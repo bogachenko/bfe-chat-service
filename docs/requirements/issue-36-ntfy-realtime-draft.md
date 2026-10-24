@@ -104,7 +104,7 @@ The draft's supersession note now explicitly distinguishes the historical wordin
 
 ### Gate status
 
-- Backend XML parser: `PASS` on final blob `488bf468d0992b21a8f14ae04e1eb940b91dc019`, verified by [GitHub Actions run 40109007837](https://github.com/bogachenko/bfe-chat-service/actions/runs/40109007837) on HEAD `e790d7f03ad816735601d22b53f29010cb7513d7`.
+- Backend XML parser: `PASS` on final blob `488bf468d0992b21a8f14ae04e1eb940b91dc019`, verified by [GitHub Actions run 40109073739](https://github.com/bogachenko/bfe-chat-service/actions/runs/40109073739) on HEAD `134ae1f0efcb8d6796fe3b6d18822f23f1d044af`.
 - Backend Structurizr parser: `PASS` on blob `9da6ed068b5856c7af30ff1c3496f4142a5c1c24` (current C1 was parsed; this is not a carry-forward from the baseline).
 - Flutter XML parser: `PASS` on blob `53b90371b2ab29446d6d1ee79bc77348f0df540f`.
 - Flutter Structurizr parser: `PASS` on blob `a13dbab215b7d4427820aeb3151e138deec59f40`.
