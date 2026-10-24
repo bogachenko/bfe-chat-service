@@ -96,14 +96,14 @@ Reviewed against Flutter draft HEAD `4b8d70e5ef7e59ed253d0d04b8150dbd481eff10`, 
 1. **ntfy authorization and revocation:** exact session-bound authentication, topic/ACL ownership, and active-subscription revocation bound require evidence and negative tests.
 2. **Event and failure contract:** payload schema/version, event ID/cursor, retry/outbox, deduplication and catch-up behavior remain unspecified.
 3. **Production compatibility:** actual deployed-client dependency inventory, release coordination, rollback and migration/coexistence needs remain unproven.
-4. **Validation and independent acceptance:** current XML revisions have not been rerun through XML parsers; Flutter Structurizr parser has not run; Independent QA has not run.
+4. **Validation and independent acceptance:** XML and Structurizr parser gates passed on the exact final XML/C1 blobs recorded above; Independent QA has not run.
 
 ### Gate status
 
-- Backend XML parser: `NOT_RUN_AFTER_REQUIREMENTS_EDIT`.
-- Backend Structurizr parser: `PASS_UNCHANGED_DSL` recorded for the unchanged backend C1; the XML edits do not validate or invalidate that separate DSL artifact.
-- Flutter XML parser: `NOT_RUN_AFTER_REQUIREMENTS_EDIT`.
-- Flutter Structurizr parser: `NOT RUN`.
+- Backend XML parser: `PASS` on blob `8bdd4b9b7b03e727e40e6913c609ddb5f499c444`.
+- Backend Structurizr parser: `PASS` on blob `9da6ed068b5856c7af30ff1c3496f4142a5c1c24` (current C1 was parsed; this is not a carry-forward from the baseline).
+- Flutter XML parser: `PASS` on blob `53b90371b2ab29446d6d1ee79bc77348f0df540f`.
+- Flutter Structurizr parser: `PASS` on blob `a13dbab215b7d4427820aeb3151e138deec59f40`.
 - Independent QA: `NOT RUN`.
 - Human Approval: `NOT GRANTED`.
 - Technology, implementation and deployment: **BLOCKED**.
