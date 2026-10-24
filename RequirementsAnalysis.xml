@@ -40,4 +40,73 @@
     <ACCEPTANCE id="AC32-AUTH" refs="REQ32-AUTH INV32-DPOP">DPoP-bound authorized requests succeed; Bearer-only, missing/replayed/misbound proofs fail without side effects.</ACCEPTANCE>
     <ACCEPTANCE id="AC32-PRESERVE" refs="REQ32-PRESERVE INV32-PRESERVE">Target-only functional checks confirm direct/group message and document handling, membership, access restrictions, ordering and idempotency. No legacy-client or production-data validation is required.</ACCEPTANCE>
   </ISSUE32_REQUIREMENTS_REVISION>
+
+  <ISSUE36_REQUIREMENTS_REVISION id="RA36-001" status="PROPOSED" approval="PENDING_HUMAN_APPROVAL" effective="false" baseline="ISSUE32">
+    <DECISION_PROVENANCE source="project_owner_issue_comments" issue_url="https://github.com/bogachenko/bfe-chat-service/issues/36" comment_url="https://github.com/bogachenko/bfe-chat-service/issues/36#issuecomment-6385730270" implementation_authorized="false" />
+    <SCOPE>Propose replacing Centrifuge with ntfy as the chat realtime notification transport. This revision is not effective until Human Approval. The approved ISSUE32 baseline remains effective in the meantime. This proposal authorizes no code implementation, production configuration change, deployment, or database operation.</SCOPE>
+    <PROJECT_GOAL id="GOAL36-001">Replace Centrifuge with ntfy for chat realtime notifications while preserving backend-authoritative message history, membership authorization, sender exclusion, privacy, and production safeguards.</PROJECT_GOAL>
+    <ACTOR id="ACTOR36-SENDER">Authenticated chat message sender</ACTOR>
+    <ACTOR id="ACTOR36-RECIPIENT">Authenticated current conversation member other than the sender</ACTOR>
+    <ACTOR id="ACTOR36-BACKEND">BFE Chat Service backend</ACTOR>
+    <ACTOR id="ACTOR36-NTFY">ntfy realtime notification transport</ACTOR>
+    <USE_CASE id="UC36-REALTIME">
+      <ACTOR ref="ACTOR36-SENDER" />
+      <ACTION>Commits a chat message through the backend</ACTION>
+      <GOAL>Notify other currently authorized members that backend history may have changed without disclosing message or document data through ntfy</GOAL>
+      <STARTS_PROCESS ref="BP36-REALTIME" />
+    </USE_CASE>
+    <FUNCTIONAL_REQUIREMENTS id="REQ36-FUNCTIONAL" status="PROPOSED">
+      <REQUIREMENT id="REQ36-TRANSPORT">
+        <RULE>ntfy replaces Centrifuge as the sole target realtime notification transport. The target architecture must not retain Centrifuge as a parallel or fallback chat realtime transport. ntfy transports wake-up notifications only; it is not the source of truth for messages, ordering, membership, or authorization.</RULE>
+        <ACCEPTANCE id="AC36-TRANSPORT">After separately authorized implementation, the runtime and dependency inventory shows ntfy as the realtime notification transport and no Centrifuge runtime path.</ACCEPTANCE>
+      </REQUIREMENT>
+      <REQUIREMENT id="REQ36-BACKEND-AUTHORITY">
+        <RULE>The backend remains authoritative for committed messages, conversation history, ordering, membership intervals, roles, authorization, and read visibility. Receiving an ntfy event never grants access to a conversation or message. Clients obtain message data only through authenticated backend operations that re-check current authorization and history visibility.</RULE>
+        <ACCEPTANCE id="AC36-BACKEND-AUTHORITY">A notification alone cannot read protected data; backend authorization rejects non-members, removed members, and requests outside the caller's permitted membership interval.</ACCEPTANCE>
+      </REQUIREMENT>
+      <REQUIREMENT id="REQ36-RECIPIENTS">
+        <RULE>A notification may be published only after the corresponding message is durably committed. Notify only currently authorized conversation members other than the sender. Replaying an idempotent message request must not create another notification. Recipient eligibility and membership epoch must be revalidated before publication; stale or revoked membership epochs must not authorize new delivery.</RULE>
+        <ACCEPTANCE id="AC36-RECIPIENTS">Tests prove that uncommitted messages produce no notification, the sender receives no notification for their own message, authorized other members can be notified, removed members cannot be newly notified, and an idempotent replay does not publish again.</ACCEPTANCE>
+      </REQUIREMENT>
+      <REQUIREMENT id="REQ36-TOPIC-ACCESS">
+        <RULE>Each active membership epoch uses a distinct opaque, unpredictable ntfy topic. Topic names must not encode account IDs, conversation IDs, message IDs, document identifiers, titles, or content. ntfy access control is enabled with default-deny behavior and no anonymous topic access. Only the backend publisher may publish, and only the corresponding currently authorized member may subscribe. Removal revokes access to the old epoch; rejoining creates a new epoch and topic. Topic secrecy alone is not an authorization mechanism.</RULE>
+        <ACCEPTANCE id="AC36-TOPIC-ACCESS">Unauthenticated access, cross-member topic access, publishing by clients, and subscription to a revoked epoch are denied. Rejoining does not restore access to the previous epoch topic.</ACCEPTANCE>
+      </REQUIREMENT>
+      <REQUIREMENT id="REQ36-PAYLOAD">
+        <RULE>The application-supplied ntfy message body contains exactly the minimal wake-up envelope fields version (integer) and wakeToken (opaque random identifier). The wakeToken must not encode or expose account, conversation, message, or document identifiers. No message text, sender identity, document ID, document title, document content, URLs, attachments, notification title, tags, actions, or other application data may be supplied in the ntfy message or metadata. Authentication credentials and wake tokens must not be written to application logs.</RULE>
+        <ACCEPTANCE id="AC36-PAYLOAD">Capture the complete application-supplied publish request and verify that the body has only version and wakeToken and that no protected content or identifying application metadata is present in the topic, request metadata, or application logs.</ACCEPTANCE>
+      </REQUIREMENT>
+      <REQUIREMENT id="REQ36-DOCUMENT-PRIVACY">
+        <RULE>Document ID and title may remain in authorized backend message history and backend events where required by the message contract. Neither document ID nor title, document contents, nor document access credentials may be included in ntfy messages or notification metadata. Chat notifications do not grant BFE Drive document access; document authorization remains independently enforced by BFE Drive.</RULE>
+        <ACCEPTANCE id="AC36-DOCUMENT-PRIVACY">A message with document context retains its authorized backend history fields while captured ntfy requests and notification metadata contain no document identifier, title, contents, link, or access credential.</ACCEPTANCE>
+      </REQUIREMENT>
+      <REQUIREMENT id="REQ36-RECOVERY">
+        <RULE>ntfy delivery is a wake-up signal and is not the durable message stream. Clients recover missed messages, ordering, and visibility by querying backend history using the approved cursor contract. Missing, duplicated, delayed, or out-of-order ntfy notifications must not cause message loss, duplicate durable messages, ordering changes, or access to history outside the caller's authorized membership intervals.</RULE>
+        <ACCEPTANCE id="AC36-RECOVERY">Scenarios with lost, duplicated, delayed, and reordered notifications recover the same authorized backend history in the same stable order without duplicate message creation or visibility gaps being exposed.</ACCEPTANCE>
+      </REQUIREMENT>
+      <REQUIREMENT id="REQ36-FAILURE">
+        <RULE>ntfy unavailability, publish errors, or timeouts must not roll back or erase a durably committed message. Preserve explicit notification-attempt outcomes and the existing protection against blind retries after an ambiguous publish outcome. Notification delivery failure must not bypass backend authorization or change message history.</RULE>
+        <ACCEPTANCE id="AC36-FAILURE">When ntfy is unavailable or a publish outcome is ambiguous, the committed message remains readable to authorized members, notification outcomes are recorded according to the approved contract, and no unsafe retry or duplicate protected payload is emitted.</ACCEPTANCE>
+      </REQUIREMENT>
+      <REQUIREMENT id="REQ36-PRODUCTION-SAFETY">
+        <RULE>This requirements proposal authorizes no implementation, dependency change, production configuration change, database migration, merge to the effective baseline, or deployment. Those actions remain gated on Human Approval of this revision and approval of all dependent GRACE artifacts and checks.</RULE>
+        <ACCEPTANCE id="AC36-PRODUCTION-SAFETY">No production or runtime artifact changes are included in this requirements-only revision; implementation remains blocked until all required GRACE approvals are recorded.</ACCEPTANCE>
+      </REQUIREMENT>
+    </FUNCTIONAL_REQUIREMENTS>
+    <INVARIANT id="INV36-BACKEND-AUTHORITY">Only the backend's committed state and authorization checks determine message visibility and access.</INVARIANT>
+    <INVARIANT id="INV36-SENDER-EXCLUSION">The sender is never an ntfy recipient for their own message.</INVARIANT>
+    <INVARIANT id="INV36-MINIMAL-PAYLOAD">ntfy application payload and metadata contain no message or document content and no identifying application fields beyond the approved opaque wake-up envelope.</INVARIANT>
+    <INVARIANT id="INV36-EPOCH-ISOLATION">A revoked membership epoch cannot authorize new topic subscriptions or backend history access; a later membership uses a fresh epoch.</INVARIANT>
+    <INVARIANT id="INV36-DURABILITY">ntfy failure cannot invalidate or remove a committed backend message.</INVARIANT>
+    <BUSINESS_PROCESS id="BP36-REALTIME" refs="REQ36-TRANSPORT REQ36-BACKEND-AUTHORITY REQ36-RECIPIENTS REQ36-TOPIC-ACCESS REQ36-PAYLOAD REQ36-DOCUMENT-PRIVACY REQ36-RECOVERY REQ36-FAILURE">
+      <STEP order="1">A client submits a message to the authenticated backend.</STEP>
+      <STEP order="2">The backend validates membership and authorization and durably commits the message using the existing message contract.</STEP>
+      <STEP order="3">The backend identifies current authorized recipients other than the sender and revalidates their membership epochs.</STEP>
+      <STEP order="4">The backend publishes only the approved opaque wake-up envelope to each eligible recipient's protected ntfy topic.</STEP>
+      <STEP order="5">A recipient treats the notification only as a wake-up signal and fetches authorized history from the backend.</STEP>
+      <STEP order="6">On removal or rejoin, the old membership epoch loses authorization and the new epoch receives a distinct topic.</STEP>
+    </BUSINESS_PROCESS>
+    <GATE>PROPOSED_FOR_HUMAN_APPROVAL. ISSUE32 remains the effective baseline. After approval of RA36-001, revise and independently verify Technology.xml, DevelopmentPlan.xml, module and function contracts, mental scenarios, and affected quality checks before any implementation is authorized.</GATE>
+  </ISSUE36_REQUIREMENTS_REVISION>
+
 </REQUIREMENTS_ANALYSIS>
