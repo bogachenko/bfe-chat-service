@@ -44,7 +44,7 @@
 
   <DRAFT_REALTIME_REVISION id="RA36-NTFY-001" status="DRAFT_NOT_APPROVED" effective="false" source_issue="https://github.com/bogachenko/bfe-chat-flutter/issues/4" related_issue="https://github.com/bogachenko/bfe-chat-service/issues/36">
     <SCOPE>Requirements-only proposal to supersede REQ32-REALTIME's Centrifuge target. ISSUE32 approval provenance remains historical; this proposal is not effective until Human Approval. Technology.xml, DevelopmentPlan.xml and Contracts.xml remain unchanged.</SCOPE>
-    <SUPERSEDES_PROPOSAL ref="REQ32-REALTIME" status="PROPOSED_NOT_EFFECTIVE">Centrifuge is not the proposed target realtime transport; ntfy is proposed instead. Issue #36 currently says ntfy is additive and Centrifuge remains. This issue is not edited or closed.</SUPERSEDES_PROPOSAL>
+    <SUPERSEDES_PROPOSAL ref="REQ32-REALTIME" status="PROPOSED_NOT_EFFECTIVE">Centrifuge is not the proposed target realtime transport; ntfy is proposed instead. The original Issue #36 body retains its earlier additive-channel wording, but the Project Owner comment on Issue #36 resolves the target direction for this GRACE revision. The original body is preserved as historical context and is not rewritten or closed.</SUPERSEDES_PROPOSAL>
     <GOAL id="GOAL36-RT-01">Deliver chat realtime wake-up signals through ntfy while keeping HTTP APIs and PostgreSQL authoritative for messages, membership, history, roles and read state.</GOAL>
     <AAG_SCENARIOS>
       <ACTOR id="ACT36-CHAT-USER" name="Authenticated Chat user" kind="PERSON">A current BFE session user who may access only conversations authorized by backend membership and visibility intervals.</ACTOR>
@@ -116,7 +116,7 @@
       <LINK from="MS36-NTFY-01" to="REQ36-RT-02" relation="exercises"/><LINK from="MS36-NTFY-02" to="REQ36-RT-03" relation="exercises"/><LINK from="MS36-NTFY-03" to="REQ36-RT-07" relation="exercises"/><LINK from="MS36-NTFY-04" to="REQ36-RT-01" relation="exercises"/><LINK from="MS36-NTFY-04" to="REQ36-RT-04" relation="exercises"/><LINK from="MS36-NTFY-05" to="REQ36-RT-06" relation="exercises"/><LINK from="MS36-NTFY-06" to="REQ36-RT-05" relation="exercises"/><LINK from="MS36-NTFY-06" to="REQ36-RT-08" relation="exercises"/><LINK from="MS36-NTFY-07" to="REQ36-RT-10" relation="exercises"/><LINK from="MS36-NTFY-08" to="REQ36-RT-09" relation="exercises"/>
     </TRACEABILITY>
     <PRODUCTION_BOUNDARIES><SYSTEM name="bfe-drive" status="PRODUCTION_READ_ONLY">No code, config, database, migrations, permissions or infrastructure changes.</SYSTEM><SYSTEM name="bfe-drive-client" status="PRODUCTION_READ_ONLY">No changes to main or production/android; integration is unverified.</SYSTEM><RULE>No production deployment, migration, configuration change or rollout is authorized.</RULE></PRODUCTION_BOUNDARIES>
-    <GATE_STATUS requirements="DRAFT_NOT_APPROVED" xml_parser="PASS" structurizr_parser="PASS" independent_qa="NOT_RUN" technology="BLOCKED" implementation="BLOCKED" deployment="BLOCKED"/>
+    <GATE_STATUS requirements="DRAFT_NOT_APPROVED" xml_parser="NOT_RUN_AFTER_REQUIREMENTS_EDIT" structurizr_parser="PASS" independent_qa="NOT_RUN" technology="BLOCKED" implementation="BLOCKED" deployment="BLOCKED"/>
   </DRAFT_REALTIME_REVISION>
 
 </REQUIREMENTS_ANALYSIS>
