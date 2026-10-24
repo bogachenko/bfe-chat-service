@@ -98,9 +98,13 @@ Reviewed against Flutter draft HEAD `4b8d70e5ef7e59ed253d0d04b8150dbd481eff10`, 
 3. **Production compatibility:** actual deployed-client dependency inventory, release coordination, rollback and migration/coexistence needs remain unproven.
 4. **Validation and independent acceptance:** XML and Structurizr parser gates passed on the exact final XML/C1 blobs recorded above; Independent QA has not run.
 
+### Orchestrator pre-QA consistency correction
+
+The draft's supersession note now explicitly distinguishes the historical wording in the original Issue #36 body from the Project Owner's decision comment that resolves the target direction for this GRACE revision. The XML parser gate was reset before validation and returned PASS on the final XML blob above. The C1 DSL blob was unchanged and passed in the same run.
+
 ### Gate status
 
-- Backend XML parser: `PASS` on blob `8bdd4b9b7b03e727e40e6913c609ddb5f499c444`.
+- Backend XML parser: `PASS` on final blob `488bf468d0992b21a8f14ae04e1eb940b91dc019`, verified by [GitHub Actions run 40109007837](https://github.com/bogachenko/bfe-chat-service/actions/runs/40109007837) on HEAD `e790d7f03ad816735601d22b53f29010cb7513d7`.
 - Backend Structurizr parser: `PASS` on blob `9da6ed068b5856c7af30ff1c3496f4142a5c1c24` (current C1 was parsed; this is not a carry-forward from the baseline).
 - Flutter XML parser: `PASS` on blob `53b90371b2ab29446d6d1ee79bc77348f0df540f`.
 - Flutter Structurizr parser: `PASS` on blob `a13dbab215b7d4427820aeb3151e138deec59f40`.
