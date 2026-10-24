@@ -12,8 +12,11 @@ workspace "BFE Chat Service" "GRACE architecture views: requirements, technology
         drive = softwareSystem "BFE Drive / Internal Auth" "Owns BFE identity, session status and documents; Chat asks Internal Auth to validate sessions via UDS (EXT-AUTH, EXT-DRIVE)." {
             tags "External"
         }
+        ntfy = softwareSystem "Self-hosted ntfy Server" "Proposed target realtime signal transport replacing Centrifuge; topic allocation, subscriber authorization, revocation, browser transport and event contract are open. Draft context only, not an approved or deployed integration." {
+            tags "External, OpenDependency"
+        }
 
-        chat = softwareSystem "BFE Chat Service" "Legacy assigned conversations and Issue #25 direct/group conversations; owns membership, messages, visibility and history." {
+        chat = softwareSystem "BFE Chat Service" "Authoritative owner of conversations, membership, messages, history and read state. Current approved implementation embeds Centrifuge; this requirements draft proposes ntfy instead as target realtime transport." {
             ingress = container "Chat HTTPS ingress" "Forwards Chat HTTPS and WebSocket traffic to loopback Go listener. Test VPS Nginx configuration." "Nginx" {
                 tags "Infrastructure"
             }
@@ -62,18 +65,20 @@ workspace "BFE Chat Service" "GRACE architecture views: requirements, technology
         user -> clients "Chat and document actions"
         employee -> clients "Assigned legacy conversations"
         admin -> clients "Administrative operations"
-        clients -> chat.ingress "Send Chat API/WS requests" "HTTPS/WSS, DPoP"
+        clients -> chat.ingress "Use authoritative HTTP Chat API; current approved baseline also exposes Centrifuge /ws, which this draft proposes replacing with ntfy" "HTTPS + DPoP for HTTP; target realtime auth OPEN"
+        chat -> ntfy "Publish minimal post-commit wake-up signals for server-authorized recipients" "ntfy publish API; credentials/topic ACL/retry contract OPEN"
+        clients -> ntfy "Subscribe to authorized realtime signals; transport and per-topic authorization unresolved" "SSE/HTTP stream/WebSocket TBD"
         clients -> drive "Open/download documents under Drive ACL" "HTTPS"
     }
 
     views {
         systemContext chat "requirements-c1-context" {
-            description "RequirementsAnalysis.xml: ACT-USER/EMPLOYEE/ADMIN and ACT25 user roles. All people use external client applications; no direct Person-to-service access."
+            description "DRAFT C1 target context: ntfy is proposed to replace Centrifuge for realtime. Existing implementation and downstream contracts remain unchanged until Human Approval; ntfy authorization and revocation are open dependencies."
             include *
             autolayout lr
         }
         container chat "technology-development-c2-containers" {
-            description "Technology.xml + DevelopmentPlan.xml: one Go service, embedded Centrifuge, PostgreSQL and separately owned Drive Internal Auth."
+            description "Current approved Technology.xml + DevelopmentPlan.xml baseline: one Go service, embedded Centrifuge, PostgreSQL and separately owned Drive Internal Auth. These downstream artifacts are intentionally unchanged by the ntfy requirements draft."
             include *
             autolayout lr
         }
