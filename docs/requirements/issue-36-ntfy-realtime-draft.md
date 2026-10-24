@@ -7,7 +7,7 @@
 - Approved RequirementsAnalysis blob: 976c8cd8dfc41a0d938f350ee46db8b0bad4d79d.
 - Approved C1 DSL blob: 1db2f96a299a733ec064fba197ced623bd7bcb73.
 - Project Owner direction: bfe-chat-flutter Issue #4.
-- Conflicting unchanged task: bfe-chat-service Issue #36 says ntfy is additive and Centrifuge remains; it is not changed or closed.
+- Decision record: Project Owner comment https://github.com/bogachenko/bfe-chat-service/issues/36#issuecomment-6385730270 directs this GRACE revision to target replacing Centrifuge with ntfy. The original Issue #36 body remains historical context; the approved baseline stays effective until Human Approval.
 
 ## Traceability matrix
 
@@ -74,33 +74,36 @@
 
 Reviewed against Flutter draft HEAD `4b8d70e5ef7e59ed253d0d04b8150dbd481eff10`, including its `RequirementsAnalysis.xml` blob `8d8912fd701da001a326ff2e3aacc2f45b662433`, and the current Backend Issue #36 and Flutter Issue #4 text.
 
-### Cross-component mapping
+### Cross-component consistency — corrected draft
 
-| Backend draft | Flutter draft | Review |
+**Result: PARTIAL ALIGNMENT; requirements approval remains blocked.** The Project Owner's target direction is now explicit in [Backend Issue #36](https://github.com/bogachenko/bfe-chat-service/issues/36#issuecomment-6385730270): the GRACE target is to replace Centrifuge with ntfy. This resolves the target-direction conflict for requirements work only; it does not approve the draft or authorize implementation.
+
+| Backend draft | Flutter draft | Current result |
 |---|---|---|
-| `REQ36-RT-01` | `NTFY-RT-01` | Same proposed target (ntfy replaces Centrifuge), but blocked by the conflicting unchanged Backend Issue #36 decision below. |
-| `REQ36-RT-02` | `NTFY-RT-02` | Authorization/topic isolation aligned. Sender-exclusion rule is missing from the draft requirement. |
-| `REQ36-RT-03`, `REQ36-RT-07` | `NTFY-RT-03` | Membership/session revocation and account-switch isolation aligned; revocation bound remains unresolved in both. |
-| `REQ36-RT-04` | `NTFY-RT-04` | Authoritative-history reconciliation aligned; event identity/cursor, deduplication and catch-up trigger remain unresolved in both. |
-| `REQ36-RT-05`, `REQ36-RT-08` | `NTFY-RT-05` | Minimal ntfy payload and independent Drive ACL aligned; wording in the inherited document-event requirement needs clarification. |
-| `REQ36-RT-06` | `NTFY-RT-06` | Post-commit failure behavior aligned. Backend owns publishing/retry/outbox/telemetry; Flutter must not represent notification failure as message-persistence failure. Mechanism remains open. |
-| `REQ36-RT-09` | `NTFY-RT-07` | Production boundary and release-evidence intent aligned; Flutter traceability links do not directly support this requirement. |
-| `REQ36-RT-10` | `NTFY-RT-01`, `OQ-15`, `OQ-16` | Web and Android scope aligned; Flutter acceptance criteria should explicitly require evidence for supported browsers and Android lifecycle states. |
+| `REQ36-RT-01` | `NTFY-RT-01` | Target agrees: ntfy replaces Centrifuge; HTTP/PostgreSQL remain authoritative. |
+| `REQ36-RT-02` | `NTFY-RT-02` | Server-side recipient/topic authorization; sender is explicitly excluded from recipients and acceptance tests. |
+| `REQ36-RT-03`, `REQ36-RT-07` | `NTFY-RT-03` | Membership/session revocation and account-switch isolation aligned; actual revocation bound remains unresolved. |
+| `REQ36-RT-04` | `NTFY-RT-04` | Authoritative-history reconciliation aligned; event identity/cursor, dedupe and catch-up trigger remain unresolved. |
+| `REQ36-RT-05`, `REQ36-RT-08` | `NTFY-RT-05` | Clarified: document ID/title remain in authorized backend history/internal events as required by `REQ32-DOCUMENT`, but are excluded from ntfy payloads. |
+| `REQ36-RT-06` | `NTFY-RT-06` | Post-commit failure behavior aligned; retry/outbox/dedupe mechanism remains unresolved. |
+| `REQ36-RT-09` | `NTFY-RT-07` | Production-boundary invariant and direct traceability added; production impact and release evidence remain required. |
+| `REQ36-RT-10` | `NTFY-RT-08` | Explicit acceptance now requires supported-browser and Android-lifecycle evidence. |
 
-### Findings requiring correction or explicit resolution
+### Remaining blockers
 
-1. **BLOCKER — transport decision conflicts with the existing backend issue.** Backend Issue #36 says ntfy is an additional notification channel and Centrifuge must remain responsible for in-app realtime. Flutter Issue #4 asks to evaluate replacing Centrifuge, and both drafts currently describe ntfy as the replacement target. Record an explicit Project Owner decision on Issue #36 or a linked decision before requirements approval; do not silently treat the draft proposal as effective.
+1. **ntfy authorization and revocation:** exact session-bound authentication, topic/ACL ownership, and active-subscription revocation bound require evidence and negative tests.
+2. **Event and failure contract:** payload schema/version, event ID/cursor, retry/outbox, deduplication and catch-up behavior remain unspecified.
+3. **Production compatibility:** actual deployed-client dependency inventory, release coordination, rollback and migration/coexistence needs remain unproven.
+4. **Validation and independent acceptance:** current XML revisions have not been rerun through XML parsers; Flutter Structurizr parser has not run; Independent QA has not run.
 
-2. **BLOCKER — ambiguous document-event payload contract.** Existing `REQ32-DOCUMENT` says to preserve document ID and title in message history and “events”; `REQ36-RT-05` forbids document titles in ntfy payloads, and Flutter `NTFY-RT-05` agrees. Clarify that document metadata remains available from authoritative history/domain data, while the ntfy transport payload excludes the title and content. Flutter `FR-06` can render available metadata from the authorized conversation/history flow; it does not require the title in ntfy.
+### Gate status
 
-3. **REQUIREMENT GAP — sender exclusion.** Backend Issue #36 explicitly says not to notify the sender of their own message unless separately approved. `REQ36-RT-02` currently requires server-side recipient selection but does not state sender exclusion or test it. Add the rule and acceptance coverage to the backend draft; Flutter should consume the server-selected recipient behavior, not choose recipients.
+- Backend XML parser: `NOT_RUN_AFTER_REQUIREMENTS_EDIT`.
+- Backend Structurizr parser: `PASS_UNCHANGED_DSL` recorded for the unchanged backend C1; the XML edits do not validate or invalidate that separate DSL artifact.
+- Flutter XML parser: `NOT_RUN_AFTER_REQUIREMENTS_EDIT`.
+- Flutter Structurizr parser: `NOT RUN`.
+- Independent QA: `NOT RUN`.
+- Human Approval: `NOT GRANTED`.
+- Technology, implementation and deployment: **BLOCKED**.
 
-4. **TRACEABILITY GAP — Flutter release requirement.** `NTFY-RT-07` concerns production boundaries, compatibility, rollout and rollback, but links to `INV-HOST-SESSION`, `INV-SESSION-CACHE-ISOLATION` and `INV-DOC-ACL`; none directly expresses the production/release boundary. Add a dedicated production-boundary invariant or link to an existing requirement with that exact meaning, and connect `NTFY-RT-07` to it.
-
-5. **ACCEPTANCE GAP — platform evidence.** Backend `REQ36-RT-10` explicitly requires supported-browser and Android-lifecycle evidence. Flutter records browser and Android questions as blocking, but `AC-NTFY-RT-01` does not require that evidence. Add an explicit acceptance criterion or link the relevant acceptance criteria to `NTFY-RT-01` before the Technology gate.
-
-### Aligned unresolved dependencies
-
-Both drafts correctly leave ntfy authentication, topic/ACL ownership, active-subscription revocation, event schema/cursors, retry/deduplication and production rollout as unresolved dependencies. Those are not evidence of a contradiction; they remain blockers and must not be inferred or implemented.
-
-**Gate effect:** no approval status changes. Backend XML parser remains `PENDING_RERUN_AFTER_GATE_STATUS_EDIT`; Flutter XML and Structurizr parsers remain `NOT RUN`; Independent QA remains `NOT RUN`; Human Approval remains `NOT GRANTED`; Technology, implementation and deployment remain `BLOCKED`.
+No approved baseline, production repository, deployment, configuration, database, migration or infrastructure was changed.
