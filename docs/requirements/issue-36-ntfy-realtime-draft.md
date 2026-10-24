@@ -47,16 +47,15 @@ The requirements proposal defines `REQ36-RT-01` through `REQ36-RT-10`, acceptanc
 
 ## Verification status
 
-The requirements and C1 parser workflow completed successfully against source-validation commit `e2f9fe26919b17492af43288242e7c84954b562f`:
+The latest requirements/C1 parser run passed on source-validation commit `c6680371d25502d1c3076233b8c8e5099a9b6e42`:
 
-- [GitHub Actions — Requirements and C1 validation, run 40120052436](https://github.com/bogachenko/bfe-chat-service/actions/runs/40120052436): `success`.
-- [Duplicate run 40120048350](https://github.com/bogachenko/bfe-chat-service/actions/runs/40120048350): `success`.
+- [GitHub Actions — Requirements and C1 validation, run 40120143140](https://github.com/bogachenko/bfe-chat-service/actions/runs/40120143140): `success`.
 - XML parser: `PASS`; 75 IDs, all 75 unique; 33 local references resolved; one historical external approval reference retained.
 - Structurizr C1 parser: `PASS`, exit code 0.
 - Exact checked blobs: `RequirementsAnalysis.xml` = `b9f7d161feeaa415a7410fc2317193e82609b765`; `workspace.dsl` = `100a140d3837280b211e1a705014edb31cf19fb1`.
-- Workflow blob: `4af6d18a48d422724fe4f92316343eda9501a340`.
+- Validation workflow blob: `4af6d18a48d422724fe4f92316343eda9501a340`.
 
-The report-only commit that records these results does not alter either checked source blob. Parser success establishes syntax, ID uniqueness, and local-reference integrity only; it does not prove that the proposed security/recovery contract is implementable or accepted. Independent human acknowledgement and Human Approval remain pending.
+The verification report is updated after the source-validation run; this report-only change does not alter either validated source blob. Parser success establishes syntax, ID uniqueness, and local-reference integrity only; it does not prove that the proposed security/recovery contract is implementable or accepted. Independent human acknowledgement and Human Approval remain pending.
 
 Official ntfy documentation relevant to later Technology analysis:
 - [Subscribe API and stream/replay semantics](https://docs.ntfy.sh/subscribe/api/)
