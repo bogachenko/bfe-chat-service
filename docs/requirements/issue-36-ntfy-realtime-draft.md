@@ -46,6 +46,8 @@
 
 ## Verification status
 - Source SHAs and branch heads rechecked before writes.
-- Static lexical/reference checks only; not parser gates.
+- Backend RequirementsAnalysis static lexical check: PASS; 75 unique IDs, 0 duplicate IDs, balanced XML-like tag nesting, 0 unescaped ampersands.
+- Draft reference check: 57 references checked, 0 unresolved.
+- Backend C1 DSL brace-balance check: delta 0. This is not Structurizr validation.
 - XML parser: NOT RUN. Structurizr parser: NOT RUN. Independent QA: NOT RUN.
 - Human Approval: NOT GRANTED. Next GRACE stage: BLOCKED.
