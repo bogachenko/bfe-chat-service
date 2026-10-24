@@ -58,12 +58,11 @@
 
 ## Verification status
 
-- Source branch heads and base SHAs were rechecked before the draft update.
-- Backend XML parser rerun: PASS on draft HEAD `82836e14ff3661a4987c6a1242b93e299e8b8511`; root `REQUIREMENTS_ANALYSIS`, 90 IDs, no duplicate IDs, no unresolved local references. The historical external reference `APPROVAL25-REQUIREMENTS` remains documented and is not a local XML ID.
-- Backend Structurizr parser: PASS on the same validation worktree; exit code 0.
-- Static graph check: 90 unique IDs, 74 traceability links, 0 unresolved traceability endpoints. All ten new requirements link to an AAG scenario, a business process, an invariant, an acceptance criterion and a mental scenario.
-- The validation worktree was detached at the exact expected draft HEAD. The original repository worktree remains on `main` with its pre-existing untracked items unchanged.
-- Independent QA: NOT RUN. Human Approval: NOT GRANTED. Technology, implementation and deployment remain BLOCKED.
-- Backend C1 DSL is unchanged (blob `9da6ed068b5856c7af30ff1c3496f4142a5c1c24`) and its real Structurizr parser run returned exit code 0.
-- Flutter XML and C1 parser checks passed at draft HEAD `4b8d70e5ef7e59ed253d0d04b8150dbd481eff10`; the Flutter artifacts have not changed since that validation.
-- Independent QA: NOT RUN. Human Approval: NOT GRANTED. Technology, implementation and deployment: BLOCKED.
+- Current backend draft HEAD after correcting the gate record: `d06e58be0e7f8b80784be24733395ec41d93cb5e`.
+- Current `RequirementsAnalysis.xml` blob: `3439f5446df2fa46c22979244b5d560b5e73f7b9`.
+- The real XML parser passed on the earlier blob `c77e8f9addb95962fe2b061184d5689414f6e309` at HEAD `82836e14ff3661a4987c6a1242b93e299e8b8511`. After that run, the only XML content change was the `GATE_STATUS` line (the parser status was changed from pending to PASS). The parser was not rerun on that changed XML blob; therefore the current XML parser gate is **PENDING_RERUN_AFTER_GATE_STATUS_EDIT**, not PASS.
+- Independent static audit of the current XML blob: 90 ID attributes, 90 unique IDs, 0 duplicates; 74 explicit traceability links. Of 116 `ref`/`refs` tokens, unresolved local references: 0. The sole unresolved token is the documented historical external reference `APPROVAL25-REQUIREMENTS`; it is not a local XML ID.
+- Backend C1 DSL blob remains `9da6ed068b5856c7af30ff1c3496f4142a5c1c24`, unchanged from the previously parser-validated draft. Its recorded Structurizr parser result is PASS (exit code 0); this does not validate the XML.
+- Cross-repository verification discrepancy: the Flutter draft report explicitly records XML parser **NOT RUN** and Structurizr parser **NOT RUN**, while an earlier backend report line claimed Flutter parser checks passed. The latter claim is not accepted as evidence. Flutter parser gates remain **NOT RUN**.
+- Independent QA: **IN PROGRESS / NOT ACCEPTED**. Human Approval: **NOT GRANTED**. Technology, implementation and deployment remain **BLOCKED**.
+- No production code, configuration, database, migrations, permissions, or infrastructure were changed. `bfe-drive` remains READ-ONLY; `bfe-drive-client` production branches remain untouched.
