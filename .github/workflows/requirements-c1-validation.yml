@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - docs/issue-36-ntfy-realtime-requirements-draft
     paths:
       - RequirementsAnalysis.xml
       - docs/architecture/c4/workspace.dsl
@@ -31,80 +32,76 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout source
-        uses: actions/checkout@v5
+        id: checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       - name: Validate XML and internal references
-        shell: bash
         run: |
           python3 - <<'PY'
           from collections import Counter
           from pathlib import Path
-          import sys
           import xml.etree.ElementTree as ET
 
           path = Path("RequirementsAnalysis.xml")
           root = ET.parse(path).getroot()
+          if root.tag != "REQUIREMENTS_ANALYSIS":
+              raise ValueError(f"Unexpected XML root: {root.tag}")
           ids = [element.attrib["id"] for element in root.iter() if "id" in element.attrib]
           duplicates = sorted(identifier for identifier, count in Counter(ids).items() if count > 1)
           known_ids = set(ids)
           reference_attributes = {"ref", "refs", "from", "to"}
-          external_reference_locations = {("HISTORICAL_APPROVAL", "ref")}
-          external_references = []
           unresolved = []
+          external_references = []
           reference_count = 0
 
           for element in root.iter():
               for attribute, value in element.attrib.items():
                   if attribute not in reference_attributes:
                       continue
-                  targets = value.split()
-                  if (element.tag, attribute) in external_reference_locations:
-                      external_references.extend(targets)
-                      continue
-                  for target in targets:
+                  for target in value.split():
+                      if (element.tag, attribute, target) == ("HISTORICAL_APPROVAL", "ref", "APPROVAL25-REQUIREMENTS"):
+                          external_references.append(target)
+                          continue
                       reference_count += 1
                       if target not in known_ids:
                           unresolved.append((element.tag, attribute, target))
 
-          print(f"XML well-formedness: PASS ({path})")
-          print(f"ID inventory: {len(ids)} IDs, {len(known_ids)} unique")
+          print(f"XML parser: PASS ({path}; root={root.tag})")
+          print(f"ID inventory: {len(ids)} IDs; {len(known_ids)} unique")
           if duplicates:
-              print("Duplicate IDs:")
-              for identifier in duplicates:
-                  print(f"  {identifier}")
-              sys.exit(1)
+              raise ValueError(f"Duplicate XML IDs: {duplicates}")
           print("ID uniqueness: PASS")
-
           if unresolved:
-              print("Unresolved internal references:")
-              for element, attribute, target in unresolved:
-                  print(f"  <{element}> {attribute}={target!r}")
-              sys.exit(1)
-          print(f"Internal reference integrity: PASS ({reference_count} references)")
-          print(f"Historical approval references retained as external provenance: {len(external_references)}")
+              raise ValueError(f"Unresolved local references: {unresolved}")
+          print(f"Local reference integrity: PASS ({reference_count} references)")
+          print(f"Historical external provenance references: {len(external_references)}")
           PY
+          printf 'XML parser exit code: 0\n'
 
       - name: Validate Structurizr C1 workspace
         run: |
           docker run --rm \
             -v "${GITHUB_WORKSPACE}:/workspace:ro" \
-            structurizr/structurizr:2026.09.19 \
+            structurizr/structurizr:2026.09.19@sha256:721136283c2f9cf1ba69037bc9de136c579d66fdcb2d771cb60546ec68def1a5 \
             validate -workspace /workspace/docs/architecture/c4/workspace.dsl
+          printf 'Structurizr parser exit code: 0\n'
 
       - name: Record exact artifact identities
+        if: always() && steps.checkout.outcome == 'success'
         env:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
         run: |
           printf 'GitHub event: %s\n' "$GITHUB_EVENT_NAME"
-          printf 'Workflow checkout SHA: %s\n' "$GITHUB_SHA"
-          printf 'PR head SHA: %s\n' "$PR_HEAD_SHA"
+          printf 'Workflow checkout SHA: %s\n' "$(git rev-parse HEAD)"
+          printf 'Expected source SHA: %s\n' "$PR_HEAD_SHA"
           if [ -n "$PR_BASE_SHA" ]; then
             printf 'PR base SHA: %s\n' "$PR_BASE_SHA"
           fi
           printf 'RequirementsAnalysis.xml blob: '
-          git hash-object RequirementsAnalysis.xml
+          git rev-parse HEAD:RequirementsAnalysis.xml
           printf 'C1 workspace.dsl blob: '
-          git hash-object docs/architecture/c4/workspace.dsl
+          git rev-parse HEAD:docs/architecture/c4/workspace.dsl
