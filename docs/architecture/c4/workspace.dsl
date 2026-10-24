@@ -6,13 +6,13 @@ workspace "BFE Chat Service" "GRACE architecture views: requirements, technology
         employee = person "BFE employee" "BFE account assigned to legacy conversations (ACT-EMPLOYEE)."
         admin = person "BFE administrator" "Uses the Admin UI for legacy assignments and read-only auditing (ACT-ADMIN)."
 
-        chatClients = softwareSystem "BFE Chat client applications" "Flutter Web/Android clients that use chat APIs and subscribe to authorized realtime wake-up signals (EXT-CHAT-CLIENTS)." {
+        chatConsumers = softwareSystem "External Chat consumers" "Consumers of Chat Service APIs; implementation and transport migration are outside this service-only requirements revision (EXT-CHAT-CONSUMERS)." {
             tags "External"
         }
-        adminUI = softwareSystem "BFE administrative UI" "Separate UI for legacy assignments and read-only auditing; not a chat realtime subscriber (EXT-ADMIN-UI)." {
+        adminUI = softwareSystem "BFE administrative UI" "External administrative interface for legacy assignments and read-only auditing; implementation is outside this service-only requirements revision (EXT-ADMIN-UI)." {
             tags "External"
         }
-        ntfy = softwareSystem "ntfy" "Proposed target realtime wake-up transport for RA36-001; no message history or authorization authority. Centrifuge remains effective until Human Approval." {
+        ntfy = softwareSystem "ntfy" "Proposed target realtime wake-up transport for RA36-001. Chat Service publishes minimal wake-up signals; ntfy owns no message history or Chat authorization. Centrifuge remains effective until Human Approval." {
             tags "External"
         }
         drive = softwareSystem "BFE Drive / Internal Auth" "Owns BFE identity, session status and documents; Chat asks Internal Auth to validate sessions via UDS (EXT-AUTH, EXT-DRIVE)." {
@@ -66,18 +66,18 @@ workspace "BFE Chat Service" "GRACE architecture views: requirements, technology
             app -> database "Query / transaction / migration" "PostgreSQL/pgx/goose"
         }
 
-        user -> chatClients "Chat and document actions"
-        employee -> chatClients "Assigned legacy conversations"
+        user -> chatConsumers "Chat and document actions"
+        employee -> chatConsumers "Assigned legacy conversations"
         admin -> adminUI "Administrative operations"
-        chatClients -> chat.ingress "Send Chat API/WS requests" "HTTPS/WSS, DPoP"
-        chatClients -> drive "Open/download documents under Drive ACL" "HTTPS"
-        chatClients -> ntfy "Subscribe to authorized per-membership-epoch wake-up topics (proposed target only)"
-        adminUI -> chat.ingress "Administrative API operations; no realtime subscription" "HTTPS, DPoP"
+        chatConsumers -> chat.ingress "Send Chat API requests" "HTTPS, DPoP"
+        chatConsumers -> drive "Open/download documents under Drive ACL" "HTTPS"
+        
+        adminUI -> chat.ingress "Administrative API operations" "HTTPS, DPoP"
     }
 
     views {
         systemContext chat "requirements-c1-context" {
-            description "RequirementsAnalysis.xml: chat users use Flutter Web/Android; the administrative UI is a separate non-subscriber. The ntfy relationship is proposed by RA36-001 and is not effective before Human Approval."
+            description "Service-only view of BFE Chat Service and its direct dependencies. External consumer implementations and their subscription wiring are outside this revision. ntfy is shown only as the proposed service-side publication dependency and is not effective before Human Approval."
             include *
             autolayout lr
         }
