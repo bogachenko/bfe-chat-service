@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - docs/issue-36-ntfy-realtime-requirements-draft
     paths:
       - RequirementsAnalysis.xml
       - docs/architecture/c4/workspace.dsl
@@ -51,6 +50,8 @@ jobs:
           duplicates = sorted(identifier for identifier, count in Counter(ids).items() if count > 1)
           known_ids = set(ids)
           reference_attributes = {"ref", "refs", "from", "to"}
+          external_reference_locations = {("HISTORICAL_APPROVAL", "ref")}
+          external_references = []
           unresolved = []
           reference_count = 0
 
@@ -58,7 +59,11 @@ jobs:
               for attribute, value in element.attrib.items():
                   if attribute not in reference_attributes:
                       continue
-                  for target in value.split():
+                  targets = value.split()
+                  if (element.tag, attribute) in external_reference_locations:
+                      external_references.extend(targets)
+                      continue
+                  for target in targets:
                       reference_count += 1
                       if target not in known_ids:
                           unresolved.append((element.tag, attribute, target))
@@ -78,6 +83,7 @@ jobs:
                   print(f"  <{element}> {attribute}={target!r}")
               sys.exit(1)
           print(f"Internal reference integrity: PASS ({reference_count} references)")
+          print(f"Historical approval references retained as external provenance: {len(external_references)}")
           PY
 
       - name: Validate Structurizr C1 workspace
