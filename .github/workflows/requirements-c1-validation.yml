@@ -94,9 +94,16 @@ jobs:
             validate -workspace /workspace/docs/architecture/c4/workspace.dsl
 
       - name: Record exact artifact identities
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
         run: |
-          printf 'HEAD: '
-          git rev-parse HEAD
+          printf 'GitHub event: %s\n' "$GITHUB_EVENT_NAME"
+          printf 'Workflow checkout SHA: %s\n' "$GITHUB_SHA"
+          printf 'PR head SHA: %s\n' "$PR_HEAD_SHA"
+          if [ -n "$PR_BASE_SHA" ]; then
+            printf 'PR base SHA: %s\n' "$PR_BASE_SHA"
+          fi
           printf 'RequirementsAnalysis.xml blob: '
           git hash-object RequirementsAnalysis.xml
           printf 'C1 workspace.dsl blob: '
