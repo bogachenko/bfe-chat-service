@@ -58,16 +58,18 @@
 
 ## Verification status
 
-- The gate-status correction is recorded in commit `d06e58be0e7f8b80784be24733395ec41d93cb5e`; the report consistency correction is recorded in commit `b64600109c45e669f8591154cc3a65ec842124a4`.
-- Current `RequirementsAnalysis.xml` blob: `3439f5446df2fa46c22979244b5d560b5e73f7b9`.
-- The real XML parser passed on the earlier blob `c77e8f9addb95962fe2b061184d5689414f6e309` at HEAD `82836e14ff3661a4987c6a1242b93e299e8b8511`. After that run, the only XML content change was the `GATE_STATUS` line (the parser status was changed from pending to PASS). The parser was not rerun on that changed XML blob; therefore the current XML parser gate is **PENDING_RERUN_AFTER_GATE_STATUS_EDIT**, not PASS.
-- Independent static audit of the current XML blob: 90 ID attributes, 90 unique IDs, 0 duplicates; 74 explicit traceability links. Of 116 `ref`/`refs` tokens, unresolved local references: 0. The sole unresolved token is the documented historical external reference `APPROVAL25-REQUIREMENTS`; it is not a local XML ID.
-- Backend C1 DSL blob remains `9da6ed068b5856c7af30ff1c3496f4142a5c1c24`, unchanged from the previously parser-validated draft. Its recorded Structurizr parser result is PASS (exit code 0); this does not validate the XML.
-- Cross-repository verification discrepancy: the Flutter draft report explicitly records XML parser **NOT RUN** and Structurizr parser **NOT RUN**, while an earlier backend report line claimed Flutter parser checks passed. The latter claim is not accepted as evidence. Flutter parser gates remain **NOT RUN**.
-- Formal Independent QA gate: **NOT RUN**; this orchestrator's static audit is not an Independent QA acceptance. Human Approval: **NOT GRANTED**. Technology, implementation and deployment remain **BLOCKED**.
-- No production code, configuration, database, migrations, permissions, or infrastructure were changed. `bfe-drive` remains READ-ONLY; `bfe-drive-client` production branches remain untouched.
+**Parser gates: PASS on the exact artifact blobs listed below.** Validation was run by the permanent GitHub Actions workflow `.github/workflows/requirements-c1-validation.yml` using the Python standard-library XML parser and Structurizr `2026.09.19`.
 
-
+- Validation commit: `a57063532ef598db928f94dcb8cbe796bdef3c37`.
+- `RequirementsAnalysis.xml` blob: `8bdd4b9b7b03e727e40e6913c609ddb5f499c444`.
+- C1 `workspace.dsl` blob: `9da6ed068b5856c7af30ff1c3496f4142a5c1c24`.
+- XML parser: **PASS**, exit code 0; root `REQUIREMENTS_ANALYSIS`; 90 IDs, 90 unique, 0 duplicates; 263 local references resolved. The single `APPROVAL25-REQUIREMENTS` reference is preserved as external historical provenance and is not treated as a local ID.
+- Structurizr parser: **PASS**, exit code 0; image `structurizr/structurizr:2026.09.19`, digest `sha256:721136283c2f9cf1ba69037bc9de136c579d66fdcb2d771cb60546ec68def1a5`.
+- Workflow run and logs: https://github.com/bogachenko/bfe-chat-service/actions/runs/40107956573
+- The workflow is permanent in this draft branch and runs on relevant pushes, pull requests and manual dispatch. The checkout action is pinned to a full commit SHA; the Structurizr image is pinned by version and digest.
+- `GATE_STATUS`: XML parser `PASS`; Structurizr parser `PASS`; Independent QA `NOT_RUN`; Human Approval `NOT_GRANTED`; Technology, implementation and deployment remain `BLOCKED`.
+- This report-only update does not change the validated XML or DSL blobs. The branch HEAD will advance because this report is being updated.
+- No production code, configuration, database, migrations, permissions or infrastructure were changed. `bfe-drive` remains READ-ONLY; `bfe-drive-client` production branches remain untouched.
 ## Cross-component semantic consistency review (2026-10-24)
 
 **Result: PARTIAL ALIGNMENT — REQUIREMENTS APPROVAL BLOCKED.** This is an orchestrator content review, not the formal Independent QA gate. No RequirementsAnalysis XML, C1 DSL, production artifact or implementation was changed by this review.
