@@ -116,7 +116,7 @@
       <LINK from="MS36-NTFY-01" to="REQ36-RT-02" relation="exercises"/><LINK from="MS36-NTFY-02" to="REQ36-RT-03" relation="exercises"/><LINK from="MS36-NTFY-03" to="REQ36-RT-07" relation="exercises"/><LINK from="MS36-NTFY-04" to="REQ36-RT-01" relation="exercises"/><LINK from="MS36-NTFY-04" to="REQ36-RT-04" relation="exercises"/><LINK from="MS36-NTFY-05" to="REQ36-RT-06" relation="exercises"/><LINK from="MS36-NTFY-06" to="REQ36-RT-05" relation="exercises"/><LINK from="MS36-NTFY-06" to="REQ36-RT-08" relation="exercises"/><LINK from="MS36-NTFY-07" to="REQ36-RT-10" relation="exercises"/><LINK from="MS36-NTFY-08" to="REQ36-RT-09" relation="exercises"/>
     </TRACEABILITY>
     <PRODUCTION_BOUNDARIES><SYSTEM name="bfe-drive" status="PRODUCTION_READ_ONLY">No code, config, database, migrations, permissions or infrastructure changes.</SYSTEM><SYSTEM name="bfe-drive-client" status="PRODUCTION_READ_ONLY">No changes to main or production/android; integration is unverified.</SYSTEM><RULE>No production deployment, migration, configuration change or rollout is authorized.</RULE></PRODUCTION_BOUNDARIES>
-    <GATE_STATUS requirements="DRAFT_NOT_APPROVED" xml_parser="PASS" structurizr_parser="PASS" independent_qa="NOT_RUN" technology="BLOCKED" implementation="BLOCKED" deployment="BLOCKED"/>
+    <GATE_STATUS requirements="DRAFT_NOT_APPROVED" xml_parser="PENDING_RERUN_AFTER_GATE_STATUS_EDIT" structurizr_parser="PASS_UNCHANGED_DSL" independent_qa="NOT_RUN" technology="BLOCKED" implementation="BLOCKED" deployment="BLOCKED"/>
   </DRAFT_REALTIME_REVISION>
 
 </REQUIREMENTS_ANALYSIS>
