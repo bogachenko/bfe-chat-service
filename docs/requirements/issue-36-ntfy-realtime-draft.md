@@ -58,11 +58,11 @@
 
 ## Verification status
 
-- Current backend draft HEAD after correcting the gate record: `d06e58be0e7f8b80784be24733395ec41d93cb5e`.
+- The gate-status correction is recorded in commit `d06e58be0e7f8b80784be24733395ec41d93cb5e`; the report consistency correction is recorded in commit `b64600109c45e669f8591154cc3a65ec842124a4`.
 - Current `RequirementsAnalysis.xml` blob: `3439f5446df2fa46c22979244b5d560b5e73f7b9`.
 - The real XML parser passed on the earlier blob `c77e8f9addb95962fe2b061184d5689414f6e309` at HEAD `82836e14ff3661a4987c6a1242b93e299e8b8511`. After that run, the only XML content change was the `GATE_STATUS` line (the parser status was changed from pending to PASS). The parser was not rerun on that changed XML blob; therefore the current XML parser gate is **PENDING_RERUN_AFTER_GATE_STATUS_EDIT**, not PASS.
 - Independent static audit of the current XML blob: 90 ID attributes, 90 unique IDs, 0 duplicates; 74 explicit traceability links. Of 116 `ref`/`refs` tokens, unresolved local references: 0. The sole unresolved token is the documented historical external reference `APPROVAL25-REQUIREMENTS`; it is not a local XML ID.
 - Backend C1 DSL blob remains `9da6ed068b5856c7af30ff1c3496f4142a5c1c24`, unchanged from the previously parser-validated draft. Its recorded Structurizr parser result is PASS (exit code 0); this does not validate the XML.
 - Cross-repository verification discrepancy: the Flutter draft report explicitly records XML parser **NOT RUN** and Structurizr parser **NOT RUN**, while an earlier backend report line claimed Flutter parser checks passed. The latter claim is not accepted as evidence. Flutter parser gates remain **NOT RUN**.
-- Independent QA: **IN PROGRESS / NOT ACCEPTED**. Human Approval: **NOT GRANTED**. Technology, implementation and deployment remain **BLOCKED**.
+- Formal Independent QA gate: **NOT RUN**; this orchestrator's static audit is not an Independent QA acceptance. Human Approval: **NOT GRANTED**. Technology, implementation and deployment remain **BLOCKED**.
 - No production code, configuration, database, migrations, permissions, or infrastructure were changed. `bfe-drive` remains READ-ONLY; `bfe-drive-client` production branches remain untouched.
