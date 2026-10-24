@@ -1,0 +1,97 @@
+name: Requirements and C1 validation
+
+on:
+  push:
+    branches:
+      - main
+      - docs/issue-36-ntfy-realtime-requirements-draft
+    paths:
+      - RequirementsAnalysis.xml
+      - docs/architecture/c4/workspace.dsl
+      - .github/workflows/requirements-c1-validation.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - RequirementsAnalysis.xml
+      - docs/architecture/c4/workspace.dsl
+      - .github/workflows/requirements-c1-validation.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: requirements-c1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: XML and Structurizr C1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Validate XML and internal references
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from collections import Counter
+          from pathlib import Path
+          import sys
+          import xml.etree.ElementTree as ET
+
+          path = Path("RequirementsAnalysis.xml")
+          root = ET.parse(path).getroot()
+          ids = [element.attrib["id"] for element in root.iter() if "id" in element.attrib]
+          duplicates = sorted(identifier for identifier, count in Counter(ids).items() if count > 1)
+          known_ids = set(ids)
+          reference_attributes = {"ref", "refs", "from", "to"}
+          unresolved = []
+          reference_count = 0
+
+          for element in root.iter():
+              for attribute, value in element.attrib.items():
+                  if attribute not in reference_attributes:
+                      continue
+                  for target in value.split():
+                      reference_count += 1
+                      if target not in known_ids:
+                          unresolved.append((element.tag, attribute, target))
+
+          print(f"XML well-formedness: PASS ({path})")
+          print(f"ID inventory: {len(ids)} IDs, {len(known_ids)} unique")
+          if duplicates:
+              print("Duplicate IDs:")
+              for identifier in duplicates:
+                  print(f"  {identifier}")
+              sys.exit(1)
+          print("ID uniqueness: PASS")
+
+          if unresolved:
+              print("Unresolved internal references:")
+              for element, attribute, target in unresolved:
+                  print(f"  <{element}> {attribute}={target!r}")
+              sys.exit(1)
+          print(f"Internal reference integrity: PASS ({reference_count} references)")
+          PY
+
+      - name: Validate Structurizr C1 workspace
+        run: |
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}:/workspace:ro" \
+            structurizr/structurizr:2026.09.19 \
+            validate -workspace /workspace/docs/architecture/c4/workspace.dsl
+
+      - name: Record exact artifact identities
+        run: |
+          printf 'HEAD: '
+          git rev-parse HEAD
+          printf 'RequirementsAnalysis.xml blob: '
+          git hash-object RequirementsAnalysis.xml
+          printf 'C1 workspace.dsl blob: '
+          git hash-object docs/architecture/c4/workspace.dsl
