@@ -66,3 +66,41 @@
 - Cross-repository verification discrepancy: the Flutter draft report explicitly records XML parser **NOT RUN** and Structurizr parser **NOT RUN**, while an earlier backend report line claimed Flutter parser checks passed. The latter claim is not accepted as evidence. Flutter parser gates remain **NOT RUN**.
 - Formal Independent QA gate: **NOT RUN**; this orchestrator's static audit is not an Independent QA acceptance. Human Approval: **NOT GRANTED**. Technology, implementation and deployment remain **BLOCKED**.
 - No production code, configuration, database, migrations, permissions, or infrastructure were changed. `bfe-drive` remains READ-ONLY; `bfe-drive-client` production branches remain untouched.
+
+
+## Cross-component semantic consistency review (2026-10-24)
+
+**Result: PARTIAL ALIGNMENT — REQUIREMENTS APPROVAL BLOCKED.** This is an orchestrator content review, not the formal Independent QA gate. No RequirementsAnalysis XML, C1 DSL, production artifact or implementation was changed by this review.
+
+Reviewed against Flutter draft HEAD `4b8d70e5ef7e59ed253d0d04b8150dbd481eff10`, including its `RequirementsAnalysis.xml` blob `8d8912fd701da001a326ff2e3aacc2f45b662433`, and the current Backend Issue #36 and Flutter Issue #4 text.
+
+### Cross-component mapping
+
+| Backend draft | Flutter draft | Review |
+|---|---|---|
+| `REQ36-RT-01` | `NTFY-RT-01` | Same proposed target (ntfy replaces Centrifuge), but blocked by the conflicting unchanged Backend Issue #36 decision below. |
+| `REQ36-RT-02` | `NTFY-RT-02` | Authorization/topic isolation aligned. Sender-exclusion rule is missing from the draft requirement. |
+| `REQ36-RT-03`, `REQ36-RT-07` | `NTFY-RT-03` | Membership/session revocation and account-switch isolation aligned; revocation bound remains unresolved in both. |
+| `REQ36-RT-04` | `NTFY-RT-04` | Authoritative-history reconciliation aligned; event identity/cursor, deduplication and catch-up trigger remain unresolved in both. |
+| `REQ36-RT-05`, `REQ36-RT-08` | `NTFY-RT-05` | Minimal ntfy payload and independent Drive ACL aligned; wording in the inherited document-event requirement needs clarification. |
+| `REQ36-RT-06` | `NTFY-RT-06` | Post-commit failure behavior aligned. Backend owns publishing/retry/outbox/telemetry; Flutter must not represent notification failure as message-persistence failure. Mechanism remains open. |
+| `REQ36-RT-09` | `NTFY-RT-07` | Production boundary and release-evidence intent aligned; Flutter traceability links do not directly support this requirement. |
+| `REQ36-RT-10` | `NTFY-RT-01`, `OQ-15`, `OQ-16` | Web and Android scope aligned; Flutter acceptance criteria should explicitly require evidence for supported browsers and Android lifecycle states. |
+
+### Findings requiring correction or explicit resolution
+
+1. **BLOCKER — transport decision conflicts with the existing backend issue.** Backend Issue #36 says ntfy is an additional notification channel and Centrifuge must remain responsible for in-app realtime. Flutter Issue #4 asks to evaluate replacing Centrifuge, and both drafts currently describe ntfy as the replacement target. Record an explicit Project Owner decision on Issue #36 or a linked decision before requirements approval; do not silently treat the draft proposal as effective.
+
+2. **BLOCKER — ambiguous document-event payload contract.** Existing `REQ32-DOCUMENT` says to preserve document ID and title in message history and “events”; `REQ36-RT-05` forbids document titles in ntfy payloads, and Flutter `NTFY-RT-05` agrees. Clarify that document metadata remains available from authoritative history/domain data, while the ntfy transport payload excludes the title and content. Flutter `FR-06` can render available metadata from the authorized conversation/history flow; it does not require the title in ntfy.
+
+3. **REQUIREMENT GAP — sender exclusion.** Backend Issue #36 explicitly says not to notify the sender of their own message unless separately approved. `REQ36-RT-02` currently requires server-side recipient selection but does not state sender exclusion or test it. Add the rule and acceptance coverage to the backend draft; Flutter should consume the server-selected recipient behavior, not choose recipients.
+
+4. **TRACEABILITY GAP — Flutter release requirement.** `NTFY-RT-07` concerns production boundaries, compatibility, rollout and rollback, but links to `INV-HOST-SESSION`, `INV-SESSION-CACHE-ISOLATION` and `INV-DOC-ACL`; none directly expresses the production/release boundary. Add a dedicated production-boundary invariant or link to an existing requirement with that exact meaning, and connect `NTFY-RT-07` to it.
+
+5. **ACCEPTANCE GAP — platform evidence.** Backend `REQ36-RT-10` explicitly requires supported-browser and Android-lifecycle evidence. Flutter records browser and Android questions as blocking, but `AC-NTFY-RT-01` does not require that evidence. Add an explicit acceptance criterion or link the relevant acceptance criteria to `NTFY-RT-01` before the Technology gate.
+
+### Aligned unresolved dependencies
+
+Both drafts correctly leave ntfy authentication, topic/ACL ownership, active-subscription revocation, event schema/cursors, retry/deduplication and production rollout as unresolved dependencies. Those are not evidence of a contradiction; they remain blockers and must not be inferred or implemented.
+
+**Gate effect:** no approval status changes. Backend XML parser remains `PENDING_RERUN_AFTER_GATE_STATUS_EDIT`; Flutter XML and Structurizr parsers remain `NOT RUN`; Independent QA remains `NOT RUN`; Human Approval remains `NOT GRANTED`; Technology, implementation and deployment remain `BLOCKED`.
